@@ -7,7 +7,7 @@
 
 The **Page Stats** Plugin is an extension for [Grav CMS](http://github.com/getgrav/grav).
 
-Enhaced statistics for grav 2
+Enhaced statistics for grav
 
 This plugin will create a new entry in the admin plugin sidebar to display enhaced page stats about your site!
 
