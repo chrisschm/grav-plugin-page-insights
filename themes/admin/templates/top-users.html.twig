@@ -1,0 +1,11 @@
+{% extends 'stats.html.twig' %}
+{% block pageTitle %}
+    <h1>
+        <i class="fa fa-fw fa-line-chart"></i>
+        {{ "PLUGIN_PAGE_STATS.TOP_USERS"|t }}
+    </h1>
+{% endblock %}
+
+{% block content %}
+    {% include 'widgets/top-users.html.twig' with {'data': pageStats.db.topUsers(0), 'show_views': true, 'hide_show_all': true} %}
+{% endblock %}

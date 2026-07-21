@@ -1,0 +1,22 @@
+<table class="table table-hover">
+    <tr>
+        <th>
+            {{ "PLUGIN_PAGE_STATS.TABLE_COUNTRY"|t }}
+        </th>
+        <th>
+            {{ "PLUGIN_PAGE_STATS.TABLE_SHARE"|t }}
+        </th>
+    </tr>
+    {% for s in data %}
+        <tr>
+            <td>
+                <img src="https://flagcdn.com/24x18/{{ s.country|lower }}.png">
+                {{ s.country }}
+            </td>
+            <td>
+                <span title="{{ s.hits }}">{{s.share}}
+                    %</span>
+            </td>
+        </tr>
+    {% endfor %}
+</table>
