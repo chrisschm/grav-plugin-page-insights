@@ -291,6 +291,26 @@ class Stats
     }
 
     /**
+     * returns the total number of unique visitors (distinct IPs)
+     */
+    public function totalUniqueVisitors(?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
+    {
+        $q = 'select count(distinct ip) as visitors from data %where';
+
+        return $this->query($q, $params, null, $dateFrom, $dateTo);
+    }
+
+    /**
+     * returns the total number of unique logged in users
+     */
+    public function totalUniqueUsers(?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
+    {
+        $q = "select count(distinct user) as users from data %where";
+
+        return $this->query($q, $params, null, $dateFrom, $dateTo);
+    }
+
+    /**
      * returns the browsers with the most pageviews
      */
     public function topBrowsers(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
