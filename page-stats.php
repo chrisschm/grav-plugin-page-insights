@@ -85,7 +85,6 @@ class PageStatsPlugin extends Plugin
      */
     public function onPluginsInitialized(): void
     {
-        $this->grav['log']->info('page-stats DIAGNOSTIC: onPluginsInitialized fired, isAdmin=' . ($this->isAdmin() ? '1' : '0'));
 
         // Don't proceed if we are in the admin plugin
         if ($this->isAdmin()) {
@@ -471,8 +470,6 @@ class PageStatsPlugin extends Plugin
      */
     public function onApiRegisterRoutes(Event $event): void
     {
-        $this->grav['log']->info('page-stats DIAGNOSTIC: onApiRegisterRoutes fired');
-
         $routes = $event['routes'];
         $controller = PageStatsApiController::class;
 
@@ -495,8 +492,6 @@ class PageStatsPlugin extends Plugin
      */
     public function onApiSidebarItems(Event $event): void
     {
-        $this->grav['log']->info('page-stats DIAGNOSTIC: onApiSidebarItems fired');
-
         $items = $event['items'] ?? [];
         $items[] = [
             'id' => self::ADMIN2_PAGE_ID,
@@ -516,8 +511,6 @@ class PageStatsPlugin extends Plugin
      */
     public function onApiPluginPageInfo(Event $event): void
     {
-        $this->grav['log']->info('page-stats DIAGNOSTIC: onApiPluginPageInfo fired, plugin=' . ($event['plugin'] ?? 'NULL'));
-
         if ($event['plugin'] !== 'page-stats') {
             return;
         }

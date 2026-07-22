@@ -192,14 +192,22 @@ class Stats
     private function query(string $q, array $params = [], ?int $limit = null, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null)
     {
         $where = [];
-        if ($dateFrom && $dateTo) {
-            $where[] = ' date BETWEEN :date_from AND :dateTo';
-            $params['date_from'] = $dateFrom;
-            $params['date_to'] = $dateTo;
-        }
+        $bindings = [];
 
+        // Equality filters passed in by the caller (e.g. ['route' => $route])
         foreach ($params as $key => $value) {
             $where[] = "$key = :$key";
+            $bindings[$key] = $value;
+        }
+
+        // Date range, handled separately so it never gets run back through
+        // the equality-filter loop above (that previously generated a bogus
+        // "date_from = :date_from" clause - there is no such column, only
+        // "date" - and used a mismatched :dateTo/:date_to placeholder).
+        if ($dateFrom && $dateTo) {
+            $where[] = ' date BETWEEN :date_from AND :date_to';
+            $bindings['date_from'] = $dateFrom->format('c');
+            $bindings['date_to'] = $dateTo->format('c');
         }
 
         if (count($where)) {
@@ -210,12 +218,12 @@ class Stats
 
         if ($limit && (int) $limit > 0) {
             $q .= ' LIMIT :limit';
-            $params['limit'] = $limit;
+            $bindings['limit'] = $limit;
         }
 
         $s = $this->db->prepare($q);
 
-        foreach ($params as $key => $value) {
+        foreach ($bindings as $key => $value) {
             $s->bindValue(':' . $key, $value);
         }
 
@@ -399,9 +407,9 @@ class Stats
      */
     public function siteSummary(?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
-        $hits = $this->query('SELECT date(datetime(date), :offset) as date, route, page_title, count(route) as hits FROM data %where GROUP BY date(datetime(date), :offset)', $params, $dateFrom, $dateTo);
-        $visitors = $this->query('SELECT date(datetime(date), :offset) as date, route, page_title, ip, count(distinct ip) as hits FROM data %where GROUP BY date(datetime(date), :offset)',  $params, $dateFrom, $dateTo);
-        $users = $this->query('SELECT date(datetime(date), :offset) as date, route, page_title, ip, count(distinct user) as hits FROM data %where GROUP BY date(datetime(date), :offset)',  $params, $dateFrom, $dateTo);
+        $hits = $this->query('SELECT date(datetime(date), :offset) as date, route, page_title, count(route) as hits FROM data %where GROUP BY date(datetime(date), :offset)', $params, null, $dateFrom, $dateTo);
+        $visitors = $this->query('SELECT date(datetime(date), :offset) as date, route, page_title, ip, count(distinct ip) as hits FROM data %where GROUP BY date(datetime(date), :offset)',  $params, null, $dateFrom, $dateTo);
+        $users = $this->query('SELECT date(datetime(date), :offset) as date, route, page_title, ip, count(distinct user) as hits FROM data %where GROUP BY date(datetime(date), :offset)',  $params, null, $dateFrom, $dateTo);
 
         return [
             'hits' => $hits,
