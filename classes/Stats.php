@@ -36,6 +36,18 @@ class Stats
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
 
+        // Without these, concurrent requests writing to the same SQLite file
+        // fail fast with "database is locked" (default busy_timeout is 0)
+        // and every commit fsyncs the whole rollback journal by default.
+        // Under real traffic (many simultaneous page views) that can pile up
+        // PHP-FPM workers waiting on the same lock and, in the worst case,
+        // exhaust the whole pool - taking down unrelated requests too.
+        // WAL allows one writer + many concurrent readers instead of
+        // serializing everything on a single file lock.
+        $this->db->exec('PRAGMA busy_timeout = 5000');
+        $this->db->exec('PRAGMA journal_mode = WAL');
+        $this->db->exec('PRAGMA synchronous = NORMAL');
+
 
         if ($migrate) {
             $this->migrate();
