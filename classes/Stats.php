@@ -224,7 +224,15 @@ class Stats
         $s = $this->db->prepare($q);
 
         foreach ($bindings as $key => $value) {
-            $s->bindValue(':' . $key, $value);
+            // Defensive: only bind values whose placeholder actually made it
+            // into the final SQL. A couple of query builder methods in this
+            // class accept $dateFrom/$dateTo (or other $params) but forget
+            // to include '%where' in their SQL, which meant these bindings
+            // had nothing to attach to and SQLite rejected them with
+            // "column index out of range".
+            if (str_contains($q, ':' . $key)) {
+                $s->bindValue(':' . $key, $value);
+            }
         }
 
         if (str_contains($q, ':offset')) {
@@ -243,7 +251,7 @@ class Stats
      */
     public function pagesSummary(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null)
     {
-        $q = 'SELECT route, page_title, count(route) as hits, count(distinct ip) as visitors, count(distinct user) as users FROM data GROUP BY page_title ORDER BY hits DESC';
+        $q = 'SELECT route, page_title, count(route) as hits, count(distinct ip) as visitors, count(distinct user) as users FROM data %where GROUP BY page_title ORDER BY hits DESC';
 
         return $this->query($q, [], $limit, $dateFrom, $dateTo);
     }
