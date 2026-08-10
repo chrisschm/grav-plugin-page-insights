@@ -14,7 +14,7 @@ body:
     attributes:
       label: Plugin version
       description: See Admin panel, blueprints.yaml, or CHANGELOG.md
-      placeholder: e.g. 2.9.0
+      placeholder: e.g. 3.0.0
     validations:
       required: true
   - type: dropdown
