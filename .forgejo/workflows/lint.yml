@@ -1,0 +1,112 @@
+name: Syntax-Checks
+
+on:
+  push:
+   branches:
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+    # Absichtlich nur main/develop gelistet: PRs mit Zielbranch "translate"
+    # (Codeberg Translate, siehe Uebersetzungs-Setup im README) loesen den
+    # Job dadurch nicht aus. Dort aendern sich ohnehin nur languages/*.yaml,
+    # nie PHP/JS/Twig - der Lint-Job wuerde dort nichts pruefen, aber
+    # unnoetig Runner-Minuten verbrauchen.
+
+jobs:
+  syntax-php-js-twig:
+    if: github.server_url != 'https://github.com'
+    runs-on: codeberg-small
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: PHP und Composer bereitstellen
+        uses: https://github.com/shivammathur/setup-php@v2 # Image explizit von Github anfordern
+        with:
+          php-version: '8.3' # Gewünschte Version wählen
+          tools: composer:v2
+          coverage: none # Optional: Code-Coverage Treiber sparen Zeit
+
+      - name: PHP und Composer Version anzeigen
+        run: |
+          php -v
+          composer --version
+
+      - name: Abhängigkeiten installieren
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Geänderte Dateien ermitteln
+        run: |
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE=$(git rev-list --max-parents=0 HEAD)
+          fi
+          git diff --name-only --diff-filter=d "$BASE" HEAD > changed.txt || true
+          cat changed.txt
+
+      - name: PHP-Syntax prüfen
+        run: |
+          # Prüfen, ob PHP-Dateien in der Liste sind
+          PHP_FILES=$(grep -E '\.php$' changed.txt || true)
+          if [ -z "$PHP_FILES" ]; then
+            echo "Keine PHP-Dateien geändert. Überspringe Syntax-Prüfung."
+            exit 0
+          fi
+          echo "$PHP_FILES" | xargs -r -n1 php -l
+
+      - name: JS-Syntax prüfen
+        run: |
+          # Prüfen, ob JS-Dateien in der Liste sind
+          JS_FILES=$(grep -E '\.js$' changed.txt || true)
+          if [ -z "$JS_FILES" ]; then
+            echo "Keine JS-Dateien geändert. Überspringe Syntax-Prüfung."
+            exit 0
+          fi
+          echo "$JS_FILES" | xargs -r -n1 node --check
+
+      - name: Twig-Syntax prüfen
+        run: |
+          TWIG_FILES=$(grep -E '\.twig$' changed.txt || true)
+          if [ -z "$TWIG_FILES" ]; then
+            echo "Keine Twig-Dateien geändert."
+            exit 0
+          fi
+
+          mkdir -p /tmp/twig-lint
+          composer require --working-dir=/tmp/twig-lint twig/twig --no-interaction --quiet
+
+          echo "$TWIG_FILES" | while read -r f; do
+            [ -f "$f" ] || continue
+            php -r '
+              require "/tmp/twig-lint/vendor/autoload.php";
+              $file = $argv[1];
+              $loader = new \Twig\Loader\ArrayLoader([]);
+              $twig = new \Twig\Environment($loader);
+
+              // Grav und Plugins registrieren eigene Twig-Funktionen/-Filter
+              // (z. B. url(), nicetime(), t() ...), die in diesem isolierten
+              // Lint-Environment naturgemäß unbekannt sind. Ohne diese
+              // Fallbacks würde jede Verwendung einer solchen Funktion
+              // fälschlich als Fehler gemeldet, obwohl die Twig-Syntax
+              // korrekt ist. Die Fallbacks erlauben jeden Namen, ohne ihn
+              // auszuführen - reine Syntaxprüfung, keine echte Ausführung.
+              $twig->registerUndefinedFunctionCallback(function ($name) {
+                  return new \Twig\TwigFunction($name, function () {});
+              });
+              $twig->registerUndefinedFilterCallback(function ($name) {
+                  return new \Twig\TwigFilter($name, function ($v) { return $v; });
+              });
+
+              try {
+                  $twig->parse($twig->tokenize(new \Twig\Source(file_get_contents($file), $file)));
+                  echo "$file: OK\n";
+              } catch (\Twig\Error\SyntaxError $e) {
+                  fwrite(STDERR, "$file: " . $e->getMessage() . "\n");
+                  exit(1);
+              }
+            ' "$f"
+          done
