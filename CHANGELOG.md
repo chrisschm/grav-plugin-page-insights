@@ -5,6 +5,12 @@
 # v2.9.0
 ## 08/10/2026
 
+> First release under the name **Page Insights**. Forked from
+> [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats) by Nuno Costa after several years without
+> direct maintainer activity; see README for the full history. Feature-wise this corresponds to what was also
+> contributed upstream as Page Stats PR #56 (later merged) - development continues independently here from this
+> point, under a new name.
+
 1. [New Features](#new)
     * feat: Page Detail / User Detail sub-views. Since Admin2's client-side router only supports a single dynamic path segment per plugin page (no catch-all), sub-views are addressed via query parameters on the fixed plugin route (`?view=page-detail&route=...`, `?view=user-detail&user=...`/`?ip=...`), driven by plain `history.pushState()`/`popstate` - verified to survive a hard reload on all three URL forms and to work correctly with the browser back button. Page Detail shows KPIs, a time-series chart, top countries/browsers/platforms and recent views for a single route; User Detail shows KPIs, a time-series chart, that user's top pages (linked to Page Detail), and their recent views. Both are assembled entirely from the existing dashboard building blocks, no new rendering code. Linked from "Recently viewed pages", "Top users", and both lookup result tables via a small trend icon.
     * feat: `blueprints.yaml` reorganized into three tabs - General (settings shared by both admin UIs), Grav 1.7 / Classic Admin (the existing per-widget settings, still actively used by the classic templates), and Grav 2.0 / Admin2 (currently an info placeholder for future Admin2-specific options) - keeps the config navigable as both admin UIs continue to be maintained side by side.
@@ -19,7 +25,7 @@
     * bugfix: display error on the page-view detail row.
 1. [Improvements](#improvements)
     * improvement: database size now shown with a clear label, moved out of an oversized standalone KPI tile into a more compact placement.
-    * docs: added `docs/FORK-NOTES.md`, documenting the fork's branch/tag workflow (`master`/`develop`, dated `develop-YYYY-MM-DD` tags) for anyone picking up maintenance later.
+    * meta: renamed the internal namespace/classes (`Grav\Plugin\PageStats` → `Grav\Plugin\PageInsights`), REST route prefix and Admin2 route (`/page-stats` → `/page-insights`), config namespace, and translation key prefix throughout. Changed the default database filename to `user/data/page-insights.sqlite` (was `user/data/page-data.sqlite`) so a parallel Page Stats installation isn't affected during a transition - see README for details. The page front-matter opt-out key also changed from `page-stats:` to `page-insights:`.
 
 # v2.8.0
 ## 08/10/2026
