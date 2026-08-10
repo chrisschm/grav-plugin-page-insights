@@ -1,113 +1,128 @@
-# Page Stats Plugin
+# Page Insights Plugin
 ![](screenshot.png)
 
 
 ![](screenshot-1.png)
 
 
-The **Page Stats** Plugin is an extension for [Grav CMS](http://github.com/getgrav/grav).
+The **Page Insights** Plugin is an extension for [Grav CMS](http://github.com/getgrav/grav).
 
-Enhaced statistics for grav
+Enhanced page and user analytics for Grav, with full support for both the classic Admin (Grav 1.7) and Admin2 (Grav 2.0).
 
-This plugin will create a new entry in the admin plugin sidebar to display enhaced page stats about your site!
+This plugin adds an entry to the admin plugin sidebar showing detailed page and visitor statistics about your site.
 
+## History
 
-Stats Available:
-* Page Views
-* Unique IP's
-* Unique Users
-* Top users (by page views)
-* Latest viewed pages
-* Top Pages (by page views)
-* Top country (by page views)
-* Top browser (by page views)
-* Top platform / device (by page views)
-* Detailed Page Statistics
+Page Insights is an independent continuation of [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats)
+by Nuno Costa. After Page Stats saw no direct code changes from its maintainer for several years, two pull requests
+were contributed upstream instead: [#54](https://github.com/francodacosta/grav-plugin-page-stats/pull/54) added
+Admin2/Grav 2.0 compatibility, and [#56](https://github.com/francodacosta/grav-plugin-page-stats/pull/56) added the
+Page/User Detail views, a reorganized config screen, and a number of bugfixes and UX improvements. Both were
+eventually merged upstream. Development continues independently here under a new name, so further changes aren't
+dependent on upstream review timing.
+
+Full credit and thanks to Nuno Costa for creating and open-sourcing the original plugin - this project wouldn't
+exist without it.
+
+## Features
+
+* Page views, unique visitors, and unique users, with time-series trend charts
+* Top pages, countries (with flags), browsers, platforms, and users
+* Page Detail / User Detail views, each with their own time-series chart and top-lists
+* "Recently viewed pages" with load-more pagination, browser/platform columns
+* IP fallback for anonymous (non-logged-in) visitors, individually traceable via their IP
+* Works with both the classic Admin (Grav 1.7) and Admin2 (Grav 2.0) side by side
 
 ## First Run
-When you first run this plugin it will create a new sqlite database to store the data, it's location can be defined in the plugin config, defaults to ```user/data/page-data.sqlite```
 
->
+When you first run this plugin it will create a new SQLite database to store the data; its location can be defined
+in the plugin config, and defaults to ```user/data/page-insights.sqlite```.
+
+> **Coming from Page Stats?** Page Insights uses a separate database file by default, so running both plugins in
+> parallel during a transition won't double-count hits. If you'd rather carry over your existing history than start
+> fresh, copy (not move, in case you want to keep Page Stats installed too) your existing
+> `user/data/page-data.sqlite` to the new `user/data/page-insights.sqlite` path before the first run.
 
 ## Configuration
 
-Before configuring this plugin, you should copy the `user/plugins/page-stats/page-stats.yaml` to `user/config/plugins/page-stats.yaml` and only edit that copy.
+Before configuring this plugin, you should copy `user/plugins/page-insights/page-insights.yaml` to
+`user/config/plugins/page-insights.yaml` and only edit that copy.
 
 > Note:
-> If DB file does not exists it will be created on first run
+> If the DB file does not exist it will be created on first run
 >
 > Bot detection is based on user agent, it is not perfect, but it does work well
 
-
-Note that if you use the Admin Plugin, a file with your configuration named page-stats.yaml will be saved in the `user/config/plugins/` folder once the configuration is saved in the Admin.
+Note that if you use the Admin Plugin, a file with your configuration named `page-insights.yaml` will be saved in
+the `user/config/plugins/` folder once the configuration is saved in the Admin.
 
 ### Front Matter
-You can exclude pages from analytics by disabling the plugin in the page front matter as follows:
+
+You can exclude individual pages from analytics by disabling the plugin in the page front matter as follows:
 ```
 ---
-page-stats:
+page-insights:
     process: false
 ---
 ```
 
 ## Database Migrations/Updates
-From time to time database changes are published to support new features. Migrations should happen automatically but if you get errors like `Column XYZ not found` do the following
 
-1. Create an empty file on `user/plugins/page-stats/data/migrations/MUST_MIGRATE`
+From time to time database changes are published to support new features. Migrations should happen automatically,
+but if you get errors like `Column XYZ not found` do the following:
+
+1. Create an empty file at `user/plugins/page-insights/data/migrations/MUST_MIGRATE`
 2. Navigate to a page on your website
 
-This will trigger the plugin to execute the database migration and will delete the MUST_MIGRATE file
+This will trigger the plugin to execute the database migration and will delete the `MUST_MIGRATE` file.
 
 ## Installation
 
-Installing the Page Stats plugin can be done in one of three ways: The GPM (Grav Package Manager) installation method lets you quickly install the plugin with a simple terminal command, the manual method lets you do so via a zip file, and the admin method lets you do so via the Admin Plugin.
-
-
-### GPM Installation (Preferred)
-
-To install the plugin via the [GPM](http://learn.getgrav.org/advanced/grav-gpm), through your system's terminal (also called the command line), navigate to the root of your Grav-installation, and enter:
-
-    bin/gpm install page-stats
-
-This will install the Page Stats plugin into your `/user/plugins`-directory within Grav. Its files can be found under `/your/site/grav/user/plugins/page-stats`.
+Page Insights is not (yet) listed in the official GPM (Grav Package Manager) directory, so manual installation is
+currently the way to go. GPM installation will be documented here if/when that changes.
 
 ### Manual Installation
 
-1. Download the zip-version of this repository and unzip it under `/your/site/grav/user/plugins`. You can find these files on [GitHub](https://github.com//grav-plugin-page-stats)
-2. Then rename the folder to `page-stats`
-2. Copy the `user/plugins/page-stats/page-stats.yaml` to `user/config/plugins/page-stats.yaml` and only edit that copy.
+1. Download the latest release from [Codeberg](https://codeberg.org/chschmidt/grav-plugin-page-insights) and unzip
+   it under `/your/site/grav/user/plugins`.
+2. Rename the extracted folder to `page-insights`.
+3. Copy `user/plugins/page-insights/page-insights.yaml` to `user/config/plugins/page-insights.yaml` and only edit
+   that copy.
 
 ### Admin Plugin
 
-If you use the Admin Plugin, you can install the plugin directly by browsing the `Plugins`-menu and clicking on the `Add` button.
-
+Once GPM listing is available, installing via the Admin Plugin's `Plugins` menu will also be an option.
 
 ## Usage
 
-Just install and have fun!
-There is notnhing you need to do, plugin will work out of the box
+Just install and have fun! There is nothing else you need to do, the plugin works out of the box.
 
-Have a look at the Grav Error log to ensure plugin is working fine
+Have a look at the Grav error log to make sure the plugin is running fine.
 
 ## Credits
 
-This plugin includes IP2Location LITE data available from <a href="https://lite.ip2location.com">https://lite.ip2location.com</a>.
+This plugin includes IP2Location LITE data available from
+<a href="https://lite.ip2location.com">https://lite.ip2location.com</a>.
 
-Flags from https://flagpedia.net
+Country flags from <a href="https://flagcdn.com">https://flagcdn.com</a>.
+
+Originally created by Nuno Costa as [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats).
 
 ## To Do
 
-
 - [X] Browser / device stats (based on user agent)
-- [X] User behaviour (select user and see the session history and page flows)
+- [X] User behaviour (select a user and see their session history and page flows)
 - [X] Top country stats
-- [X] Page details (select page and seee detailed stats about that page)
+- [X] Page details (select a page and see detailed stats about it)
+- [X] User details (select a user and see detailed stats about them)
 - [X] Referer logging
-- [ ] Referer analysis, to better understand where users are comming from
 - [X] Time on page
+- [X] Admin2 (Grav 2.0) support
+- [ ] Referer analysis, to better understand where visitors are coming from
+- [ ] Overview limited to "real" content pages (`.md` files under `user/pages`, excluding assets/sitemap/robots.txt),
+      with a date-range filter
+- [ ] i18n for Admin2 labels and date formatting
 - [ ] World map view
-- [ ] Show city stats on all country stats page
-- [ ] Enable/Disable front end event collection
-- [ ] custom events triggered by javascript
-
-
+- [ ] Show city-level stats on the country stats page
+- [ ] Enable/disable front-end event collection
+- [ ] Custom events triggered by JavaScript
