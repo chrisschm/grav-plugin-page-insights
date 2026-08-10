@@ -1,0 +1,78 @@
+name: Bug Report
+about: Report a problem with the feedteasers plugin
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in as much detail as possible — the project
+        currently has no automated test suite, so a good report is the fastest way to a fix.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: See Admin panel, blueprints.yaml, or CHANGELOG.md
+      placeholder: e.g. 1.0.5
+    validations:
+      required: true
+  - type: input
+    id: grav-version
+    attributes:
+      label: Grav version
+      placeholder: e.g. 1.7.45
+    validations:
+      required: true
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version
+      description: Plugin requires PHP >= 7.4
+      placeholder: e.g. 8.2
+    validations:
+      required: true
+  - type: dropdown
+    id: integration
+    attributes:
+      label: How is the plugin used on the affected page?
+      options:
+        - "Twig function: {{ feed_teasers() }}"
+        - "Shortcode: [feedteasers]"
+        - Both / not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: feed-type
+    attributes:
+      label: Feed type affected
+      options:
+        - RSS 2.0
+        - Atom 1.0
+        - Not sure / both
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, what did you expect to happen, what happened instead?
+      placeholder: |
+        1. Configure feed X with option Y
+        2. Load the page
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / error messages
+      description: >-
+        Grav log output, PHP errors, or browser console output. Please redact any private
+        feed URLs or credentials before pasting.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked existing issues for a duplicate before opening this one
+          required: true
