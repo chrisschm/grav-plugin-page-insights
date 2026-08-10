@@ -39,7 +39,7 @@
 
                     {
                         borderColor: "#fff",
-                        label: '{{ "PLUGIN_PAGE_STATS.PAGE_VIEWS"|t }}',
+                        label: '{{ "PLUGIN_PAGE_INSIGHTS.PAGE_VIEWS"|t }}',
                         data: [{% for s in data %}{
                                     x: "{{ s.date }}",
                                     y: {{ s.hits }}

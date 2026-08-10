@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Grav\Plugin\PageStats;
+namespace Grav\Plugin\PageInsights;
 
 use DateTimeImmutable;
 use Grav\Common\Browser;
 use Grav\Common\Page\Interfaces\PageInterface;
 use Grav\Common\Page\Page;
 use Grav\Common\User\Interfaces\UserInterface;
-use Grav\Plugin\PageStats\Geolocation\GeolocationData;
+use Grav\Plugin\PageInsights\Geolocation\GeolocationData;
 use \PDO;
 
 class Stats
@@ -81,12 +81,12 @@ class Stats
             $version = 0;
         }
 
-        error_log("==> page-stats:last-migration " . $version);
+        error_log("==> page-insights:last-migration " . $version);
 
         while (true) {
             $version++;
             $file = new \SplFileInfo(__DIR__ . '/../data/migrations/' . $version . '.sql');
-            error_log("==> page-stats:migrate " . $file->getBasename());
+            error_log("==> page-insights:migrate " . $file->getBasename());
             if (!$file->isFile()) {
                 break;
             }

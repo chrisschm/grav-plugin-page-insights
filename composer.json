@@ -1,11 +1,11 @@
 {
-    "name": "nuno-costa/page-stats",
+    "name": "chschmidt/page-insights",
     "type": "grav-plugin",
     "description": "Enhaced statistics for grav. This site or product includes IP2Location LITE data available from http://www.ip2location.com",
     "keywords": [
         "plugin"
     ],
-    "homepage": "https://github.com/nuno-costa/grav-plugin-page-stats",
+    "homepage": "https://codeberg.org/chschmidt/grav-plugin-page-insights",
     "license": "MIT",
     "authors": [
         {
@@ -22,10 +22,10 @@
     },
     "autoload": {
         "psr-4": {
-            "Grav\\Plugin\\PageStats\\": "classes/"
+            "Grav\\Plugin\\PageInsights\\": "classes/"
         },
         "classmap": [
-            "page-stats.php"
+            "page-insights.php"
         ]
     },
     "config": {

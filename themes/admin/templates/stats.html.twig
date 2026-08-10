@@ -14,19 +14,19 @@
     <div class="button-bar">
         <div class="button-group">
             <p>
-                {{ "PLUGIN_PAGE_STATS.USING"|t }}: {{ pageStats.db.dbStats.path }} ({{ pageStats.db.dbStats.mb }} MB)
+                {{ "PLUGIN_PAGE_INSIGHTS.USING"|t }}: {{ pageStats.db.dbStats.path }} ({{ pageStats.db.dbStats.mb }} MB)
             </p>
         </div>
     </div>
     {% block pageTitle %}
         <h1>
             <i class="fa fa-fw fa-line-chart"></i>
-            {{ "PLUGIN_PAGE_STATS.PAGE_STATS_TITLE"|t }}
+            {{ "PLUGIN_PAGE_INSIGHTS.PAGE_STATS_TITLE"|t }}
         </h1>
     {% endblock %}
 {% endblock %}
 {% block content %}
-    {% set conf = config.plugins['page-stats'] %}
+    {% set conf = config.plugins['page-insights'] %}
     {% set siteStats = pageStats.db.siteSummary %}
     {% include 'partials/messages.html.twig' %}
     <div class="container-fluid">

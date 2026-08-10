@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Grav\Plugin\PageStats\Geolocation;
+namespace Grav\Plugin\PageInsights\Geolocation;
 
 use \PDO;
-use Grav\Plugin\PageStats\Geolocation\GeolocationData;
+use Grav\Plugin\PageInsights\Geolocation\GeolocationData;
 use IP2Location\Database;
 
 class Geolocation

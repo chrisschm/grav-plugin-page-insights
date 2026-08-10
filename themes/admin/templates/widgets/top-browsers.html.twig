@@ -1,15 +1,15 @@
 <div class="mb-5 {{ conf.cols_top_countries }}">
     <h5 class=" mb-2">
         {% if hide_show_all is not defined %}
-            <a href="{{ pageStats.urls.topBrowsers }}" title="{{ "PLUGIN_PAGE_STATS.VIEW_ALL"|t }}">
+            <a href="{{ pageStats.urls.topBrowsers }}" title="{{ "PLUGIN_PAGE_INSIGHTS.VIEW_ALL"|t }}">
                <i class="fa fa-fw fa-line-chart"></i>
-               {{ "PLUGIN_PAGE_STATS.TOP_BROWSERS"|t }}</a>
+               {{ "PLUGIN_PAGE_INSIGHTS.TOP_BROWSERS"|t }}</a>
         {% else %}
-            {{ "PLUGIN_PAGE_STATS.TOP_BROWSERS"|t }}
+            {{ "PLUGIN_PAGE_INSIGHTS.TOP_BROWSERS"|t }}
         {% endif %}
     </h5>
 
-    {% set conf = config.plugins['page-stats'] %}
+    {% set conf = config.plugins['page-insights'] %}
     {% if conf.style_top_browsers == 'table' %}
         {% include 'widgets/top-browsers-table.html.twig' %}
     {% else %}

@@ -2,7 +2,7 @@
 {% block pageTitle %}
     <h1>
         <i class="fa fa-fw fa-line-chart"></i>
-        {{ "PLUGIN_PAGE_STATS.PAGE_DETAILS_TITLE"|t }}:
+        {{ "PLUGIN_PAGE_INSIGHTS.PAGE_DETAILS_TITLE"|t }}:
         {{ grav.uri.query('page') }}
     </h1>
 {% endblock %}
@@ -13,7 +13,7 @@
     {{ parent() }}
 {% endblock %}
 {% block content %}
-    {% set conf = config.plugins['page-stats'] %}
+    {% set conf = config.plugins['page-insights'] %}
     {% set siteStats = pageStats.db.siteSummary(null,null, {'route' : grav.uri.query('page')}) %}
 
     {% include 'partials/messages.html.twig' %}

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Grav\Plugin\PageStats\Geolocation;
+namespace Grav\Plugin\PageInsights\Geolocation;
 
 class Ip
 {

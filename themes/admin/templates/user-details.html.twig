@@ -2,7 +2,7 @@
 {% block pageTitle %}
     <h1>
         <i class="fa fa-fw fa-line-chart"></i>
-        {{ "PLUGIN_PAGE_STATS.USER_DETAILS"|t }}
+        {{ "PLUGIN_PAGE_INSIGHTS.USER_DETAILS"|t }}
         {{ grav.uri.query('user') }}
     </h1>
 {% endblock %}
@@ -21,7 +21,7 @@
         {% set queryKey = 'ip' %}
     {% endif %}
 
-    {% set conf = config.plugins['page-stats'] %}
+    {% set conf = config.plugins['page-insights'] %}
     {% include 'partials/messages.html.twig' %}
     <div class="container-fluid">
         <div class="row">
