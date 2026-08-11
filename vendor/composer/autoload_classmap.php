@@ -8,7 +8,7 @@ $baseDir = dirname($vendorDir);
 return array(
     'Attribute' => $vendorDir . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
-    'Grav\\Plugin\\PageStatsPlugin' => $baseDir . '/page-stats.php',
+    'Grav\\Plugin\\PageInsightsPlugin' => $baseDir . '/page-insights.php',
     'IP2Location\\Database' => $vendorDir . '/ip2location/ip2location-php/IP2Location.php',
     'IP2Location\\IpTools' => $vendorDir . '/ip2location/ip2location-php/IP2Location.php',
     'IP2Location\\WebService' => $vendorDir . '/ip2location/ip2location-php/IP2Location.php',

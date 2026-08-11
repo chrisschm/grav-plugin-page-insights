@@ -27,7 +27,7 @@ class ComposerStaticInita2c090e39093f29eb47e896c40be01d1
         ),
         'G' => 
         array (
-            'Grav\\Plugin\\PageStats\\' => 22,
+            'Grav\\Plugin\\PageInsights\\' => 25,
         ),
         'C' => 
         array (
@@ -60,7 +60,7 @@ class ComposerStaticInita2c090e39093f29eb47e896c40be01d1
         array (
             0 => __DIR__ . '/..' . '/psr/container/src',
         ),
-        'Grav\\Plugin\\PageStats\\' => 
+        'Grav\\Plugin\\PageInsights\\' => 
         array (
             0 => __DIR__ . '/../..' . '/classes',
         ),
@@ -73,7 +73,7 @@ class ComposerStaticInita2c090e39093f29eb47e896c40be01d1
     public static $classMap = array (
         'Attribute' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
-        'Grav\\Plugin\\PageStatsPlugin' => __DIR__ . '/../..' . '/page-stats.php',
+        'Grav\\Plugin\\PageInsightsPlugin' => __DIR__ . '/../..' . '/page-insights.php',
         'IP2Location\\Database' => __DIR__ . '/..' . '/ip2location/ip2location-php/IP2Location.php',
         'IP2Location\\IpTools' => __DIR__ . '/..' . '/ip2location/ip2location-php/IP2Location.php',
         'IP2Location\\WebService' => __DIR__ . '/..' . '/ip2location/ip2location-php/IP2Location.php',

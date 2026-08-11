@@ -12,6 +12,6 @@ return array(
     'Symfony\\Contracts\\Service\\' => array($vendorDir . '/symfony/service-contracts'),
     'Symfony\\Component\\Console\\' => array($vendorDir . '/symfony/console'),
     'Psr\\Container\\' => array($vendorDir . '/psr/container/src'),
-    'Grav\\Plugin\\PageStats\\' => array($baseDir . '/classes'),
+    'Grav\\Plugin\\PageInsights\\' => array($baseDir . '/classes'),
     'ConventionalChangelog\\' => array($vendorDir . '/marcocesarato/php-conventional-changelog/src'),
 );
