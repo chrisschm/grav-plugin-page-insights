@@ -11,11 +11,16 @@
         {
             "name": "Nuno Costa",
             "email": "info@codehaha.com",
-            "role": "Developer"
+            "role": "Original Author"
+        },
+        {
+            "name": "Christian Schmidt",
+            "email": "christian.schmidt@jcs-net.de",
+            "role": "Maintainer"
         }
     ],
     "require": {
-        "php": ">=7.1.3",
+        "php": ">=8.0",
         "ext-sqlite3": "*",
         "ext-pdo": "*",
         "ip2location/ip2location-php": "^8.3"
@@ -30,7 +35,7 @@
     },
     "config": {
         "platform": {
-            "php": "7.1.3"
+            "php": "8.0"
         }
     },
     "require-dev": {
