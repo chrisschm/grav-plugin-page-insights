@@ -1,0 +1,126 @@
+PLUGIN_PAGE_INSIGHTS:
+  PAGE_STATS: Statistiken
+  STATS_DB_LABEL: Page Insights DB Pfad
+  STATS_DB_HELP: Relativer Pfad zur DB ausgehend vom Grav Root
+  TAB_GENERAL: Allgemein
+  TAB_CLASSIC_ADMIN: Grav 1.7 / Classic Admin
+  TAB_ADMIN2: Grav 2.0 / Admin2
+  TAB_CLASSIC_ADMIN_INFO: Diese Einstellungen betreffen nur die klassischen 
+    Admin-Dashboard-Widgets und Detailseiten (Grav 1.x). Sie haben keinen 
+    Einfluss auf das Admin2 (Grav 2.0) Dashboard.
+  TAB_ADMIN2_INFO: Das Admin2-Dashboard verfügt derzeit über keine eigenen 
+    zusätzlichen Einstellungen – sein Layout ist direkt in 
+    admin-next/pages/page-insights.js definiert. Dieser Tab ist für zukünftige, 
+    Admin2-spezifische Optionen vorgesehen.
+  TAB_INFO_TITLE: Information
+  WIDGET:
+    ENABLED:
+      TEXT: Aktiviert
+      HELP: Wenn aktiviert, wird das Widget angezeigt
+    SIZE:
+      TEXT: Größe
+      HELP: Die Größe des Widgets auf dem Dashboard
+    LIMIT:
+      TEXT: Limit
+      HELP: Die Anzahl der abzurufenden Datensätze
+    STYLE:
+      TEXT: Stil
+      HELP: Die zur Darstellung von Daten verwendete Form (Tabelle oder 
+        Diagramm)
+  ANONYMIZE_IPS_LABEL: IP-Adressen anonymisieren
+  ANONYMIZE_IPS_HELP: 'Wenn diese Option aktiviert ist, werden IP-Adressen vor der
+    Speicherung in der Datenbank nach 2 Bytes (bei IPv4) bzw. 4 Bytes (bei IPv6) gekürzt,
+    um die Einhaltung der DSGVO zu erleichtern. HINWEIS: Dies gilt NUR für neu erfasste
+    Besuche, NICHT für bereits in der Datenbank gespeicherte Einträge.'
+  DATETIME_OFFSET_LABEL: Datum/Uhrzeit – Abweichung von UTC
+  DATETIME_OFFSET_HELP: Datums-/Zeitwerte anzeigen, die um einen angegebenen 
+    Offset gegenüber UTC angepasst wurden
+  LOG_TIME_ON_PAGE_LABEL: Zeit auf der Seite protokollieren
+  LOG_TIME_ON_PAGE_HELP: Wenn diese Funktion aktiviert ist, löst das Frontend in
+    regelmäßigen Abständen ein Ping-Ereignis aus, um zu signalisieren, dass sich
+    der Benutzer weiterhin auf der Seite befindet
+  COLLECTOR_PING_INTERVAL_LABEL: Ping-Intervall für die Verweildauer auf der 
+    Seite (Sekunden)
+  COLLECTOR_PING_INTERVAL_HELP: Gibt an, wie oft (in Sekunden) das Frontend 
+    einen Ping sendet, während die Option „Zeit auf der Seite protokollieren“ 
+    aktiviert ist. Dies ist nur wirksam, wenn die entsprechende Option 
+    eingeschaltet ist.
+  LOG_ADMIN_HELP: Protokolliere die Aktivität von Administratorbenutzern auf der
+    Website. Sie werden niemals protokolliert, während Sie das Admin-Panel 
+    verwenden
+  LOG_BOT_LABEL: Bot-Aktivität protokollieren
+  LOG_BOT_HELP: Standardmäßig protokollieren wir die Aktivitäten bekannter Bots 
+    nicht; aktivieren Sie die Protokollierung, falls gewünscht
+  TOP_USERS_WIDGET: Top Users
+  UNIQUE_USERS_WIDGET: Eindeutige Nutzer
+  UNIQUE_VISITORS_WIDGET: Eindeutige Besucher
+  PAGE_VIEWS_WIDGET: Seitenaufrufe
+  RECENTLY_VIEWED_PAGES: Kürzlich besuchte Seiten
+  VIEW_LAST_1000_PAGES: Die letzten 1000 Seiten anzeigen
+  TOP_PAGES: Top Seiten
+  TOP_BROWSERS: Top Browser
+  TOP_COUNTRIES: Top Länder
+  TOP_PLATFORMS: Top Plattformen
+  TOP_USERS: Top Nutzer
+  UNIQUE_USERS: Eindeutige Nutzer
+  UNIQUE_VISITORS: Eindeutige Besucher
+  TABLE_COUNTRIES: Länder
+  TABLE_COUNTRY: Land
+  TABLE_PLATFORM: Plattform
+  TABLE_SHARE: '% Anteil'
+  TABLE_DATE: Datum
+  TABLE_PAGE: Seite
+  TABLE_USER: Nutzer
+  TABLE_LOCATION: Lokation
+  TABLE_BROWSER: Browser
+  TABLE_TIME_ON_PAGE: Verweildauer auf der Seite
+  TABLE_USER_AGENT: User Agent
+  TABLE_PAGE_VIEWS: Seitenaufrufe
+  TABLE_VIEWS: Aufrufe
+  TABLE_UNIQUE_VISITORS: Eindeutige Besucher
+  TABLE_UNIQUE_LOGGED_IN_USERS: Eindeutige angemeldete Benutzer
+  VIEW_ALL: Zeige Alle
+  ALL_PAGES: Alle Seiten
+  PAGE_DETAILS_TITLE: Seitendetails
+  PAGE_STATS_TITLE: Seitenstatistik
+  USER_DETAILS: Benutzerdetails
+  PAGE_VIEWS: Seitenaufrufe
+  VIEW_PAGE: Seite anzeigen
+  VIEW_PAGE_STATS: Seitenstatistiken anzeigen
+  NOT_LOGGED_IN: nicht angemeldet
+  VIEW_STATS_USER: Statistiken für Benutzer anzeigen
+  MOST_VIEWED_PAGES: Meistbesuchte Seiten
+  IGNORED_IPS_LABEL: Zu ignorierende IPs
+  IGNORED_IPS_HELP: IP-Adressen in dieser Liste werden ignoriert; Sie können 
+    reguläre Ausdrücke oder die übliche Punkt-Notation verwenden (z. B. 
+    127.0.0.1 oder 127.*)
+  IP: Zu ignorierende IP-Adresse
+  IGNORED_URLS:
+    TEXT: Zu ignorierende URL
+    LABEL: Zu ignorierende URLs
+    HELP: URLs in dieser Liste werden ignoriert; Sie können reguläre Ausdrücke 
+      oder eine Zeichenfolge verwenden
+  SECTION_WIDGETS: Widget-Konfiguration
+  SECTION_WIDGETS_LABEL: Widgets für Seitenstatistiken konfigurieren
+  SECTION_BEHAVIOUR: Verhalten
+  SECTION_BEHAVIOUR_LABEL: Steuern, wann das Plugin Statistiken erfasst
+  WIDGET_SIZE_LABEL: Widgetgröße
+  WIDGET_SIZE_HELP: Die Anzahl der Spalten, die das Widget für seine Darstellung
+    verwendet
+  SQL_LIMIT_LABEL: Anzuzeigende Datensätze
+  SQL_LIMIT_HELP: Die Anzahl der für dieses Widget anzuzeigenden Datensätze
+  IGNORE_ERRORS_LABEL: Fehler ignorieren
+  IGNORE_ERRORS_HELP: Wenn der Wert „true“ ist, werden Fehler protokolliert; 
+    andernfalls wird eine Ausnahme ausgelöst.
+  PAGE_DETAILS:
+    RECENT_VIEWS: Kürzlich aufgerufene Seitendetails
+  PAGE_URL:
+    TEXT: Seite anzeigen als
+    HELP: Sollte eine Seite als URL oder mit ihrem Seitentitel angezeigt werden
+  SECTION_BOTS: Bots
+  SECTION_BOTS_TEXT: Crawler identifizieren
+  BOT_REGEXP:
+    TEXT: Bot User Agents
+    HELP: Als Bots zu klassifizierende User-Agents (reguläre Ausdrücke möglich)
+  LOG_ADMIN_LABEL: Aktivitäten von Administratoren protokollieren
+  USING: Nutzt
