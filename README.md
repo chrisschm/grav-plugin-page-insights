@@ -1,10 +1,6 @@
 # Page Insights Plugin
 ![](screenshot.png)
 
-
-![](screenshot-1.png)
-
-
 The **Page Insights** Plugin is an extension for [Grav CMS](http://github.com/getgrav/grav).
 
 Enhanced page and user analytics for Grav, with full support for both the classic Admin (Grav 1.7) and Admin2 (Grav 2.0).
