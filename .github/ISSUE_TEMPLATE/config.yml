@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report an issue on Codeberg (primary repo)
+    url: https://codeberg.org/chschmidt/grav-plugin-page-insights/issues/new/choose
+    about: This GitHub repo is a read-only mirror. Development and issue tracking happen on Codeberg.
+  - name: Issue auf Codeberg melden (Hauptrepository)
+    url: https://codeberg.org/chschmidt/grav-plugin-page-insights/issues/new/choose
+    about: Dieses GitHub-Repo ist nur ein Lese-Mirror. Entwicklung und Issue-Tracking finden auf Codeberg statt.
