@@ -45,8 +45,10 @@ compatibility, please open an issue first to discuss it before investing time in
    automatically from `composer.json` by a plain `git clone` — a mismatch here causes a hard
    `Class "..." not found` fatal error for anyone installing from a fresh checkout, even though
    `composer.json` itself is correct.
-4. **Syntax check:** there is currently no automated lint/test step in CI for pull requests.
-   Please run a PHP syntax check yourself on any changed PHP file before submitting:
+4. **Syntax check:** PRs targeting `main` automatically run a syntax-only CI check (PHP, JS, Twig)
+   via `.forgejo/workflows/lint.yml` — but please still check your own changes locally before
+   opening the PR rather than relying on CI to catch it, especially since CI may not run at all
+   for PRs from outside contributors depending on Codeberg's Actions permissions for forks:
    ```bash
    php -l path/to/changed-file.php
    ```
@@ -95,10 +97,12 @@ non-obvious design decisions.
 
 ## Release process (for context, maintainer-only)
 
-Releases are tagged on Codeberg. There is no automated release workflow yet, and the first
-stable release (`v3.0.0`) is still outstanding at the time of writing. You don't need to do
-anything here as a contributor — just mention in your PR if you think a change warrants a
-version bump.
+Releases are created by hand on Codeberg (tag `v*`), which is push-mirrored to GitHub. A
+`.github/workflows/release-from-tag.yml` workflow then turns that mirrored tag into a proper
+GitHub Release automatically — this only exists to make the GitHub mirror useful for people
+browsing there, not as the primary release process. It's deliberately scoped to `v*` tags only,
+so internal/development tags never spawn a spurious GitHub release. You don't need to do anything
+here as a contributor — just mention in your PR if you think a change warrants a version bump.
 
 ## License
 
@@ -126,8 +130,10 @@ Filter-Mechanismus in `classes/Stats.php` statt neuer Spezialmethoden.
   unbedingt `composer dump-autoload` laufen lassen und die neu generierten
   `vendor/composer/*.php`-Dateien mit committen — sonst droht ein `Class "..." not found`-Fehler
   bei jedem frischen Checkout, obwohl `composer.json` selbst korrekt ist.
-- `php -l` (und bei JS-Änderungen `node --check`) auf geänderten Dateien laufen lassen — es gibt
-  noch keinen automatisierten CI-Lint-Schritt.
+- `php -l` (und bei JS-Änderungen `node --check`) auf geänderten Dateien laufen lassen. PRs gegen
+  `main` lösen zwar automatisch einen Syntax-Check in der CI aus, aber bitte trotzdem selbst
+  vorher prüfen (CI läuft je nach Codeberg-Actions-Berechtigungen bei externen Forks evtl. gar
+  nicht).
 - Kurz in der PR-Beschreibung angeben, wie manuell getestet wurde (Grav-/PHP-Version, Classic
   Admin und/oder Admin2).
 - Lieber kleinere, fokussierte PRs als große Sammel-Änderungen.
