@@ -1,15 +1,16 @@
 # v3.0.0
 ## unreleased
 
-
-# v2.9.0
-## 08/10/2026
-
 > First release under the name **Page Insights**. Forked from
 > [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats) by Nuno Costa after several years without
 > direct maintainer activity; see README for the full history. Feature-wise this corresponds to what was also
 > contributed upstream as Page Stats PR #56 (later merged) - development continues independently here from this
 > point, under a new name.
+
+
+
+# v2.9.0
+## 08/10/2026
 
 1. [New Features](#new)
     * feat: Page Detail / User Detail sub-views. Since Admin2's client-side router only supports a single dynamic path segment per plugin page (no catch-all), sub-views are addressed via query parameters on the fixed plugin route (`?view=page-detail&route=...`, `?view=user-detail&user=...`/`?ip=...`), driven by plain `history.pushState()`/`popstate` - verified to survive a hard reload on all three URL forms and to work correctly with the browser back button. Page Detail shows KPIs, a time-series chart, top countries/browsers/platforms and recent views for a single route; User Detail shows KPIs, a time-series chart, that user's top pages (linked to Page Detail), and their recent views. Both are assembled entirely from the existing dashboard building blocks, no new rendering code. Linked from "Recently viewed pages", "Top users", and both lookup result tables via a small trend icon.
