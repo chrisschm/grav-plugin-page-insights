@@ -1,4 +1,7 @@
 # Page Insights Plugin
+
+[![Übersetzungsstatus](https://translate.codeberg.org/widget/grav-plugin-page-insights/svg-badge.svg)](https://translate.codeberg.org/engage/grav-plugin-page-insights/)
+
 ![](screenshot.png)
 
 The **Page Insights** Plugin is an extension for [Grav CMS](http://github.com/getgrav/grav).
