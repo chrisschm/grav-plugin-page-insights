@@ -6,7 +6,7 @@ description: Enhanced page/user analytics for Grav, with Admin2 support. Indepen
 icon: plug
 author:
     name: Christian Schmidt
-    email: info@jcs-net.de
+    email: christian.schmidt@jcs-net.de
 homepage: https://codeberg.org/chschmidt/grav-plugin-page-insights
 keywords: grav, plugin, analytics, statistics
 bugs: https://codeberg.org/chschmidt/grav-plugin-page-insights/issues
