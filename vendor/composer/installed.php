@@ -1,15 +1,24 @@
 <?php return array(
     'root' => array(
-        'name' => 'nuno-costa/page-stats',
-        'pretty_version' => '1.10.0',
-        'version' => '1.10.0.0',
-        'reference' => NULL,
+        'name' => 'chschmidt/page-insights',
+        'pretty_version' => '3.0.0',
+        'version' => '3.0.0.0',
+        'reference' => null,
         'type' => 'grav-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
         'dev' => true,
     ),
     'versions' => array(
+        'chschmidt/page-insights' => array(
+            'pretty_version' => '3.0.0',
+            'version' => '3.0.0.0',
+            'reference' => null,
+            'type' => 'grav-plugin',
+            'install_path' => __DIR__ . '/../../',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
         'ip2location/ip2location-php' => array(
             'pretty_version' => '8.3.0',
             'version' => '8.3.0.0',
@@ -27,15 +36,6 @@
             'install_path' => __DIR__ . '/../marcocesarato/php-conventional-changelog',
             'aliases' => array(),
             'dev_requirement' => true,
-        ),
-        'nuno-costa/page-stats' => array(
-            'pretty_version' => '1.10.0',
-            'version' => '1.10.0.0',
-            'reference' => NULL,
-            'type' => 'grav-plugin',
-            'install_path' => __DIR__ . '/../../',
-            'aliases' => array(),
-            'dev_requirement' => false,
         ),
         'psr/container' => array(
             'pretty_version' => '1.0.0',

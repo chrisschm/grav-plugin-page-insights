@@ -13,7 +13,7 @@ class ComposerStaticInita2c090e39093f29eb47e896c40be01d1
     );
 
     public static $prefixLengthsPsr4 = array (
-        'S' => 
+        'S' =>
         array (
             'Symfony\\Polyfill\\Php80\\' => 23,
             'Symfony\\Polyfill\\Php73\\' => 23,
@@ -21,50 +21,50 @@ class ComposerStaticInita2c090e39093f29eb47e896c40be01d1
             'Symfony\\Contracts\\Service\\' => 26,
             'Symfony\\Component\\Console\\' => 26,
         ),
-        'P' => 
+        'P' =>
         array (
             'Psr\\Container\\' => 14,
         ),
-        'G' => 
+        'G' =>
         array (
             'Grav\\Plugin\\PageInsights\\' => 25,
         ),
-        'C' => 
+        'C' =>
         array (
             'ConventionalChangelog\\' => 22,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'Symfony\\Polyfill\\Php80\\' => 
+        'Symfony\\Polyfill\\Php80\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-php80',
         ),
-        'Symfony\\Polyfill\\Php73\\' => 
+        'Symfony\\Polyfill\\Php73\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-php73',
         ),
-        'Symfony\\Polyfill\\Mbstring\\' => 
+        'Symfony\\Polyfill\\Mbstring\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-mbstring',
         ),
-        'Symfony\\Contracts\\Service\\' => 
+        'Symfony\\Contracts\\Service\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/service-contracts',
         ),
-        'Symfony\\Component\\Console\\' => 
+        'Symfony\\Component\\Console\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/console',
         ),
-        'Psr\\Container\\' => 
+        'Psr\\Container\\' =>
         array (
             0 => __DIR__ . '/..' . '/psr/container/src',
         ),
-        'Grav\\Plugin\\PageInsights\\' => 
+        'Grav\\Plugin\\PageInsights\\' =>
         array (
             0 => __DIR__ . '/../..' . '/classes',
         ),
-        'ConventionalChangelog\\' => 
+        'ConventionalChangelog\\' =>
         array (
             0 => __DIR__ . '/..' . '/marcocesarato/php-conventional-changelog/src',
         ),
