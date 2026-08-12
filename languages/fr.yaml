@@ -14,6 +14,13 @@ PLUGIN_PAGE_INSIGHTS:
     Cet onglet est réservé aux futures options spécifiques à Admin2."
   TAB_INFO_TITLE: Information
 
+  DEFAULT_PAGES_SCOPE_LABEL: "Pages récemment consultées : filtre par défaut"
+  DEFAULT_PAGES_SCOPE_HELP: "Quelles pages la carte « Recently viewed pages » du tableau de bord
+    Admin2 affiche par défaut. Les visiteurs peuvent toujours basculer ce réglage directement
+    dans le tableau de bord - ceci ne définit que ce qu'ils voient au premier chargement."
+  DEFAULT_PAGES_SCOPE_ALL: Toutes les pages
+  DEFAULT_PAGES_SCOPE_REAL: Pages réelles uniquement
+
   WIDGET:
     ENABLED:
       TEXT: Activé

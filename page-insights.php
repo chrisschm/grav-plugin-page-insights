@@ -464,6 +464,44 @@ class PageInsightsPlugin extends Plugin
     }
 
     /**
+     * Returns the routes of every real, filesystem-based content page (i.e.
+     * everything Grav's Pages object considers routable, under user/pages) -
+     * used by PageInsightsApiController to filter "Recently viewed pages"
+     * down to actual site content (?scope=real) instead of also showing
+     * hits against assets, sitemap.xml, robots.txt, 404s, etc.
+     *
+     * Deliberately does NOT filter out unpublished pages - in practice
+     * they're almost never hit by real visitors, so the extra check isn't
+     * worth the added complexity (see docs/ARCHITECTURE.md).
+     *
+     * Cached and keyed to Grav's own pages cache ID (Pages::getPagesCacheId())
+     * so this invalidates itself automatically whenever page content
+     * changes - no manual cache-clearing needed, same pattern used by e.g.
+     * the official relatedpages plugin.
+     *
+     * Lives here rather than in Stats.php on purpose: Stats.php is the
+     * UI-/Grav-independent data layer and has no business knowing about
+     * Grav's Pages object.
+     *
+     * @return string[]
+     */
+    public function getRealPageRoutes(): array
+    {
+        $pages = $this->grav['pages'];
+        $cache = $this->grav['cache'];
+
+        $cacheId = 'page-insights-real-routes-' . $pages->getPagesCacheId();
+        $routes = $cache->fetch($cacheId);
+
+        if ($routes === false) {
+            $routes = array_keys($pages->routes());
+            $cache->save($cacheId, $routes);
+        }
+
+        return $routes;
+    }
+
+    /**
      * Admin2 / grav-plugin-api: registers the REST endpoints consumed by the
      * Admin2 dashboard page (admin-next/pages/page-insights.js). Fired by the
      * API plugin's router; never fired if the API plugin isn't installed.

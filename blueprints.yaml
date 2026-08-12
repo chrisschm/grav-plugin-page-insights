@@ -321,4 +321,13 @@ form:
                             underline: true
                             wrapper_classes: "rounded-lg border p-4"
                             fields: {}
+                        default_pages_scope:
+                            type: toggle
+                            label: PLUGIN_PAGE_INSIGHTS.DEFAULT_PAGES_SCOPE_LABEL
+                            help: PLUGIN_PAGE_INSIGHTS.DEFAULT_PAGES_SCOPE_HELP
+                            highlight: real
+                            default: all
+                            options:
+                                all: PLUGIN_PAGE_INSIGHTS.DEFAULT_PAGES_SCOPE_ALL
+                                real: PLUGIN_PAGE_INSIGHTS.DEFAULT_PAGES_SCOPE_REAL
 

@@ -13,6 +13,13 @@ PLUGIN_PAGE_INSIGHTS:
     admin-next/pages/page-insights.js definiert. Dieser Tab ist für zukünftige, 
     Admin2-spezifische Optionen vorgesehen.
   TAB_INFO_TITLE: Information
+  DEFAULT_PAGES_SCOPE_LABEL: "Recently viewed pages: Standard-Filter"
+  DEFAULT_PAGES_SCOPE_HELP: Welche Seiten die Karte „Recently viewed pages“ im 
+    Admin2-Dashboard standardmäßig anzeigt. Besucher können das direkt im 
+    Dashboard umschalten – diese Einstellung legt nur fest, was beim ersten 
+    Laden zu sehen ist.
+  DEFAULT_PAGES_SCOPE_ALL: Alle Seiten
+  DEFAULT_PAGES_SCOPE_REAL: Nur echte Seiten
   WIDGET:
     ENABLED:
       TEXT: Aktiviert

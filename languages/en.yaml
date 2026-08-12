@@ -10,6 +10,11 @@ PLUGIN_PAGE_INSIGHTS:
     TAB_ADMIN2_INFO: "The Admin2 dashboard currently has no additional settings of its own - its layout is defined directly in admin-next/pages/page-insights.js. This tab is reserved for future Admin2-specific options."
     TAB_INFO_TITLE: Information
 
+    DEFAULT_PAGES_SCOPE_LABEL: "Recently viewed pages: default filter"
+    DEFAULT_PAGES_SCOPE_HELP: "Which pages the Admin2 dashboard's \"Recently viewed pages\" card shows by default. Visitors can still switch this on the dashboard itself - this only sets what they see on first load."
+    DEFAULT_PAGES_SCOPE_ALL: "All pages"
+    DEFAULT_PAGES_SCOPE_REAL: "Real pages only"
+
     WIDGET:
         ENABLED:
             TEXT: Enabled

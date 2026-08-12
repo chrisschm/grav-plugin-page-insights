@@ -194,8 +194,30 @@ class Stats
         $where = [];
         $bindings = [];
 
-        // Equality filters passed in by the caller (e.g. ['route' => $route])
+        // Filters passed in by the caller. A scalar value (e.g.
+        // ['route' => $route]) becomes an equality check; an array value
+        // (e.g. ['route' => $realPageRoutes]) becomes an IN(...) check -
+        // used by the "only real pages" scope filter on Recently viewed
+        // pages, see PageInsightsPlugin::getRealPageRoutes(). A caller
+        // passing an empty array (whitelist came back empty) gets a
+        // deliberately unsatisfiable "1 = 0" rather than silently falling
+        // back to "no filter" / returning everything.
         foreach ($params as $key => $value) {
+            if (is_array($value)) {
+                if (empty($value)) {
+                    $where[] = '1 = 0';
+                    continue;
+                }
+                $placeholders = [];
+                foreach (array_values($value) as $i => $v) {
+                    $placeholder = "{$key}_{$i}";
+                    $placeholders[] = ":$placeholder";
+                    $bindings[$placeholder] = $v;
+                }
+                $where[] = "$key IN (" . implode(', ', $placeholders) . ')';
+                continue;
+            }
+
             $where[] = "$key = :$key";
             $bindings[$key] = $value;
         }

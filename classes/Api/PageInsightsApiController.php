@@ -10,6 +10,7 @@ use Grav\Plugin\Api\Controllers\AbstractApiController;
 use Grav\Plugin\Api\Exceptions\ValidationException;
 use Grav\Plugin\Api\Response\ApiResponse;
 use Grav\Plugin\PageInsights\Stats;
+use Grav\Plugin\PageInsightsPlugin;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -41,6 +42,11 @@ class PageInsightsApiController extends AbstractApiController
         [$dateFrom, $dateTo] = $this->getDateRange($request);
         $stats = $this->getStats();
 
+        // Only "Recently viewed pages" supports the real-pages-only scope
+        // filter for now (see getScopeFilter() doc comment) - top_pages and
+        // everything else stay unfiltered.
+        $recentFilter = $this->getScopeFilter($request);
+
         $totalViews = $stats->totalPageViews($dateFrom, $dateTo);
         $totalVisitors = $stats->totalUniqueVisitors($dateFrom, $dateTo);
         $totalUsers = $stats->totalUniqueUsers($dateFrom, $dateTo);
@@ -55,7 +61,11 @@ class PageInsightsApiController extends AbstractApiController
             'top_browsers' => $stats->topBrowsers(5, $dateFrom, $dateTo),
             'top_platforms' => $stats->topPlatforms(5, $dateFrom, $dateTo),
             'top_users' => $stats->topUsers(5, $dateFrom, $dateTo),
-            'recent_pages' => $stats->recentPages(10, $dateFrom, $dateTo),
+            'recent_pages' => $stats->recentPages(10, $dateFrom, $dateTo, $recentFilter),
+            // Lets the dashboard adopt the admin-configured default scope
+            // ('all'|'real') on first load without a separate request - see
+            // admin-next/pages/page-insights.js, _loadDashboard().
+            'default_pages_scope' => $this->getDefaultPagesScope(),
         ]);
     }
 
@@ -221,11 +231,12 @@ class PageInsightsApiController extends AbstractApiController
 
         [$dateFrom, $dateTo] = $this->getDateRange($request);
         $limit = $this->getLimit($request, 50);
+        $filter = $this->getScopeFilter($request);
         $stats = $this->getStats();
 
         return ApiResponse::create([
-            'pages' => $stats->recentPages($limit, $dateFrom, $dateTo),
-            'by_day' => $stats->recentPagesByDay($limit, $dateFrom, $dateTo),
+            'pages' => $stats->recentPages($limit, $dateFrom, $dateTo, $filter),
+            'by_day' => $stats->recentPagesByDay($limit, $dateFrom, $dateTo, $filter),
         ]);
     }
 
@@ -272,6 +283,48 @@ class PageInsightsApiController extends AbstractApiController
         }
 
         return [];
+    }
+
+    /**
+     * Builds the Stats::query() filter for the "only real pages" scope
+     * ("Recently viewed pages" -> ?scope=real). Returns [] (no filter,
+     * i.e. today's unfiltered behaviour) unless scope=real is explicitly
+     * requested. Route whitelist comes from
+     * PageInsightsPlugin::getRealPageRoutes() (Grav Pages-based, cached -
+     * see there for why this doesn't live in Stats.php).
+     *
+     * @return array{route?: string[]}
+     */
+    private function getScopeFilter(ServerRequestInterface $request): array
+    {
+        if ($this->getQueryParam($request, 'scope') !== 'real') {
+            return [];
+        }
+
+        $plugin = $this->getPlugin();
+
+        return ['route' => $plugin ? $plugin->getRealPageRoutes() : []];
+    }
+
+    /**
+     * The admin-configured default for the "Recently viewed pages" scope
+     * toggle ('all'|'real'), sent along with /overview so the dashboard
+     * can adopt it on first load - see getScopeFilter() and
+     * admin-next/pages/page-insights.js.
+     */
+    private function getDefaultPagesScope(): string
+    {
+        $grav = Grav::instance();
+        $default = (string) $grav['config']->get('plugins.page-insights.default_pages_scope', 'all');
+
+        return $default === 'real' ? 'real' : 'all';
+    }
+
+    private function getPlugin(): ?PageInsightsPlugin
+    {
+        $grav = Grav::instance();
+
+        return $grav['page-insights'] ?? null;
     }
 
     private function getStats(): Stats

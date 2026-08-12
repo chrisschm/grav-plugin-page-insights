@@ -36,6 +36,8 @@ class PageInsightsPage extends HTMLElement {
     #recentLimit = 10;
     #recentPages = [];
     #recentHasMore = true;
+    #recentScope = 'all'; // 'all' | 'real' - which pages "Recently viewed pages" shows
+    #recentScopeInitialized = false; // becomes true once the server-configured default has been adopted (see _loadDashboard)
     #view = 'dashboard'; // 'dashboard' | 'page-detail' | 'user-detail'
     #viewParams = {};
     #onPopState = null;
@@ -185,16 +187,38 @@ class PageInsightsPage extends HTMLElement {
         this.#recentLimit = 10;
         this._renderBody();
 
-        const params = this._dateRangeParams();
+        const dateParams = this._dateRangeParams();
+        // Only sent once we know the scope to request - on the very first
+        // load (before the server-configured default is known, see below)
+        // this is omitted so /overview's recent_pages comes back unfiltered,
+        // matching today's default behaviour for every install that hasn't
+        // touched the new "default_pages_scope" setting.
+        const overviewParams = {
+            ...dateParams,
+            ...(this.#recentScopeInitialized && this.#recentScope === 'real' ? { scope: 'real' } : {}),
+        };
         const [overviewResult, summaryResult] = await Promise.allSettled([
-            this._apiGet('/page-insights/overview', params),
-            this._apiGet('/page-insights/summary', params),
+            this._apiGet('/page-insights/overview', overviewParams),
+            this._apiGet('/page-insights/summary', dateParams),
         ]);
 
         this.#overview = overviewResult.status === 'fulfilled' ? overviewResult.value : null;
         this.#summary = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
         this.#recentPages = this.#overview?.recent_pages || [];
         this.#recentHasMore = this.#recentPages.length >= this.#recentLimit;
+
+        // First load only: adopt the admin-configured default scope. If it
+        // turns out to be 'real' (the uncommon case - default is 'all'),
+        // the /overview call above already ran without a scope param, so
+        // re-fetch just "Recently viewed pages" with the correct filter
+        // instead of the whole dashboard.
+        if (!this.#recentScopeInitialized) {
+            this.#recentScopeInitialized = true;
+            this.#recentScope = this.#overview?.default_pages_scope === 'real' ? 'real' : 'all';
+            if (this.#recentScope === 'real') {
+                await this._reloadRecent();
+            }
+        }
 
         if (overviewResult.status === 'rejected') {
             this._error = overviewResult.reason?.message || 'Could not load page stats';
@@ -529,7 +553,13 @@ class PageInsightsPage extends HTMLElement {
                 </div>
 
                 <div class="card wide">
-                    <h3>Recently viewed pages</h3>
+                    <div class="recent-header">
+                        <h3>Recently viewed pages</h3>
+                        <div class="scope-toggle" role="group" aria-label="Filter pages shown">
+                            <button class="scope-btn ${this.#recentScope === 'all' ? 'active' : ''}" data-scope="all">All pages</button>
+                            <button class="scope-btn ${this.#recentScope === 'real' ? 'active' : ''}" data-scope="real" title="Only pages that exist under user/pages - excludes assets, sitemap.xml, robots.txt, 404s etc.">Real pages only</button>
+                        </div>
+                    </div>
                     ${this._table(
                         ['Page', 'User', 'Browser', 'Platform', 'Date'],
                         this.#recentPages.map((r) => [
@@ -546,7 +576,25 @@ class PageInsightsPage extends HTMLElement {
         `;
 
         body.querySelector('.load-more-recent')?.addEventListener('click', () => this._loadMoreRecent());
+        body.querySelectorAll('.scope-btn').forEach((btn) => {
+            btn.addEventListener('click', () => this._setRecentScope(btn.dataset.scope));
+        });
         this._bindNavLinks(body);
+    }
+
+    /**
+     * Switches the "Recently viewed pages" scope toggle (all/real) and
+     * reloads just that card - the rest of the dashboard (KPIs, charts,
+     * top lists) is untouched, since only Recently viewed pages supports
+     * this filter for now (see PageInsightsApiController::getScopeFilter()
+     * doc comment - Top Pages is planned for after the first release).
+     */
+    async _setRecentScope(scope) {
+        if (scope === this.#recentScope) return;
+        this.#recentScope = scope;
+        this.#recentScopeInitialized = true;
+        await this._reloadRecent();
+        this._renderBody();
     }
 
     /**
@@ -599,6 +647,7 @@ class PageInsightsPage extends HTMLElement {
         try {
             const data = await this._apiGet('/page-insights/recent', {
                 ...this._dateRangeParams(),
+                ...(this.#recentScope === 'real' ? { scope: 'real' } : {}),
                 limit: nextLimit,
             });
             this.#recentPages = data.pages || [];
@@ -608,6 +657,29 @@ class PageInsightsPage extends HTMLElement {
             window.__GRAV_TOAST?.error(err.message || 'Could not load more recently viewed pages');
         }
         this._renderBody();
+    }
+
+    /**
+     * Re-fetches "Recently viewed pages" from scratch at the base limit
+     * (10) for the current #recentScope - used when the scope toggle is
+     * switched, so "Load more"'s growing limit doesn't carry over between
+     * an "All pages" and a "Real pages only" view. Unlike _loadMoreRecent()
+     * this doesn't re-render itself; callers do that once they're done
+     * (see _setRecentScope() and the first-load path in _loadDashboard()).
+     */
+    async _reloadRecent() {
+        this.#recentLimit = 10;
+        try {
+            const data = await this._apiGet('/page-insights/recent', {
+                ...this._dateRangeParams(),
+                ...(this.#recentScope === 'real' ? { scope: 'real' } : {}),
+                limit: this.#recentLimit,
+            });
+            this.#recentPages = data.pages || [];
+            this.#recentHasMore = this.#recentPages.length >= this.#recentLimit;
+        } catch (err) {
+            window.__GRAV_TOAST?.error(err.message || 'Could not load recently viewed pages');
+        }
     }
 
     _chartCard(title, total, series, color) {
@@ -928,6 +1000,19 @@ class PageInsightsPage extends HTMLElement {
             .bar-track { background: var(--border); border-radius: 4px; height: 8px; overflow: hidden; }
             .bar-fill { background: var(--primary); height: 100%; }
             .bar-value { text-align: right; color: var(--muted-foreground); }
+            .recent-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+            .recent-header h3 { margin: 0; }
+            .scope-toggle { display: flex; gap: 4px; }
+            .scope-btn {
+                background: var(--background);
+                color: var(--foreground);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 4px 10px;
+                cursor: pointer;
+                font-size: 12px;
+            }
+            .scope-btn.active { background: var(--primary); color: var(--primary-foreground, #fff); border-color: var(--primary); }
             .recent-page-cell { display: inline-flex; align-items: center; gap: 6px; }
             .recent-page-link { color: var(--muted-foreground); display: inline-flex; text-decoration: none; }
             .recent-page-link:hover { color: var(--foreground); }
