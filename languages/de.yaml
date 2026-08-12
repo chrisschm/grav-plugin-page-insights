@@ -1,5 +1,5 @@
 PLUGIN_PAGE_INSIGHTS:
-  PAGE_STATS: Statistiken
+  PAGE_STATS: Page Insights
   STATS_DB_LABEL: Page Insights DB Pfad
   STATS_DB_HELP: Relativer Pfad zur DB ausgehend vom Grav Root
   TAB_GENERAL: Allgemein
@@ -89,7 +89,7 @@ PLUGIN_PAGE_INSIGHTS:
   VIEW_ALL: Zeige Alle
   ALL_PAGES: Alle Seiten
   PAGE_DETAILS_TITLE: Seitendetails
-  PAGE_STATS_TITLE: Seitenstatistik
+  PAGE_STATS_TITLE: Page Insights
   USER_DETAILS: Benutzerdetails
   PAGE_VIEWS: Seitenaufrufe
   VIEW_PAGE: Seite anzeigen
@@ -108,7 +108,7 @@ PLUGIN_PAGE_INSIGHTS:
     HELP: URLs in dieser Liste werden ignoriert; Sie können reguläre Ausdrücke 
       oder eine Zeichenfolge verwenden
   SECTION_WIDGETS: Widget-Konfiguration
-  SECTION_WIDGETS_LABEL: Widgets für Seitenstatistiken konfigurieren
+  SECTION_WIDGETS_LABEL: Page Insights Widgets konfigurieren
   SECTION_BEHAVIOUR: Verhalten
   SECTION_BEHAVIOUR_LABEL: Steuern, wann das Plugin Statistiken erfasst
   WIDGET_SIZE_LABEL: Widgetgröße
