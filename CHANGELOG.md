@@ -7,6 +7,18 @@
 > contributed upstream as Page Stats PR #56 (later merged) - development continues independently here from this
 > point, under a new name.
 
+1. [New Features](#new)
+    * feat: translations are now managed via [Codeberg Translate](https://translate.codeberg.org/engage/grav-plugin-page-insights/) (Weblate) - German and French translations added, alongside the English source strings.
+1. [Bug Fixes](#bugfix)
+    * bugfix: fixed a `Class "Grav\Plugin\PageInsights\Stats" not found` fatal error on a fresh install/clone. The compiled Composer autoloader (`vendor/composer/autoload_*.php`) still referenced the pre-rename `Grav\Plugin\PageStats` namespace and had never been regenerated after the switch to `Grav\Plugin\PageInsights` - `composer.json` itself was correct. Fixed via `composer dump-autoload`; a note was added to `CONTRIBUTING.md` so this doesn't recur after future namespace/file changes.
+    * bugfix: `composer.json` declared a minimum PHP version of `>=7.1.3`, but `Stats::query()` uses `str_contains()`, which requires PHP 8.0 and has no polyfill in the production dependencies - raised the requirement to `>=8.0`.
+    * fix: corrected a non-existent maintainer contact address (`info@jcs-net.de`) in `blueprints.yaml`.
+1. [Improvements](#improvements)
+    * meta: added Christian Schmidt as a second `composer.json` author and as a second copyright holder in `LICENSE`, alongside Nuno Costa as original author.
+    * meta: removed five vendor packages (`twig/twig`, `twig/intl-extra`, `symfony/intl`, `symfony/polyfill-intl-icu`, `symfony/polyfill-ctype`, `symfony/polyfill-php72`) left over from an earlier dependency tree and no longer listed in `composer.lock`; refreshed the lock file's stale content-hash.
+    * meta: split the single `languages.yaml` into per-language files under `languages/` (`en`/`de`/`fr`) to enable translation via Codeberg Translate; corrected a few remaining "Page Stats" branding leftovers in the English source strings and the French translation.
+    * meta: added `CODE_OF_CONDUCT.md`, `SECURITY.md`, and `CONTRIBUTING.md`, plus issue/PR templates for both Codeberg and the GitHub mirror.
+
 
 
 # v2.9.0
