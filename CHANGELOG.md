@@ -8,20 +8,20 @@
 > point, under a new name.
 
 1. [New Features](#new)
-    * feat: translations are now managed via [Codeberg Translate](https://translate.codeberg.org/engage/grav-plugin-page-insights/) (Weblate) - German and French translations added, alongside the English source strings.
+    * feat: translations are now managed via [Codeberg Translate](https://translate.codeberg.org/engage/grav-plugin-page-insights/) (Weblate) - German and French translations added, alongside the English source strings ([566d088d3d](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/566d088d3d40ab005f2b1e1a860ad80d0809a0f5)). 
 1. [Bug Fixes](#bugfix)
-    * bugfix: fixed a `Class "Grav\Plugin\PageInsights\Stats" not found` fatal error on a fresh install/clone. The compiled Composer autoloader (`vendor/composer/autoload_*.php`) still referenced the pre-rename `Grav\Plugin\PageStats` namespace and had never been regenerated after the switch to `Grav\Plugin\PageInsights` - `composer.json` itself was correct. Fixed via `composer dump-autoload`; a note was added to `CONTRIBUTING.md` so this doesn't recur after future namespace/file changes.
+    * bugfix: fixed a `Class "Grav\Plugin\PageInsights\Stats" not found` fatal error on a fresh install/clone. The compiled Composer autoloader (`vendor/composer/autoload_*.php`) still referenced the pre-rename `Grav\Plugin\PageStats` namespace and had never been regenerated after the switch to `Grav\Plugin\PageInsights` - `composer.json` itself was correct. Fixed via `composer dump-autoload`; a note was added to `CONTRIBUTING.md` so this doesn't recur after future namespace/file changes ([f87ae1ac5b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/f87ae1ac5b0da7d25502075c3c8e4cad9f930e6d)).
     * bugfix: `composer.json` declared a minimum PHP version of `>=7.1.3`, but `Stats::query()` uses `str_contains()`, which requires PHP 8.0 and has no polyfill in the production dependencies - raised the requirement to `>=8.0`.
     * fix: corrected a non-existent maintainer contact address (`info@jcs-net.de`) in `blueprints.yaml`.
 1. [Improvements](#improvements)
     * meta: added Christian Schmidt as a second `composer.json` author and as a second copyright holder in `LICENSE`, alongside Nuno Costa as original author.
-    * meta: removed five vendor packages (`twig/twig`, `twig/intl-extra`, `symfony/intl`, `symfony/polyfill-intl-icu`, `symfony/polyfill-ctype`, `symfony/polyfill-php72`) left over from an earlier dependency tree and no longer listed in `composer.lock`; refreshed the lock file's stale content-hash.
-    * meta: split the single `languages.yaml` into per-language files under `languages/` (`en`/`de`/`fr`) to enable translation via Codeberg Translate; corrected a few remaining "Page Stats" branding leftovers in the English source strings and the French translation.
-    * meta: added `CODE_OF_CONDUCT.md`, `SECURITY.md`, and `CONTRIBUTING.md`, plus issue/PR templates for both Codeberg and the GitHub mirror.
+    * meta: removed five vendor packages (`twig/twig`, `twig/intl-extra`, `symfony/intl`, `symfony/polyfill-intl-icu`, `symfony/polyfill-ctype`, `symfony/polyfill-php72`) left over from an earlier dependency tree and no longer listed in `composer.lock`; refreshed the lock file's stale content-hash ([7dbfdbaf26](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/7dbfdbaf26781a5755360d59924c742fa3cadb18)).
+    * meta: split the single `languages.yaml` into per-language files under `languages/` (`en`/`de`/`fr`) to enable translation via Codeberg Translate; corrected a few remaining "Page Stats" branding leftovers in the English source strings and the French translation ([62ea13221b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/62ea13221(https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/f87ae1ac5b0da7d25502075c3c8e4cad9f930e6d)bdec95a75913385c967cf79a1db4b7c)).
+    * meta: added `CODE_OF_CONDUCT.md`, `SECURITY.md`, and `CONTRIBUTING.md`, plus issue/PR templates for both Codeberg and the GitHub mirror ([75b122bad1](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/75b122bad10425c9b2e85b434b2162525a4538a8), ([74f35a3683](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/74f35a3683358191dc7d0846bdbd5af149f745c7))).
 
 
 
-# v2.9.0
+# v2.9.0 ([ab30321](https://github.com/francodacosta/grav-plugin-page-stats/commit/ab30321b04aaf8e835303876dbec2b52dc9f28b0))
 ## 08/10/2026
 
 1. [New Features](#new)
@@ -40,7 +40,7 @@
     * improvement: database size now shown with a clear label, moved out of an oversized standalone KPI tile into a more compact placement.
     * meta: renamed the internal namespace/classes (`Grav\Plugin\PageStats` → `Grav\Plugin\PageInsights`), REST route prefix and Admin2 route (`/page-stats` → `/page-insights`), config namespace, and translation key prefix throughout. Changed the default database filename to `user/data/page-insights.sqlite` (was `user/data/page-data.sqlite`) so a parallel Page Stats installation isn't affected during a transition - see README for details. The page front-matter opt-out key also changed from `page-stats:` to `page-insights:`.
 
-# v2.8.0
+# v2.8.0 ([afeb7de](https://github.com/francodacosta/grav-plugin-page-stats/commit/afeb7de794c3bb6c6477f80f3a9daeef219943ae))
 ## 08/10/2026
 
 1. [New Features](#new)
