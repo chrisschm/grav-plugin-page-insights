@@ -8,7 +8,7 @@
 > point, under a new name.
 
 1. [New Features](#new)
-    * feat: translations are now managed via [Codeberg Translate](https://translate.codeberg.org/engage/grav-plugin-page-insights/) (Weblate) - German and French translations added, alongside the English source strings ([566d088d3d](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/566d088d3d40ab005f2b1e1a860ad80d0809a0f5)). 
+    * feat: translations are now managed via [Codeberg Translate](https://translate.codeberg.org/engage/grav-plugin-page-insights/) (Weblate) - German and French translations added, alongside the English source strings ([566d088d3d](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/566d088d3d40ab005f2b1e1a860ad80d0809a0f5)).
 1. [Bug Fixes](#bugfix)
     * bugfix: fixed a `Class "Grav\Plugin\PageInsights\Stats" not found` fatal error on a fresh install/clone. The compiled Composer autoloader (`vendor/composer/autoload_*.php`) still referenced the pre-rename `Grav\Plugin\PageStats` namespace and had never been regenerated after the switch to `Grav\Plugin\PageInsights` - `composer.json` itself was correct. Fixed via `composer dump-autoload`; a note was added to `CONTRIBUTING.md` so this doesn't recur after future namespace/file changes ([f87ae1ac5b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/f87ae1ac5b0da7d25502075c3c8e4cad9f930e6d)).
     * bugfix: `composer.json` declared a minimum PHP version of `>=7.1.3`, but `Stats::query()` uses `str_contains()`, which requires PHP 8.0 and has no polyfill in the production dependencies - raised the requirement to `>=8.0`.
@@ -16,7 +16,7 @@
 1. [Improvements](#improvements)
     * meta: added Christian Schmidt as a second `composer.json` author and as a second copyright holder in `LICENSE`, alongside Nuno Costa as original author.
     * meta: removed five vendor packages (`twig/twig`, `twig/intl-extra`, `symfony/intl`, `symfony/polyfill-intl-icu`, `symfony/polyfill-ctype`, `symfony/polyfill-php72`) left over from an earlier dependency tree and no longer listed in `composer.lock`; refreshed the lock file's stale content-hash ([7dbfdbaf26](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/7dbfdbaf26781a5755360d59924c742fa3cadb18)).
-    * meta: split the single `languages.yaml` into per-language files under `languages/` (`en`/`de`/`fr`) to enable translation via Codeberg Translate; corrected a few remaining "Page Stats" branding leftovers in the English source strings and the French translation ([62ea13221b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/62ea13221(https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/f87ae1ac5b0da7d25502075c3c8e4cad9f930e6d)bdec95a75913385c967cf79a1db4b7c)).
+    * meta: split the single `languages.yaml` into per-language files under `languages/` (`en`/`de`/`fr`) to enable translation via Codeberg Translate; corrected a few remaining "Page Stats" branding leftovers in the English source strings and the French translation ([62ea13221b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/62ea13221bdec95a75913385c967cf79a1db4b7c)).
     * meta: added `CODE_OF_CONDUCT.md`, `SECURITY.md`, and `CONTRIBUTING.md`, plus issue/PR templates for both Codeberg and the GitHub mirror ([75b122bad1](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/75b122bad10425c9b2e85b434b2162525a4538a8), [74f35a3683](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/74f35a3683358191dc7d0846bdbd5af149f745c7)).
 
 
