@@ -36,7 +36,8 @@
     "config": {
         "platform": {
             "php": "8.0"
-        }
+        },
+        "autoloader-suffix": "PageInsightsGravPlugin"
     },
     "require-dev": {
         "marcocesarato/php-conventional-changelog": "^1.15"

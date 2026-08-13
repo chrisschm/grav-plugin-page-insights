@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInita2c090e39093f29eb47e896c40be01d1
+class ComposerStaticInitPageInsightsGravPlugin
 {
     public static $files = array (
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
@@ -87,9 +87,9 @@ class ComposerStaticInita2c090e39093f29eb47e896c40be01d1
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInita2c090e39093f29eb47e896c40be01d1::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInita2c090e39093f29eb47e896c40be01d1::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInita2c090e39093f29eb47e896c40be01d1::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInitPageInsightsGravPlugin::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInitPageInsightsGravPlugin::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInitPageInsightsGravPlugin::$classMap;
 
         }, null, ClassLoader::class);
     }
