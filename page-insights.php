@@ -488,8 +488,26 @@ class PageInsightsPlugin extends Plugin
     public function getRealPageRoutes(): array
     {
         $pages = $this->grav['pages'];
-        $cache = $this->grav['cache'];
 
+        // Admin2/API requests run with Pages::disablePages() already
+        // applied (Grav's own admin/API layer does this deliberately for
+        // performance - most backend requests never need the full
+        // frontend page tree). That makes Pages::init() take an
+        // early-return branch that skips buildPages() entirely, so
+        // routes(), getPagesCacheId() etc. silently stay empty/null - no
+        // exception, nothing to catch. enablePages() flips the flag back
+        // and re-runs init() properly; it's the documented counterpart to
+        // disablePages() for exactly this situation. Grav's own internal
+        // page cache (last_modified/hash-based) makes repeat calls cheap,
+        // same as any normal frontend page load - this doesn't force a
+        // fresh filesystem scan every time.
+        if (method_exists($pages, 'enablePages')) {
+            $pages->enablePages();
+        } else {
+            $pages->init();
+        }
+
+        $cache = $this->grav['cache'];
         $cacheId = 'page-insights-real-routes-' . $pages->getPagesCacheId();
         $routes = $cache->fetch($cacheId);
 
