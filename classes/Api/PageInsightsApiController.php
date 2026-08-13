@@ -234,77 +234,10 @@ class PageInsightsApiController extends AbstractApiController
         $filter = $this->getScopeFilter($request);
         $stats = $this->getStats();
 
-        $response = [
+        return ApiResponse::create([
             'pages' => $stats->recentPages($limit, $dateFrom, $dateTo, $filter),
             'by_day' => $stats->recentPagesByDay($limit, $dateFrom, $dateTo, $filter),
-        ];
-
-        // TEMPORARY, more granular diagnostic for the "Real pages only" ->
-        // "no data" issue on production (2026-08-13). The previous, simpler
-        // debug fields stayed at 0 through two fix attempts (Plugins::
-        // getPlugin() lookup, then Pages::init()), so this checks every
-        // remaining link in the chain in one response instead of costing
-        // another deploy-and-test round trip per hypothesis. Safe to
-        // remove entirely once resolved; admin-only auth, same as the rest
-        // of this endpoint, no sensitive data exposed (page routes are
-        // public site structure; exception messages could theoretically
-        // contain a filesystem path, acceptable for a short-lived debug aid
-        // behind an admin permission check).
-        if ($this->getQueryParam($request, 'scope') === 'real') {
-            $response['debug'] = $this->debugRealPagesScope();
-        }
-
-        return ApiResponse::create($response);
-    }
-
-    /**
-     * TEMPORARY - see the comment in recent(). Checks each step of
-     * PageInsightsPlugin::getRealPageRoutes() independently: whether the
-     * plugin instance is found at all, what class $grav['pages'] actually
-     * is, whether Pages::init() throws, the pages cache ID, and a route
-     * count/sample computed directly (bypassing our own cache layer
-     * entirely) so a stale cached-empty-array can't hide the real state.
-     */
-    private function debugRealPagesScope(): array
-    {
-        $info = [];
-
-        $plugin = $this->getPlugin();
-        $info['plugin_found'] = $plugin !== null;
-
-        $grav = Grav::instance();
-
-        try {
-            $pages = $grav['pages'];
-            $info['pages_class'] = get_class($pages);
-
-            try {
-                $pages->init();
-                $info['pages_init_error'] = null;
-            } catch (\Throwable $e) {
-                $info['pages_init_error'] = $e->getMessage();
-            }
-
-            $info['pages_cache_id'] = $pages->getPagesCacheId();
-
-            $rawRoutes = array_keys($pages->routes());
-            $info['raw_routes_count'] = count($rawRoutes);
-            $info['raw_routes_sample'] = array_slice($rawRoutes, 0, 8);
-        } catch (\Throwable $e) {
-            $info['pages_error'] = $e->getMessage();
-        }
-
-        if ($plugin !== null) {
-            try {
-                $viaPlugin = $plugin->getRealPageRoutes();
-                $info['plugin_routes_count'] = count($viaPlugin);
-                $info['plugin_routes_sample'] = array_slice($viaPlugin, 0, 8);
-            } catch (\Throwable $e) {
-                $info['plugin_routes_error'] = $e->getMessage();
-            }
-        }
-
-        return $info;
+        ]);
     }
 
     /**
