@@ -1,5 +1,5 @@
 # v3.0.0
-## unreleased
+## 08/13/2026
 
 > First release under the name **Page Insights**. Forked from
 > [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats) by Nuno Costa after several years without
@@ -7,50 +7,52 @@
 > contributed upstream as Page Stats PR #56 (later merged) - development continues independently here from this
 > point, under a new name.
 
-1. [New Features](#new)
-    * feat: translations are now managed via [Codeberg Translate](https://translate.codeberg.org/engage/grav-plugin-page-insights/) (Weblate) - German and French translations added, alongside the English source strings ([566d088d3d](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/566d088d3d40ab005f2b1e1a860ad80d0809a0f5)).
-1. [Bug Fixes](#bugfix)
-    * bugfix: fixed a `Class "Grav\Plugin\PageInsights\Stats" not found` fatal error on a fresh install/clone. The compiled Composer autoloader (`vendor/composer/autoload_*.php`) still referenced the pre-rename `Grav\Plugin\PageStats` namespace and had never been regenerated after the switch to `Grav\Plugin\PageInsights` - `composer.json` itself was correct. Fixed via `composer dump-autoload`; a note was added to `CONTRIBUTING.md` so this doesn't recur after future namespace/file changes ([f87ae1ac5b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/f87ae1ac5b0da7d25502075c3c8e4cad9f930e6d)).
+1. [](#new)
+    * feat: translations are now managed via [Codeberg Translate](https://translate.codeberg.org/engage/grav-plugin-page-insights/) (Weblate) - German and French translations added, alongside the English source strings.
+    * feat: "Recently viewed pages" can now be filtered to only real, filesystem-based content pages under `user/pages` (`?scope=real`), hiding hits against assets, `sitemap.xml`, `robots.txt`, and similar non-page routes. The route whitelist is built from Grav's own `Pages` object, cached and keyed to `Pages::getPagesCacheId()` so it invalidates automatically whenever page content changes. `Stats::query()`'s `$params` filter mechanism was extended to accept array values, building an `IN (...)` clause instead of a plain equality check (backward compatible; an empty array yields an intentionally unsatisfiable `1 = 0` rather than silently returning everything). A new `default_pages_scope` blueprint option (Grav 2.0 / Admin2 tab) sets which scope the dashboard shows on first load.
+1. [](#bugfix)
+    * bugfix: fixed a `Class "Grav\Plugin\PageInsights\Stats" not found` fatal error on a fresh install/clone. The compiled Composer autoloader (`vendor/composer/autoload_*.php`) still referenced the pre-rename `Grav\Plugin\PageStats` namespace and had never been regenerated after the switch to `Grav\Plugin\PageInsights` - `composer.json` itself was correct. Fixed via `composer dump-autoload`; a note was added to `CONTRIBUTING.md` so this doesn't recur after future namespace/file changes.
     * bugfix: `composer.json` declared a minimum PHP version of `>=7.1.3`, but `Stats::query()` uses `str_contains()`, which requires PHP 8.0 and has no polyfill in the production dependencies - raised the requirement to `>=8.0`.
     * fix: corrected a non-existent maintainer contact address (`info@jcs-net.de`) in `blueprints.yaml`.
-1. [Improvements](#improvements)
+    * bugfix: the new "Real pages only" filter always returned no data, from two independent causes found while diagnosing on production. First, the API controller looked up the running plugin instance via `$grav['page-insights']`, which isn't a thing - Grav never registers plugin instances into the DI container under their slug, only internally by class name. Switched to Grav's own `Plugins::getPlugin('page-insights')` static helper, which iterates loaded plugins matching on `->name`. Second, even with the plugin instance found, the route whitelist still came back empty: Admin2/API requests run with `Pages::disablePages()` already applied by Grav's own admin/API layer (for performance, since most backend requests don't need the full frontend page tree), which makes `Pages::init()` skip `buildPages()` entirely - so `routes()`/`getPagesCacheId()` stayed silently empty, with nothing to catch. `Pages::enablePages()` is Grav's own documented counterpart for exactly this situation.
+    * bugfix: `vendor/composer/autoload_real.php` declared the same `ComposerAutoloaderInit<hash>` class as Page Stats' own `vendor/autoload.php` - inherited unchanged from the full `vendor/` copy made during the technical rename, and silently carried forward by every subsequent `composer dump-autoload` since (Composer reuses the suffix already present in `vendor/autoload.php` instead of generating a fresh one, specifically to avoid diff noise across routine installs/updates). This only surfaced once Page Insights was installed on production alongside Page Stats for the first time - Grav's plugin loader requires both plugins' `vendor/autoload.php` in the same PHP process, and the second one to load fataled with `Cannot redeclare class`. Fixed with an explicit, unique `config.autoloader-suffix` in `composer.json`.
+1. [](#improvements)
     * meta: added Christian Schmidt as a second `composer.json` author and as a second copyright holder in `LICENSE`, alongside Nuno Costa as original author.
-    * meta: removed five vendor packages (`twig/twig`, `twig/intl-extra`, `symfony/intl`, `symfony/polyfill-intl-icu`, `symfony/polyfill-ctype`, `symfony/polyfill-php72`) left over from an earlier dependency tree and no longer listed in `composer.lock`; refreshed the lock file's stale content-hash ([7dbfdbaf26](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/7dbfdbaf26781a5755360d59924c742fa3cadb18)).
-    * meta: split the single `languages.yaml` into per-language files under `languages/` (`en`/`de`/`fr`) to enable translation via Codeberg Translate; corrected a few remaining "Page Stats" branding leftovers in the English source strings and the French translation ([62ea13221b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/62ea13221bdec95a75913385c967cf79a1db4b7c)).
-    * meta: added `CODE_OF_CONDUCT.md`, `SECURITY.md`, and `CONTRIBUTING.md`, plus issue/PR templates for both Codeberg and the GitHub mirror ([75b122bad1](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/75b122bad10425c9b2e85b434b2162525a4538a8), [74f35a3683](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/74f35a3683358191dc7d0846bdbd5af149f745c7)).
+    * meta: removed five vendor packages (`twig/twig`, `twig/intl-extra`, `symfony/intl`, `symfony/polyfill-intl-icu`, `symfony/polyfill-ctype`, `symfony/polyfill-php72`) left over from an earlier dependency tree and no longer listed in `composer.lock`; refreshed the lock file's stale content-hash.
+    * meta: split the single `languages.yaml` into per-language files under `languages/` (`en`/`de`/`fr`) to enable translation via Codeberg Translate; corrected a few remaining "Page Stats" branding leftovers in the English source strings and the French translation.
+    * meta: added `CODE_OF_CONDUCT.md`, `SECURITY.md`, and `CONTRIBUTING.md`, plus issue/PR templates for both Codeberg and the GitHub mirror.
+    * meta: removed the unused `marcocesarato/php-conventional-changelog` dev dependency (another Nuno Costa leftover, never actually used to generate this project's changelog) and its full dependency tree (7 packages: `psr/container`, `symfony/console`, three Symfony polyfills) - nothing else in `vendor/` depended on any of them.
 
+# v2.9.0
+## 08/10/2026 ([ab30321](https://github.com/francodacosta/grav-plugin-page-stats/commit/ab30321b04aaf8e835303876dbec2b52dc9f28b0))
 
-
-# v2.9.0 ([ab30321](https://github.com/francodacosta/grav-plugin-page-stats/commit/ab30321b04aaf8e835303876dbec2b52dc9f28b0))
-## 08/10/2026
-
-1. [New Features](#new)
+1. [](#new)
     * feat: Page Detail / User Detail sub-views. Since Admin2's client-side router only supports a single dynamic path segment per plugin page (no catch-all), sub-views are addressed via query parameters on the fixed plugin route (`?view=page-detail&route=...`, `?view=user-detail&user=...`/`?ip=...`), driven by plain `history.pushState()`/`popstate` - verified to survive a hard reload on all three URL forms and to work correctly with the browser back button. Page Detail shows KPIs, a time-series chart, top countries/browsers/platforms and recent views for a single route; User Detail shows KPIs, a time-series chart, that user's top pages (linked to Page Detail), and their recent views. Both are assembled entirely from the existing dashboard building blocks, no new rendering code. Linked from "Recently viewed pages", "Top users", and both lookup result tables via a small trend icon.
     * feat: `blueprints.yaml` reorganized into three tabs - General (settings shared by both admin UIs), Grav 1.7 / Classic Admin (the existing per-widget settings, still actively used by the classic templates), and Grav 2.0 / Admin2 (currently an info placeholder for future Admin2-specific options) - keeps the config navigable as both admin UIs continue to be maintained side by side.
     * feat: time-series trend charts for page views / unique visitors / unique users, and country flags (via flagcdn.com) in the Top Countries widget.
     * feat: "Recently viewed pages" load-more pagination in 10-row increments (no offset/cursor, avoiding duplicate or missing rows when new hits land between clicks), with Browser and Platform columns added.
     * feat: IP fallback instead of a plain "(anonymous)" label for hits without a logged-in user, individually traceable via User Detail using `ip` as an alternate key to `user`.
-1. [Bug Fixes](#bugfix)
+1. [](#bugfix)
     * bugfix: `type: section` blueprint fields require a `title` to render in Admin2 at all (unlike Classic Admin, which renders `text` alone) - several passes fixing empty/invisible info sections in the Admin2 config screen, plus a missing border on empty info boxes.
     * bugfix: the `collector_ping_interval` blueprint field existed but wasn't actually exposed as an editable field.
     * bugfix: link ordering and missing/broken links across the recent-pages, lookup, and new detail views, ironed out over several iterations as the detail views took shape.
     * bugfix: "Load more" button CSS on the recently-viewed-pages list.
     * bugfix: display error on the page-view detail row.
-1. [Improvements](#improvements)
+1. [](#improvements)
     * improvement: database size now shown with a clear label, moved out of an oversized standalone KPI tile into a more compact placement.
     * meta: renamed the internal namespace/classes (`Grav\Plugin\PageStats` → `Grav\Plugin\PageInsights`), REST route prefix and Admin2 route (`/page-stats` → `/page-insights`), config namespace, and translation key prefix throughout. Changed the default database filename to `user/data/page-insights.sqlite` (was `user/data/page-data.sqlite`) so a parallel Page Stats installation isn't affected during a transition - see README for details. The page front-matter opt-out key also changed from `page-stats:` to `page-insights:`.
 
-# v2.8.0 ([afeb7de](https://github.com/francodacosta/grav-plugin-page-stats/commit/afeb7de794c3bb6c6477f80f3a9daeef219943ae))
-## 08/10/2026
+# v2.8.0
+## 08/10/2026 ([afeb7de](https://github.com/francodacosta/grav-plugin-page-stats/commit/afeb7de794c3bb6c6477f80f3a9daeef219943ae))
 
-1. [New Features](#new)
+1. [](#new)
     * feat: Grav 2.0 / Admin2 compatibility (#53) - adds a REST API controller (`classes/Api/PageStatsApiController.php`) exposing the existing `Stats` data layer, and an Admin2 sidebar entry + single-page dashboard (`admin-next/pages/page-stats.js`) with page-view/visitor/user totals, top pages/countries/browsers/platforms/users, recently viewed pages, and page/user lookup. Consolidates the nine separate classic-admin pages into one dashboard, since Admin2 component pages are a single route. Requires a `compatibility` declaration in `blueprints.yaml`, which is also what the Grav 2.0 migration wizard checks - its absence is why older versions were auto-flagged as incompatible. Classic Admin (Grav < 2.0) keeps working unchanged via the existing `onAdminDashboard`/`onAdminPage` hooks.
-1. [Bug Fixes](#bugfix)
+1. [](#bugfix)
     * bugfix: `getUserIP()` returned `null` in request contexts without a real client IP (e.g. `bin/grav page-system-validator`, which still fires `onPageInitialized`), and `isEnabledForIp(string $ip)` declared a non-nullable parameter - causing an uncaught `TypeError` and a fatal error. `getUserIP()` now returns `?string` and `isEnabledForIp()` accepts `?string`, treating "no IP" as "nothing to log" instead of crashing.
     * bugfix: `Stats::query()` mishandled date-range filtering whenever both `$dateFrom` and `$dateTo` were passed - the `date_from`/`date_to` values were both used to build the `BETWEEN` clause *and* re-processed by the generic equality-filter loop, producing an invalid `date_from = :date_from` condition (`data` has a `date` column, not `date_from`) and a `SQLSTATE[HY000]: no such column: date_from` error. The `BETWEEN` clause itself also had a placeholder typo (`:dateTo` instead of `:date_to`), and `DateTimeImmutable` objects were bound directly instead of as formatted strings. This is likely why date-range filtering across the plugin has been effectively dead code for years - it seems to have never been exercised with both bounds set at once.
     * bugfix: `Stats::siteSummary()` called `query()` with the wrong argument order (missing the `$limit` argument), so `$dateFrom` landed in the `?int $limit` slot - a `DateTimeImmutable` object where an `int` was expected - and would fatal with a `TypeError` whenever a date range was actually supplied.
     * bugfix: `Stats::pagesSummary()`'s SQL was missing `%where` entirely, so bindings for the date range (or query params) had nothing to attach to and SQLite rejected them with `SQLSTATE[HY000]: column index out of range`. Added the missing `%where` so date-range filtering on the "top pages" list actually works.
-1. [Improvements](#improvements)
+1. [](#improvements)
     * improvement: `Stats::totalUniqueVisitors()` / `Stats::totalUniqueUsers()` helpers for the new Admin2 overview KPIs
     * improvement: `Stats::query()` now only binds a parameter if its placeholder is actually present in the final SQL string, as a defensive safety net against further query-builder/SQL mismatches like the `pagesSummary()` one above
     * improvement: the SQLite connection now sets `PRAGMA busy_timeout` (5s) and `PRAGMA journal_mode = WAL`. Without these, concurrent requests writing to the stats database serialize on a single file lock (default `busy_timeout` is 0) and every commit fsyncs the whole rollback journal; under real traffic this can make individual requests noticeably slower and, in the worst case, pile up PHP-FPM workers waiting on the same lock until the pool is exhausted - taking down unrelated requests too, not just page-stats.
@@ -58,68 +60,57 @@
 # v2.5.3
 ## 09/01/2023
 
-1. [New Features](#new)
-1. [Bug Fixes](#bugfix)
+1. [](#bugfix)
     * fix: Undefined index: HTTP_USER_AGENT (#32)
-1. [Improvements](#improvements)
 
 # v2.5.2
 ## 09/01/2023
 
-1. [New Features](#new)
-1. [Bug Fixes](#bugfix)
+1. [](#bugfix)
     * dummy release to correct typo in release versions (#33)
-1. [Improvements](#improvements)
 
 # v2.5.1
 ## 05/01/2023
 
-1. [New Features](#new)
-1. [Bug Fixes](#bugfix)
+1. [](#bugfix)
     * click on view all on recently pages viewed will now show you a list of recently viewed pages grouped by date
-1. [Improvements](#improvements)
 
 # v2.5.0
 ## 26/09/2022
 
-1. [New Features](#new)
+1. [](#new)
     * You can noe define a list of user agents to classify as bots/crawlers
-1. [Bug Fixes](#bugfix)
-1. [Improvements](#improvements)
 
 # v2.4.1
 ## 21/09/2022
 
-1. [New Features](#new)
-1. [Bug Fixes](#bugfix)
-    *   Add missing translation strings
-1. [Improvements](#improvements)
+1. [](#bugfix)
+    * Add missing translation strings
 
-    # v2.4.0
+# v2.4.0
 ## 20/09/2022
 
-1. [New Features](#new)
+1. [](#new)
     * configuration option to show page title our route
-1. [Bug Fixes](#bugfix)
+1. [](#bugfix)
     * don't error out if ip2location lib throws exception when geolocating ip
     * add debug message with IP on error
-1. [Improvements](#improvements)
+1. [](#improvements)
     * page stats now shows details about all page views, not only the last 10 views
     * time on page collect metrics once a second until the first `ping interval` value you specified and then every `ping interval` seconds, this is so that initial time on page is more accurate
-
 
 # v2.3.0
 ## 5/09/2022
 
-1. [New Features](#new)
+1. [](#new)
     * Show user agent on user detail page
-1. [Bug Fixes](#bugfix)
+1. [](#bugfix)
     * Top country pages not showing
 
 # v2.2.0
 ## 31/08/2022
 
-1. [New Features](#new)
+1. [](#new)
     * Front End event collection support
     * time on page
     * top browsers as table or pie chart
@@ -131,11 +122,11 @@
     * View stats for all users
     * recently viewed page has link to user stats page
     * list of urls to exclude from processing
-1. [Bug Fixes](#bugfix)
+1. [](#bugfix)
     * fix error message when http_referer is not set
     *  do not include FE tracker is not enabled for that page
     * page stats widget not displaying on main dashboard page if url does not end in `/dasboard`
-1. [Improvements](#improvements)
+1. [](#improvements)
     * moved sidebar menu entry to bottom of list
     * top users only shows user name, page views are shown on hover
 
@@ -175,7 +166,6 @@
 1. [](#bugfix)
     * Display date only on user detail page ([b4fb45](https://github.com/francodacosta/grav-plugin-page-stats/commit/b4fb4537ce87a44a31246ea878e170009841c48c))
 
-
 # v1.9.2
 ## 16/08/2022
 
@@ -194,13 +184,11 @@
 1. [](#new)
     * Group page views by day in user detail page ([184489](https://github.com/francodacosta/grav-plugin-page-stats/commit/1844899445f7d6c894720214c32225f8e2d57bf2))
 
-
 # v1.8.2
 ## 15/08/2022
 
 1. [](#bugfix)
     * Show platform data on user detail page ([d510cd](https://github.com/francodacosta/grav-plugin-page-stats/commit/d510cd38a5a3d6a36cd009946286cf418a3cbdb5))
-
 
 # v1.8.1
 ## 15/08/2022
@@ -237,7 +225,6 @@
 1. [](#bugfix)
     * Fixed wrong labelled plugin setting ([6f8ca2](https://github.com/francodacosta/grav-plugin-page-stats/commit/6f8ca29443bf42685ffc85bed9b821c9f6153910))
 
-
 # v1.5.0
 ## 05/08/2022
 
@@ -249,7 +236,6 @@
 
 1. [](#new)
     * Detailed page stats ([7672be](https://github.com/francodacosta/grav-plugin-page-stats/commit/7672bee5ac9b9f54dc5735ab407d455d0d7b8b9b))
-
 
 # v1.3.0
 ## 05/08/2022
@@ -285,5 +271,3 @@
     * Fixed plugin links in blueprints ([ab5474](https://github.com/francodacosta/grav-plugin-page-stats/commit/ab5474cc01513492fc38696fdd04a934cfbe682a))
     * Remove weirdly named folder ([ff3707](https://github.com/francodacosta/grav-plugin-page-stats/commit/ff37078fdce36fb982fb23f2749344c31595e609))
     * Unique users ([428004](https://github.com/francodacosta/grav-plugin-page-stats/commit/428004a9c1731faa98e3147580d4b42488eaddfd))
-
-##
