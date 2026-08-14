@@ -1,5 +1,5 @@
 # v3.0.1
-## 08/14/2026
+## 08/14/2026 ([612054b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/612054b0ab5dee3149048a2677db8ce420103dfd))
 
 1. [](#bugfix)
     * Fixed "Recently viewed pages" and other date-filtered views silently excluding the most recent hits due to a timezone-offset mismatch between stored timestamps and the dashboard's UTC-based date range
