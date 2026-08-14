@@ -6,7 +6,7 @@
 
 
 # 3.0.0
-## 08/13/2026 ([349e751](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/349e751a8a8fbb2ba2747e6b3bce5dfe8dad7996))
+## 08/13/2026 ([e9abfd2](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/e9abfd245f1c6fb84b1296bdeb652a05bb5ba404))
 
 > First release under the name **Page Insights**. Forked from
 > [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats) by Nuno Costa after several years without
