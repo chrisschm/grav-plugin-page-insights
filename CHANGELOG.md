@@ -1,3 +1,10 @@
+# v3.0.1
+## unreleased
+
+1. [](#bugfix)
+    * fix: recent hits excluded from date-filtered queries due to offset mismatch
+
+
 # v3.0.0
 ## 08/13/2026
 
