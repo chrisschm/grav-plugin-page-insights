@@ -227,7 +227,20 @@ class Stats
         // "date_from = :date_from" clause - there is no such column, only
         // "date" - and used a mismatched :dateTo/:date_to placeholder).
         if ($dateFrom && $dateTo) {
-            $where[] = ' date BETWEEN :date_from AND :date_to';
+            // Plain "date BETWEEN :date_from AND :date_to" is a pure text
+            // comparison in SQLite - it does NOT account for differing UTC
+            // offsets between the compared ISO-8601 strings. Rows are
+            // inserted with PHP's local default timezone offset (e.g.
+            // "+02:00" in summer), while the Admin2 dashboard always sends
+            // its date_from/date_to bounds in UTC (JS Date#toISOString()).
+            // A row timestamped "just now" in +02:00 then lexicographically
+            // sorts AFTER a UTC "now" bound (its hour digits are numerically
+            // higher for the same real instant), so it gets excluded from
+            // BETWEEN as if it were in the future - the freshest hits are
+            // the ones most likely to sit right at that boundary. datetime()
+            // normalizes both sides (any valid offset) before comparing,
+            // same trick already used for the day/time columns below.
+            $where[] = ' datetime(date) BETWEEN datetime(:date_from) AND datetime(:date_to)';
             $bindings['date_from'] = $dateFrom->format('c');
             $bindings['date_to'] = $dateTo->format('c');
         }
