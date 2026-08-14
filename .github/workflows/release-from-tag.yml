@@ -3,7 +3,7 @@ name: Create Release from Tag
 on:
   push:
     tags:
-      - 'v*'
+      - '*'
 
 jobs:
   release:
