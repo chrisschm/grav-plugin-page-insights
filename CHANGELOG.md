@@ -2,7 +2,7 @@
 ## unreleased
 
 1. [](#bugfix)
-    * fix: recent hits excluded from date-filtered queries due to offset mismatch
+    * Fixed "Recently viewed pages" and other date-filtered views silently excluding the most recent hits due to a timezone-offset mismatch between stored timestamps and the dashboard's UTC-based date range
 
 
 # v3.0.0
