@@ -2,6 +2,11 @@ enabled: true
 db: user/data/page-insights.sqlite
 ignore_errors: true
 anonymize_ips: false
+# Off by default: CF-Connecting-IP / Client-IP / X-Forwarded-For are all
+# client-settable headers. Only enable this if you know your setup puts a
+# trusted reverse proxy (e.g. Cloudflare) in front of every request, so
+# these headers can't be forged by the visitor themselves.
+trust_proxy_headers: false
 log_admin: true
 log_bot: true
 page_url_format: 'url'

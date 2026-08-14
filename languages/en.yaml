@@ -32,6 +32,9 @@ PLUGIN_PAGE_INSIGHTS:
     ANONYMIZE_IPS_LABEL: Anonymize IP-addresses
     ANONYMIZE_IPS_HELP: "If enabled IP-addresses will be truncated after 2 Bytes (for IPv4) and 4 Bytes (for IPv6) before storing to database for eased GDPR compliance. NOTICE: This ONLY applies for NEWLY recorded visits, NOT for entries already recorded in the database."
 
+    TRUST_PROXY_HEADERS_LABEL: Trust proxy headers for visitor IP
+    TRUST_PROXY_HEADERS_HELP: "If enabled, the CF-Connecting-IP, Client-IP and X-Forwarded-For headers are used to determine the visitor's IP address. Only enable this if your site is guaranteed to sit behind a trusted reverse proxy (e.g. Cloudflare) for every request - otherwise visitors can forge these headers themselves. Leave disabled to always use the direct connection IP."
+
     DATETIME_OFFSET_LABEL: Date Time Offset From UTC
     DATETIME_OFFSET_HELP: Display date/time values adjusted from UTC by specified offset
 

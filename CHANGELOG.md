@@ -1,11 +1,17 @@
-# 3.0.1
+# v3.0.1
 ## unreleased
 
 1. [](#bugfix)
     * Fixed "Recently viewed pages" and other date-filtered views silently excluding the most recent hits due to a timezone-offset mismatch between stored timestamps and the dashboard's UTC-based date range
+    * Stopped overwriting `$_SERVER['REMOTE_ADDR']` with client-supplied proxy headers (`CF-Connecting-IP`/`Client-IP`/`X-Forwarded-For`); these are now opt-in via a new `trust_proxy_headers` setting (default off), and the resolved IP no longer leaks into the rest of the request
+    * Fixed stored-XSS in the Admin2 dashboard: `_esc()` now escapes `"`/`'` in addition to `&`/`<`/`>`, and `href` values built from `encodeURIComponent()` (which does not escape `'`) are now HTML-escaped too, closing both routes by which a crafted page route or username could break out of a `title`/`href` attribute
+    * Bounded the unauthenticated `/event-collection` endpoint: `session_id` must now reference an existing hit, events are capped per session, and `event`/`value` length is limited - previously anyone could insert rows indefinitely
+    * Corrected `dependencies` in `blueprints.yaml` (was `>=1.6.0`, now `>=1.7.0`) so GPM no longer offers this plugin to Grav/PHP versions it actually requires (PHP 8.0+, via `str_contains()`)
 
+2. [](#improved)
+    * Release tags are now bare semantic versions (`3.0.0`) instead of `v`-prefixed, matching Grav's GPM convention for version sorting and `releases/latest`
 
-# 3.0.0
+# v3.0.0
 ## 08/13/2026 ([e9abfd2](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/e9abfd245f1c6fb84b1296bdeb652a05bb5ba404))
 
 > First release under the name **Page Insights**. Forked from

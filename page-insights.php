@@ -113,27 +113,42 @@ class PageInsightsPlugin extends Plugin
 
     function getUserIP(): ?string
     {
-        // Get real visitor IP behind CloudFlare network
-        if (isset($_SERVER["HTTP_CF_CONNECTING_IP"])) {
-            $_SERVER['REMOTE_ADDR'] = $_SERVER["HTTP_CF_CONNECTING_IP"];
-            $_SERVER['HTTP_CLIENT_IP'] = $_SERVER["HTTP_CF_CONNECTING_IP"];
-        }
-        $client  = $_SERVER['HTTP_CLIENT_IP'] ?? null;
-        $forward = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
         // Not every request context has a real client IP (e.g. `bin/grav`
         // CLI commands such as page-system-validator, which still fire
         // onPageInitialized). REMOTE_ADDR is simply unset there.
-        $remote  = $_SERVER['REMOTE_ADDR'] ?? null;
+        $remote = $_SERVER['REMOTE_ADDR'] ?? null;
 
-        if (filter_var($client, FILTER_VALIDATE_IP)) {
-            $ip = $client;
-        } elseif (filter_var($forward, FILTER_VALIDATE_IP)) {
-            $ip = $forward;
-        } else {
-            $ip = $remote;
+        // CF-Connecting-IP, Client-IP and X-Forwarded-For are all
+        // client-settable headers - trusting them unconditionally lets any
+        // visitor choose what gets logged as their IP. Only consult them if
+        // the site owner has explicitly opted in (their reverse proxy is
+        // known/trusted); otherwise fall straight back to REMOTE_ADDR.
+        // Importantly, we never write back to $_SERVER here: doing so would
+        // persist the (possibly forged) value for the rest of the request,
+        // affecting anything else that reads REMOTE_ADDR/HTTP_CLIENT_IP
+        // afterwards (login throttling, other security plugins, ...).
+        if ($this->config()['trust_proxy_headers'] ?? false) {
+            $cloudflare = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? null;
+            $client     = $_SERVER['HTTP_CLIENT_IP'] ?? null;
+            $forward    = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
+            // X-Forwarded-For can be a comma-separated chain; the leftmost
+            // entry is the original client as seen by the first proxy hop.
+            if (is_string($forward) && str_contains($forward, ',')) {
+                $forward = trim(explode(',', $forward)[0]);
+            }
+
+            if (filter_var($cloudflare, FILTER_VALIDATE_IP)) {
+                return $cloudflare;
+            }
+            if (filter_var($client, FILTER_VALIDATE_IP)) {
+                return $client;
+            }
+            if (filter_var($forward, FILTER_VALIDATE_IP)) {
+                return $forward;
+            }
         }
 
-        return $ip;
+        return $remote;
     }
 
 
@@ -287,18 +302,22 @@ class PageInsightsPlugin extends Plugin
             exit;
         }
 
-        if (!isset($data['session_id'])) {
+        // Reject anything that isn't a scalar for these three fields (e.g. a
+        // JSON array/object) here, with a clean 400 - rather than letting a
+        // malformed payload hit Stats::collectEvent()'s typed string
+        // parameters further down and trigger an unhandled TypeError.
+        if (!isset($data['session_id']) || !is_scalar($data['session_id'])) {
             echo 'sid';
             http_response_code(400);
             exit();
         }
 
-        if (!isset($data['event'])) {
+        if (!isset($data['event']) || !is_scalar($data['event'])) {
             echo 'event';
             http_response_code(400);
             exit();
         }
-        if (!isset($data['value'])) {
+        if (!isset($data['value']) || !is_scalar($data['value'])) {
             echo 'value';
             http_response_code(400);
             exit();
@@ -309,7 +328,7 @@ class PageInsightsPlugin extends Plugin
 
 
         $stats = new Stats($dbPath, $this->config());
-        $stats->collectEvent($data['session_id'], $data['event'], $data['value']);
+        $stats->collectEvent((string) $data['session_id'], (string) $data['event'], (string) $data['value']);
 
         exit();
     }

@@ -119,11 +119,45 @@ class Stats
         ];
     }
 
+    // Bounds for the unauthenticated /event-collection endpoint. It has no
+    // auth, no nonce and no rate limiter in front of it (it's a frontend
+    // route, so the API plugin's own limiter never sees it) - without
+    // these, anyone could insert rows indefinitely until the disk fills.
+    private const MAX_EVENT_STRING_LENGTH = 255; // matches the "events" table's VARCHAR(255) columns
+    private const MAX_EVENTS_PER_SESSION = 2000; // headroom for several hours of a legitimately open tab
+
     /**
      * collects stats about a page event
      */
     public function collectEvent(string $sid, string $name, string $value): void
     {
+        // "events.session_id" is declared as "REFERENCES data (id)" in the
+        // schema, but SQLite only enforces foreign keys on a connection
+        // that has run "PRAGMA foreign_keys = ON" - which this class never
+        // does for its runtime connection (see __construct()). The
+        // reference is therefore documentation only; without this explicit
+        // check any caller-supplied session_id would be accepted as-is,
+        // whether or not it corresponds to a real page hit.
+        if (!ctype_digit($sid)) {
+            return;
+        }
+        $exists = $this->db->prepare('SELECT 1 FROM data WHERE id = :id LIMIT 1');
+        $exists->bindValue(':id', $sid, PDO::PARAM_INT);
+        $exists->execute();
+        if (false === $exists->fetchColumn()) {
+            return;
+        }
+
+        $count = $this->db->prepare('SELECT COUNT(*) FROM events WHERE session_id = :id');
+        $count->bindValue(':id', $sid, PDO::PARAM_INT);
+        $count->execute();
+        if ((int) $count->fetchColumn() >= self::MAX_EVENTS_PER_SESSION) {
+            return;
+        }
+
+        $name = mb_substr($name, 0, self::MAX_EVENT_STRING_LENGTH);
+        $value = mb_substr($value, 0, self::MAX_EVENT_STRING_LENGTH);
+
         $s = $this->db->prepare('
             INSERT INTO events
                 ("session_id", "event", "value")
@@ -131,7 +165,7 @@ class Stats
                 (:session_id, :event, :value)
         ');
 
-        $s->bindValue(':session_id', $sid);
+        $s->bindValue(':session_id', $sid, PDO::PARAM_INT);
         $s->bindValue(':event', $name);
         $s->bindValue(':value', $value);
 

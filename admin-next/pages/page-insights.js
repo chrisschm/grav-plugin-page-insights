@@ -609,7 +609,7 @@ class PageInsightsPage extends HTMLElement {
         const encoded = encodeURIComponent(route || '');
         return `<span class="recent-page-cell">
             <a href="${this._esc(route)}" target="_blank" rel="noopener noreferrer" class="recent-page-link" title="${this._esc(route)} in neuem Tab öffnen">${this._externalLinkIcon()}</a>
-            <a href="?view=page-detail&route=${encoded}" class="recent-page-link nav-link" data-nav="page-detail" data-nav-route="${this._esc(route)}" title="View page detail">${this._trendIcon()}</a>
+            <a href="?view=page-detail&route=${this._esc(encoded)}" class="recent-page-link nav-link" data-nav="page-detail" data-nav-route="${this._esc(route)}" title="View page detail">${this._trendIcon()}</a>
             <span class="recent-page-route" title="${this._esc(route)}">${this._esc(route)}</span>
         </span>`;
     }
@@ -630,7 +630,7 @@ class PageInsightsPage extends HTMLElement {
         const param = user ? `user=${encodeURIComponent(user)}` : `ip=${encodeURIComponent(ip)}`;
         const navAttr = user ? `data-nav-user="${this._esc(user)}"` : `data-nav-ip="${this._esc(ip)}"`;
         return `<span class="recent-page-cell">
-            <a href="?view=user-detail&${param}" class="recent-page-link nav-link" data-nav="user-detail" ${navAttr} title="View user detail">${this._trendIcon()}</a>
+            <a href="?view=user-detail&${this._esc(param)}" class="recent-page-link nav-link" data-nav="user-detail" ${navAttr} title="View user detail">${this._trendIcon()}</a>
             <span class="recent-page-route">${this._esc(label)}</span>
         </span>`;
     }
@@ -950,7 +950,12 @@ class PageInsightsPage extends HTMLElement {
     _esc(str) {
         const div = document.createElement('div');
         div.textContent = str ?? '';
-        return div.innerHTML;
+        // textContent -> innerHTML only escapes &, < and >. The result is
+        // interpolated into HTML *attributes* here (title=, href=,
+        // data-nav-user=), not just text nodes, so " and ' must be escaped
+        // too - otherwise a route/value containing a quote can break out of
+        // the attribute and inject arbitrary markup/event handlers.
+        return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     _styles() {

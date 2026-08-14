@@ -1,7 +1,7 @@
 name: Page Insights
 slug: page-insights
 type: plugin
-version: 3.0.0
+version: 3.0.1
 description: Enhanced page/user analytics for Grav, with Admin2 support. Independent fork of Page Stats by Nuno Costa.
 icon: plug
 author:
@@ -13,8 +13,14 @@ bugs: https://codeberg.org/chschmidt/grav-plugin-page-insights/issues
 docs: https://codeberg.org/chschmidt/grav-plugin-page-insights/src/branch/main/README.md
 license: MIT
 
+# GPM reads "dependencies" (not "compatibility" below) to decide which
+# sites this plugin gets offered to. The actual floor is Grav 1.7 /
+# PHP 8.0+ (composer.json requires php >=8.0; classes/Stats.php uses
+# str_contains(), a PHP 8.0 function) - anything older would fatal, so the
+# dependency here must match, not just the aspirational "works with 1.6+"
+# note it previously carried.
 dependencies:
-    - { name: grav, version: ">=1.6.0" }
+    - { name: grav, version: ">=1.7.0" }
 
 # Declares compatibility with the Grav 2.0 API plugin / Admin2.
 # See classes/Api/PageInsightsApiController.php and admin-next/pages/page-insights.js.
@@ -99,6 +105,18 @@ form:
                             type: toggle
                             label: PLUGIN_PAGE_INSIGHTS.ANONYMIZE_IPS_LABEL
                             help: PLUGIN_PAGE_INSIGHTS.ANONYMIZE_IPS_HELP
+                            highlight: 1
+                            default: 0
+                            options:
+                                1: PLUGIN_ADMIN.ENABLED
+                                0: PLUGIN_ADMIN.DISABLED
+                            validate:
+                                type: bool
+
+                        trust_proxy_headers:
+                            type: toggle
+                            label: PLUGIN_PAGE_INSIGHTS.TRUST_PROXY_HEADERS_LABEL
+                            help: PLUGIN_PAGE_INSIGHTS.TRUST_PROXY_HEADERS_HELP
                             highlight: 1
                             default: 0
                             options:

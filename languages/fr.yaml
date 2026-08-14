@@ -41,6 +41,14 @@ PLUGIN_PAGE_INSIGHTS:
     pour faciliter la conformité RGPD. REMARQUE : Cela ne s'applique qu'aux NOUVELLES
     visites enregistrées, PAS aux entrées déjà présentes dans la base de données."
 
+  TRUST_PROXY_HEADERS_LABEL: Faire confiance aux en-têtes proxy pour l'IP du visiteur
+  TRUST_PROXY_HEADERS_HELP: "Si activé, les en-têtes CF-Connecting-IP, Client-IP et
+    X-Forwarded-For sont utilisés pour déterminer l'adresse IP du visiteur. À
+    n'activer que si le site est garanti d'être derrière un proxy inverse de
+    confiance (par ex. Cloudflare) pour chaque requête - sinon les visiteurs
+    peuvent falsifier ces en-têtes eux-mêmes. Laisser désactivé pour toujours
+    utiliser l'IP de connexion directe."
+
   DATETIME_OFFSET_LABEL: Décalage horaire par rapport à UTC
   DATETIME_OFFSET_HELP: Affiche les valeurs de date/heure ajustées par rapport à
     UTC selon le décalage spécifié

@@ -39,6 +39,13 @@ PLUGIN_PAGE_INSIGHTS:
     Speicherung in der Datenbank nach 2 Bytes (bei IPv4) bzw. 4 Bytes (bei IPv6) gekürzt,
     um die Einhaltung der DSGVO zu erleichtern. HINWEIS: Dies gilt NUR für neu erfasste
     Besuche, NICHT für bereits in der Datenbank gespeicherte Einträge.'
+  TRUST_PROXY_HEADERS_LABEL: Proxy-Header für Besucher-IP vertrauen
+  TRUST_PROXY_HEADERS_HELP: 'Wenn aktiviert, werden die Header CF-Connecting-IP,
+    Client-IP und X-Forwarded-For zur Ermittlung der Besucher-IP herangezogen.
+    Nur aktivieren, wenn die Seite garantiert bei jedem Request hinter einem
+    vertrauenswürdigen Reverse-Proxy (z. B. Cloudflare) läuft - sonst können
+    Besucher diese Header selbst fälschen. Deaktiviert lassen, um immer die
+    direkte Verbindungs-IP zu verwenden.'
   DATETIME_OFFSET_LABEL: Datum/Uhrzeit – Abweichung von UTC
   DATETIME_OFFSET_HELP: Datums-/Zeitwerte anzeigen, die um einen angegebenen 
     Offset gegenüber UTC angepasst wurden
