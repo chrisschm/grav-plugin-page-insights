@@ -1,5 +1,11 @@
+# v3.1.1
+## unreleased
+
+1. [](#improved)
+    * meta: removed `classes/Api/PageStatsApiController.php` and `admin-next/pages/page-stats.js`, two orphaned leftovers from the Page Stats → Page Insights rename that were never deleted and are no longer referenced anywhere - `PageInsightsApiController.php`/`page-insights.js` have been the active files since the fork.
+
 # v3.1.0
-## 08/15/2026
+## 08/15/2026 ([000098b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/000098b7419c55711c15d5aba57785fe4a4aa67c))
 
 1. [](#new)
     * feat: replaced the `ip2location/ip2location-php` dependency and the committed ~47 MB `IP2LOCATION-LITE-DB3.BIN` with a self-built, country-only IP lookup sourced directly from the five Regional Internet Registries' public delegated-stats data (via the RIPE-NCC/nro-delegated-stats project). The database is no longer shipped in the release archive or the repository at all - it's built on demand by an explicit admin action, keeping the plugin's own daily-refresh cadence independent of any third party's licensing or release schedule. This also resolves an unnoticed licensing issue: IP2Location LITE's terms prohibit "third party database repository" redistribution, which a public mirrored git repo effectively was.
