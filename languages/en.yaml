@@ -141,3 +141,10 @@ PLUGIN_PAGE_INSIGHTS:
     BOT_REGEXP:
         TEXT: Bot User Agents
         HELP: USer agents to classify as bots (can use regular expression)
+
+    SECTION_GEOLOCATION: Geolocation
+    SECTION_GEOLOCATION_LABEL: "Country-level IP lookup for \"Top countries\". Self-built from the public RIR (Regional Internet Registry) delegation data - no third-party database is bundled with the plugin or downloaded automatically; you control when it gets (re)built below."
+    GEO_DB_SOURCE_URL_LABEL: Geo database source URL
+    GEO_DB_SOURCE_URL_HELP: "Advanced/optional. Leave empty to use the default: the daily-refreshed combined RIR delegated-stats snapshot published by RIPE NCC on behalf of the NRO."
+    GEO_DB_UPDATE_LABEL: Geo country database
+    GEO_DB_UPDATE_HELP: Downloads and processes the source file above - can take a moment.

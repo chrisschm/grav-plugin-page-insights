@@ -164,5 +164,18 @@ PLUGIN_PAGE_INSIGHTS:
   SECTION_BOTS_TEXT: "Identifier les robots d'indexation"
   BOT_REGEXP:
     TEXT: Agents utilisateurs des robots
-    HELP: Agents utilisateurs à classer comme robots (peut utiliser des 
+    HELP: Agents utilisateurs à classer comme robots (peut utiliser des
       expressions régulières)
+  SECTION_GEOLOCATION: Géolocalisation
+  SECTION_GEOLOCATION_LABEL: "Détermination du pays à partir de l'IP (\"Top
+    countries\"). Générée par le plugin lui-même à partir des données
+    publiques d'allocation des RIR (Regional Internet Registry) - aucune
+    base de données tierce n'est fournie avec le plugin ni téléchargée
+    automatiquement ; la (re)génération se déclenche manuellement ci-dessous."
+  GEO_DB_SOURCE_URL_LABEL: URL source de la base géographique
+  GEO_DB_SOURCE_URL_HELP: "Facultatif, pour utilisateurs avancés. Laisser vide
+    pour utiliser la valeur par défaut : le fichier combiné d'allocation des
+    RIR, publié quotidiennement par le RIPE NCC pour le compte de la NRO."
+  GEO_DB_UPDATE_LABEL: Base de données géographique (pays)
+  GEO_DB_UPDATE_HELP: Télécharge et traite le fichier source ci-dessus - peut
+    prendre un moment.

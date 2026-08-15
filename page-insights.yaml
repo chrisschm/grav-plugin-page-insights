@@ -18,6 +18,11 @@ datetime_offset: 'localtime'
 
 default_pages_scope: all
 
+# Empty = use CountryIndexBuilder::DEFAULT_SOURCE_URL (the RIPE NCC/NRO
+# combined RIR delegated-stats "latest" snapshot). See blueprints.yaml,
+# tab_general -> section_geolocation.
+geo_db_source_url: ''
+
 show_top_users_widget: true
 cols_top_users_widget: 'col-12 col-md-3'
 limit_top_users_widget: 10

@@ -9,6 +9,8 @@ use Grav\Common\Grav;
 use Grav\Plugin\Api\Controllers\AbstractApiController;
 use Grav\Plugin\Api\Exceptions\ValidationException;
 use Grav\Plugin\Api\Response\ApiResponse;
+use Grav\Plugin\PageInsights\Geolocation\CountryIndexBuilder;
+use Grav\Plugin\PageInsights\Geolocation\CountryLookup;
 use Grav\Plugin\PageInsights\Stats;
 use Grav\Plugin\PageInsightsPlugin;
 use Psr\Http\Message\ResponseInterface;
@@ -28,6 +30,12 @@ use Psr\Http\Message\ServerRequestInterface;
 class PageInsightsApiController extends AbstractApiController
 {
     private const READ_PERMISSION = 'api.system.read';
+
+    // Rebuilding the geo country index downloads and processes a
+    // multi-megabyte third-party file and replaces a file on disk - that's
+    // a meaningfully heavier/more sensitive action than any other endpoint
+    // here, so it requires the write permission rather than just read.
+    private const WRITE_PERMISSION = 'api.system.write';
 
     /**
      * GET /page-insights/overview
@@ -256,6 +264,81 @@ class PageInsightsApiController extends AbstractApiController
         $filter = $this->getEntityFilter($request);
 
         return ApiResponse::create($this->getStats()->siteSummary($dateFrom, $dateTo, $filter));
+    }
+
+    /**
+     * GET /page-insights/geo-db/status
+     *
+     * Read-only - lets the Admin2 config tab (see admin-next/fields/
+     * geodbupdate.js) show the current index's state without triggering a
+     * (re)build. built=false is a perfectly normal state (nothing built
+     * yet), not an error.
+     */
+    public function geoDbStatus(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->requirePermission($request, self::READ_PERMISSION);
+
+        $lookup = new CountryLookup(PageInsightsPlugin::GEO_COUNTRY_INDEX);
+
+        return ApiResponse::create([
+            'built' => $lookup->isAvailable(),
+            'built_at' => $lookup->builtAt(),
+            'source_date' => $lookup->sourceDate(),
+            'ipv4_entries' => $lookup->ipv4EntryCount(),
+            'ipv6_entries' => $lookup->ipv6EntryCount(),
+        ]);
+    }
+
+    /**
+     * POST /page-insights/geo-db/rebuild
+     *
+     * Downloads the current combined RIR delegated-stats snapshot and
+     * rebuilds classes/Geolocation - see CountryIndexBuilder for the format
+     * and full reasoning. Synchronous and admin-triggered only for now (no
+     * install-time or per-request download, ever) - a Scheduler-friendly
+     * console command for a daily automatic refresh is intended as a
+     * follow-up, reusing this same CountryIndexBuilder.
+     *
+     * The source file is tens of MB of text; this can take a while and is
+     * why it needs its own explicit write permission rather than piggy-
+     * backing on a read endpoint.
+     */
+    public function rebuildGeoDb(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->requirePermission($request, self::WRITE_PERMISSION);
+
+        $grav = Grav::instance();
+        $sourceUrl = (string) $grav['config']->get(
+            'plugins.page-insights.geo_db_source_url',
+            CountryIndexBuilder::DEFAULT_SOURCE_URL
+        );
+
+        try {
+            $result = (new CountryIndexBuilder())->build(PageInsightsPlugin::GEO_COUNTRY_INDEX, $sourceUrl ?: null);
+        } catch (\Throwable $e) {
+            $grav['log']->addError('PageInsights plugin: geo-db rebuild failed - ' . $e->getMessage());
+
+            // Reusing ValidationException here rather than introducing a new
+            // exception type: it's the only AbstractApiController-aware
+            // exception this codebase already has confirmed error-response
+            // handling for (see pageDetail()/userDetail() above). Not a
+            // perfect semantic fit for "upstream download failed", but a
+            // 4xx with a clear message beats a raw 500.
+            throw new ValidationException('Could not rebuild the geo country index: ' . $e->getMessage(), [
+                ['field' => 'geo_db_source_url', 'message' => $e->getMessage()],
+            ]);
+        }
+
+        return ApiResponse::create([
+            'built' => true,
+            'built_at' => $result['builtAt'],
+            'source_date' => $result['sourceDate'],
+            'source_url' => $result['sourceUrl'],
+            'records_parsed' => $result['recordsParsed'],
+            'ipv4_entries' => $result['ipv4Entries'],
+            'ipv6_entries' => $result['ipv6Entries'],
+            'file_size' => $result['fileSize'],
+        ]);
     }
 
     /**
