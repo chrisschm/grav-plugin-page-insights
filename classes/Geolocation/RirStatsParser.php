@@ -54,7 +54,25 @@ class RirStatsParser
         $recordsParsed = 0;
 
         // Line endings vary depending on which mirror served the file.
-        foreach (preg_split('/\r\n|\r|\n/', $text) as $line) {
+        //
+        // Deliberately strtok() rather than preg_split('/\r\n|\r|\n/', $text):
+        // for the real, tens-of-MB source file, preg_split materializes an
+        // array holding *every* line as its own string at once, on top of
+        // $text already being fully in memory - observed to exhaust a stock
+        // 128M memory_limit in practice (see also CountryIndexBuilder::build(),
+        // which now also temporarily raises the limit as a second line of
+        // defense). strtok() walks $text's own buffer via an internal
+        // pointer instead, one token at a time, without that duplication.
+        // Passing "\r\n" as the delimiter set (not a single 2-char sequence)
+        // treats each \r/\n as an individual delimiter and, per strtok()'s
+        // documented behaviour, collapses consecutive delimiters - so a
+        // \r\n pair still yields exactly one split, matching the regex
+        // alternation this replaces. The strtok(...) call in the `for`'s
+        // increment clause (not inside the loop body) is what makes this
+        // safe to use with the existing `continue` statements below - each
+        // `continue` still advances to the next line exactly like it did
+        // with foreach.
+        for ($line = strtok($text, "\r\n"); $line !== false; $line = strtok("\r\n")) {
             $line = trim($line);
             if ($line === '' || $line[0] === '#') {
                 continue;

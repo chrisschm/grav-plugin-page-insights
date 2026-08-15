@@ -79,9 +79,31 @@ class CountryIndexBuilder
     public function build(string $outputPath, ?string $sourceUrl = null): array
     {
         $sourceUrl = $sourceUrl ?: self::DEFAULT_SOURCE_URL;
-        $text = $this->fetch($sourceUrl);
 
-        return $this->buildFromText($text, $outputPath, $sourceUrl);
+        // The real source file is tens of MB of text; holding it plus the
+        // parsed ranges array at once has been observed to exceed a stock
+        // 128M memory_limit (fatal, uncatchable "Allowed memory size
+        // exhausted" - php.net/manual/en/ini.core.php#ini.memory-limit).
+        // This is a rare, explicit, admin-triggered action, not the page-
+        // request path (see docs/ARCHITECTURE.md "Geolocation"), so
+        // temporarily raising the limit for just this call is reasonable -
+        // restored in finally() so it never leaks into the rest of the
+        // request. ini_set() returns false (not a warning/exception) when
+        // memory_limit is locked down (e.g. some shared-hosting php.ini
+        // configs disable raising it) - silently no-op in that case rather
+        // than fail; a host tight enough to block this will simply hit the
+        // same memory error as before, no worse off than today.
+        $previousMemoryLimit = ini_set('memory_limit', '512M');
+
+        try {
+            $text = $this->fetch($sourceUrl);
+
+            return $this->buildFromText($text, $outputPath, $sourceUrl);
+        } finally {
+            if ($previousMemoryLimit !== false) {
+                ini_set('memory_limit', $previousMemoryLimit);
+            }
+        }
     }
 
     /**
