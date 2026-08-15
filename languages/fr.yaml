@@ -171,11 +171,14 @@ PLUGIN_PAGE_INSIGHTS:
     countries\"). Générée par le plugin lui-même à partir des données
     publiques d'allocation des RIR (Regional Internet Registry) - aucune
     base de données tierce n'est fournie avec le plugin ni téléchargée
-    automatiquement ; la (re)génération se déclenche manuellement ci-dessous."
+    automatiquement ; utilisez le bouton \"Mettre à jour\" à côté de Top
+    countries dans le tableau de bord pour la (re)générer."
   GEO_DB_SOURCE_URL_LABEL: URL source de la base géographique
   GEO_DB_SOURCE_URL_HELP: "Facultatif, pour utilisateurs avancés. Laisser vide
     pour utiliser la valeur par défaut : le fichier combiné d'allocation des
     RIR, publié quotidiennement par le RIPE NCC pour le compte de la NRO."
-  GEO_DB_UPDATE_LABEL: Base de données géographique (pays)
-  GEO_DB_UPDATE_HELP: Télécharge et traite le fichier source ci-dessus - peut
-    prendre un moment.
+  GEO_DB_NOT_BUILT: "Pas encore générée - la détermination du pays renvoie
+    \"unknown\" jusqu'à la première mise à jour."
+  GEO_DB_BUILT_STATUS: "Générée le %s (date des données %s, %s entrées)."
+  GEO_DB_UNKNOWN: inconnu
+  GEO_DB_UPDATE_NOW: Mettre à jour

@@ -140,14 +140,16 @@ PLUGIN_PAGE_INSIGHTS:
   SECTION_GEOLOCATION_LABEL: Land-Ermittlung für IP-Adressen ("Top countries"). Wird
     selbst aus den öffentlichen RIR-Zuteilungsdaten (Regional Internet Registry)
     gebaut - es wird keine Drittanbieter-Datenbank mit dem Plugin ausgeliefert
-    oder automatisch heruntergeladen; die (Neu-)Erstellung wird unten manuell
-    ausgelöst.
+    oder automatisch heruntergeladen; die (Neu-)Erstellung wird über den Button
+    "Jetzt aktualisieren" bei "Top Länder" im Dashboard ausgelöst.
   GEO_DB_SOURCE_URL_LABEL: Quell-URL der Geo-Datenbank
   GEO_DB_SOURCE_URL_HELP: Optional, für Fortgeschrittene. Leer lassen für den
     Standard - den täglich aktualisierten, kombinierten RIR-Zuteilungsdatensatz,
     den die RIPE NCC im Auftrag der NRO veröffentlicht.
-  GEO_DB_UPDATE_LABEL: Geo-Länder-Datenbank
-  GEO_DB_UPDATE_HELP: Lädt die obige Quelldatei herunter und verarbeitet sie -
-    kann einen Moment dauern.
+  GEO_DB_NOT_BUILT: Noch nicht erstellt - die Länderermittlung liefert bis zur
+    ersten Aktualisierung "unknown".
+  GEO_DB_BUILT_STATUS: Erstellt am %s (Datenstand %s, %s Einträge).
+  GEO_DB_UNKNOWN: unbekannt
+  GEO_DB_UPDATE_NOW: Jetzt aktualisieren
   LOG_ADMIN_LABEL: Aktivitäten von Administratoren protokollieren
   USING: Nutzt

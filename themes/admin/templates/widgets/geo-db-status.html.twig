@@ -1,0 +1,33 @@
+{#
+    Status line + "Update now" button for the self-built geo country index
+    (see classes/Geolocation/CountryIndexBuilder.php and PageInsightsPlugin::
+    handleGeoDbRebuildPost()). Included from both widgets/top-countries.html.twig
+    (dashboard) and the dedicated top-countries.html.twig page - lives next to
+    the stat it affects rather than in the plugin's config form, since it's an
+    action, not a setting. Plain nonce-protected self-post: no JS/AJAX on the
+    classic-admin side of this plugin otherwise, and no core admin task exists
+    for a plugin-defined action like this one.
+#}
+{% set geoDb = pageStats.geoDb %}
+{% if geoDb %}
+    <div class="geo-db-status" style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; padding-top:10px; border-top:1px solid #e5e5e5;">
+        <span style="font-size:12px; color:#767676;">
+            {% if not geoDb.built %}
+                {{ "PLUGIN_PAGE_INSIGHTS.GEO_DB_NOT_BUILT"|t }}
+            {% else %}
+                {{ "PLUGIN_PAGE_INSIGHTS.GEO_DB_BUILT_STATUS"|t(
+                    geoDb.builtAt ? geoDb.builtAt|date('Y-m-d H:i') : "PLUGIN_PAGE_INSIGHTS.GEO_DB_UNKNOWN"|t,
+                    geoDb.sourceDate ?: "PLUGIN_PAGE_INSIGHTS.GEO_DB_UNKNOWN"|t,
+                    (geoDb.ipv4Entries + geoDb.ipv6Entries)
+                ) }}
+            {% endif %}
+        </span>
+        <form method="post" style="margin:0;">
+            <input type="hidden" name="{{ geoDb.rebuildField }}" value="1">
+            <input type="hidden" name="{{ geoDb.nonceField }}" value="{{ geoDb.nonce }}">
+            <button type="submit" class="button" style="font-size:12px; padding:3px 10px;">
+                {{ "PLUGIN_PAGE_INSIGHTS.GEO_DB_UPDATE_NOW"|t }}
+            </button>
+        </form>
+    </div>
+{% endif %}

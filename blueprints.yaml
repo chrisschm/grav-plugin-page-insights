@@ -222,17 +222,6 @@ form:
                                     label: PLUGIN_PAGE_INSIGHTS.GEO_DB_SOURCE_URL_LABEL
                                     help: PLUGIN_PAGE_INSIGHTS.GEO_DB_SOURCE_URL_HELP
                                     placeholder: 'https://ftp.ripe.net/pub/stats/ripencc/nro-stats/latest/nro-delegated-stats'
-                                geo_db_update:
-                                    # Custom Admin Next field, see
-                                    # admin-next/fields/geodbupdate.js - shows the
-                                    # current index status and triggers a rebuild via
-                                    # POST /page-insights/geo-db/rebuild. No PHP-side
-                                    # registration needed beyond this "type" matching
-                                    # the field's filename.
-                                    type: geodbupdate
-                                    label: PLUGIN_PAGE_INSIGHTS.GEO_DB_UPDATE_LABEL
-                                    help: PLUGIN_PAGE_INSIGHTS.GEO_DB_UPDATE_HELP
-
                 tab_classic_admin:
                     type: tab
                     title: PLUGIN_PAGE_INSIGHTS.TAB_CLASSIC_ADMIN

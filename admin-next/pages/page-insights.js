@@ -38,6 +38,9 @@ class PageInsightsPage extends HTMLElement {
     #recentHasMore = true;
     #recentScope = 'all'; // 'all' | 'real' - which pages "Recently viewed pages" shows
     #recentScopeInitialized = false; // becomes true once the server-configured default has been adopted (see _loadDashboard)
+    #geoStatus = null; // GET /page-insights/geo-db/status response, or null while unknown/failed
+    #geoBusy = false; // true while a rebuild (POST /page-insights/geo-db/rebuild) is in flight
+    #geoError = null; // last rebuild error message, cleared on the next successful load/rebuild
     #view = 'dashboard'; // 'dashboard' | 'page-detail' | 'user-detail'
     #viewParams = {};
     #onPopState = null;
@@ -153,6 +156,16 @@ class PageInsightsPage extends HTMLElement {
         return json.data !== undefined ? json.data : json;
     }
 
+    async _apiPost(path) {
+        const resp = await fetch(this._apiUrl(path), { method: 'POST', headers: this._apiHeaders() });
+        if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            throw new Error(body.detail || body.title || `Request failed (${resp.status})`);
+        }
+        const json = await resp.json().catch(() => ({}));
+        return json.data !== undefined ? json.data : json;
+    }
+
     /**
      * @returns {{from: Date|null, to: Date|null}} 'all time' is represented
      * as {from: null, to: null} - there's no meaningful start date to zero-fill
@@ -197,15 +210,22 @@ class PageInsightsPage extends HTMLElement {
             ...dateParams,
             ...(this.#recentScopeInitialized && this.#recentScope === 'real' ? { scope: 'real' } : {}),
         };
-        const [overviewResult, summaryResult] = await Promise.allSettled([
+        const [overviewResult, summaryResult, geoStatusResult] = await Promise.allSettled([
             this._apiGet('/page-insights/overview', overviewParams),
             this._apiGet('/page-insights/summary', dateParams),
+            this._apiGet('/page-insights/geo-db/status'),
         ]);
 
         this.#overview = overviewResult.status === 'fulfilled' ? overviewResult.value : null;
         this.#summary = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
         this.#recentPages = this.#overview?.recent_pages || [];
         this.#recentHasMore = this.#recentPages.length >= this.#recentLimit;
+        // Non-fatal, silently: an older grav-plugin-api without this route
+        // (added alongside the self-built geo index) would 404 here, and
+        // that must not block the rest of the dashboard from rendering -
+        // the "Top countries" card just falls back to showing no status/
+        // update control (see _renderBody()).
+        this.#geoStatus = geoStatusResult.status === 'fulfilled' ? geoStatusResult.value : null;
 
         // First load only: adopt the admin-configured default scope. If it
         // turns out to be 'real' (the uncommon case - default is 'all'),
@@ -231,6 +251,35 @@ class PageInsightsPage extends HTMLElement {
 
         this.#loading = false;
         this._renderBody();
+    }
+
+    /**
+     * Triggers POST /page-insights/geo-db/rebuild (admin-only, requires
+     * api.system.write - see PageInsightsApiController::rebuildGeoDb()).
+     * Synchronous on the server: the button stays disabled and shows a
+     * spinner-ish label until the response comes back, since the RIR source
+     * file is tens of MB of text and this can take a while. Only the geo-db
+     * status re-renders afterwards - existing stats rows already have their
+     * country code stored from when they were collected, so a rebuild only
+     * affects country lookups for future page hits, not past ones.
+     */
+    async _updateGeoDb() {
+        if (this.#geoBusy) return;
+        this.#geoBusy = true;
+        this.#geoError = null;
+        this._renderBody();
+
+        try {
+            await this._apiPost('/page-insights/geo-db/rebuild');
+            this.#geoStatus = await this._apiGet('/page-insights/geo-db/status');
+            window.__GRAV_TOAST?.success('Geo country database updated.');
+        } catch (err) {
+            this.#geoError = err?.message || 'Could not update the geo country database.';
+            window.__GRAV_TOAST?.error(this.#geoError);
+        } finally {
+            this.#geoBusy = false;
+            this._renderBody();
+        }
     }
 
     _detailBodyEl() {
@@ -529,6 +578,7 @@ class PageInsightsPage extends HTMLElement {
                 <div class="card">
                     <h3>Top countries</h3>
                     ${this._bars(o.top_countries, 'country')}
+                    ${this._geoStatusHtml()}
                 </div>
 
                 <div class="card">
@@ -579,6 +629,7 @@ class PageInsightsPage extends HTMLElement {
         body.querySelectorAll('.scope-btn').forEach((btn) => {
             btn.addEventListener('click', () => this._setRecentScope(btn.dataset.scope));
         });
+        body.querySelector('.geo-db-update-btn')?.addEventListener('click', () => this._updateGeoDb());
         this._bindNavLinks(body);
     }
 
@@ -879,6 +930,40 @@ class PageInsightsPage extends HTMLElement {
         </svg>`;
     }
 
+    /**
+     * Status line + "Update now" button for the self-built geo country
+     * index, rendered inside the "Top countries" card (see _renderBody()).
+     * Deliberately lives here rather than in the config form: it's an
+     * action tied to this stat, not a setting (see CountryIndexBuilder /
+     * docs/ARCHITECTURE.md "Geolocation" for why there's no automatic
+     * download - this button and its classic-admin equivalent are the only
+     * ways the index ever gets (re)built).
+     */
+    _geoStatusHtml() {
+        const s = this.#geoStatus;
+        const busy = this.#geoBusy;
+
+        let statusText;
+        if (s === null) {
+            statusText = 'Status unavailable.';
+        } else if (!s.built) {
+            statusText = 'Not built yet - country lookups return "unknown" until the first update.';
+        } else {
+            const builtAt = s.built_at ? new Date(s.built_at * 1000).toLocaleString() : 'unknown time';
+            const sourceDate = s.source_date || 'unknown';
+            const entries = (s.ipv4_entries || 0) + (s.ipv6_entries || 0);
+            statusText = `Built ${builtAt} (source date ${this._esc(sourceDate)}, ${entries.toLocaleString()} entries).`;
+        }
+
+        return `
+            <div class="geo-db-status">
+                <span class="geo-db-status-text">${this._esc(statusText)}</span>
+                <button class="geo-db-update-btn" ${busy ? 'disabled' : ''}>${busy ? 'Updating…' : 'Update now'}</button>
+            </div>
+            ${this.#geoError ? `<div class="geo-db-error">${this._esc(this.#geoError)}</div>` : ''}
+        `;
+    }
+
     _bars(items, key) {
         if (!items || !items.length) return `<div class="state">No data.</div>`;
         const max = Math.max(...items.map((i) => Number(i.hits) || 0), 1);
@@ -1023,6 +1108,20 @@ class PageInsightsPage extends HTMLElement {
             .recent-page-link:hover { color: var(--foreground); }
             .recent-page-route { color: var(--foreground); }
             .load-more-recent { display: block; margin-top: 12px; }
+            .geo-db-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+            .geo-db-status-text { color: var(--muted-foreground); font-size: 12px; }
+            .geo-db-update-btn {
+                background: var(--background);
+                color: var(--foreground);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 4px 10px;
+                cursor: pointer;
+                font-size: 12px;
+                white-space: nowrap;
+            }
+            .geo-db-update-btn:disabled { cursor: default; opacity: 0.6; }
+            .geo-db-error { color: var(--destructive, #dc2626); font-size: 12px; margin-top: 6px; }
             .detail-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
             .back-link { color: var(--muted-foreground); text-decoration: none; font-size: 13px; align-self: flex-start; }
             .back-link:hover { color: var(--foreground); }

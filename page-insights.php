@@ -6,8 +6,10 @@ use Composer\Autoload\ClassLoader;
 use DateTimeImmutable;
 use Grav\Common\Page\Page;
 use Grav\Common\Plugin;
+use Grav\Common\Utils;
 use RocketTheme\Toolbox\Event\Event;;
 
+use Grav\Plugin\PageInsights\Geolocation\CountryIndexBuilder;
 use Grav\Plugin\PageInsights\Geolocation\Geolocation;
 use Grav\Plugin\PageInsights\Geolocation\CountryLookup;
 use Grav\Plugin\PageInsights\Stats;
@@ -24,10 +26,24 @@ class PageInsightsPlugin extends Plugin
 
     // Self-built, country-only geo index (see classes/Geolocation/CountryIndexBuilder.php).
     // Deliberately NOT shipped in the plugin's git repo/release archive and
-    // NOT built automatically on install - it's built on demand via the
-    // Admin2 config screen (or, in a later step, a Scheduler-friendly
-    // console command), see PageInsightsApiController::rebuildGeoDb().
+    // NOT built automatically on install - it's built on demand from an
+    // "Update now" action next to the Top Countries stat (Admin2: see
+    // admin-next/pages/page-insights.js's _updateGeoDb(), calling
+    // PageInsightsApiController::rebuildGeoDb(); Classic Admin: see
+    // GEO_DB_REBUILD_FIELD handling in onAdminPage() below) - or, in a
+    // later step, a Scheduler-friendly console command. Not a config-form
+    // field in either UI: it's an action tied to this stat, not a setting.
     const GEO_COUNTRY_INDEX = __DIR__ . '/data/geo-country-index.bin';
+
+    // Classic Admin only (Admin2 goes through the REST endpoints in
+    // PageInsightsApiController instead - grav-plugin-api isn't guaranteed
+    // to be installed alongside classic Admin, and classic Admin has no
+    // built-in AJAX/task convention this plugin otherwise uses). A plain
+    // nonce-protected self-post from the Top Countries widget/page: see
+    // widgets/geo-db-status.html.twig and the POST handling at the top of
+    // onAdminPage().
+    const GEO_DB_REBUILD_NONCE_ACTION = 'page-insights-geo-db-rebuild';
+    const GEO_DB_REBUILD_FIELD = 'page-insights-geo-db-rebuild';
 
     const PATH_ADMIN_STATS = '/page-insights';
     const PATH_ADMIN_PAGE_DETAIL = '/page-details';
@@ -395,9 +411,21 @@ class PageInsightsPlugin extends Plugin
         $routes = $this->getPluginRoutes();
 
         if (in_array($uri->path(), $routes)) {
+            $lookup = new CountryLookup(self::GEO_COUNTRY_INDEX);
+
             $this->grav['twig']->twig_vars['pageStats'] = [
                 'db' =>  new Stats($dbPath, $this->config()),
                 'urls' => $this->getPluginRoutes(),
+                'geoDb' => [
+                    'built' => $lookup->isAvailable(),
+                    'builtAt' => $lookup->builtAt(),
+                    'sourceDate' => $lookup->sourceDate(),
+                    'ipv4Entries' => $lookup->ipv4EntryCount(),
+                    'ipv6Entries' => $lookup->ipv6EntryCount(),
+                    'rebuildField' => self::GEO_DB_REBUILD_FIELD,
+                    'nonce' => Utils::getNonce(self::GEO_DB_REBUILD_NONCE_ACTION),
+                    'nonceField' => self::GEO_DB_REBUILD_NONCE_ACTION . '-nonce',
+                ],
             ];
         }
     }
@@ -434,10 +462,56 @@ class PageInsightsPlugin extends Plugin
         ];
     }
 
+    /**
+     * Handles the "Update now" self-post from widgets/geo-db-status.html.twig
+     * (Classic Admin only - see the doc comment on GEO_DB_REBUILD_FIELD and
+     * the call site in onAdminPage()). Always redirects back afterwards
+     * (POST-redirect-GET) so a page refresh never resubmits the rebuild.
+     */
+    private function handleGeoDbRebuildPost($uri): void
+    {
+        $admin = $this->grav['admin'] ?? null;
+        $nonce = $uri->post(self::GEO_DB_REBUILD_NONCE_ACTION . '-nonce');
+
+        if (!is_string($nonce) || !Utils::verifyNonce($nonce, self::GEO_DB_REBUILD_NONCE_ACTION)) {
+            $admin?->setMessage('Could not update the geo country database: invalid or expired request.', 'error');
+            $this->grav->redirect($uri->path());
+        }
+
+        $sourceUrl = (string) $this->config->get(
+            'plugins.page-insights.geo_db_source_url',
+            CountryIndexBuilder::DEFAULT_SOURCE_URL
+        );
+
+        try {
+            (new CountryIndexBuilder())->build(self::GEO_COUNTRY_INDEX, $sourceUrl ?: null);
+            $admin?->setMessage('Geo country database updated.', 'info');
+        } catch (\Throwable $e) {
+            $this->grav['log']->addError('PageInsights plugin: geo-db rebuild failed - ' . $e->getMessage());
+            $admin?->setMessage('Could not update the geo country database: ' . $e->getMessage(), 'error');
+        }
+
+        $this->grav->redirect($uri->path());
+    }
+
     public function onAdminPage(Event $event)
     {
         $uri = $this->grav['uri'];
         $routes = $this->getPluginRoutes();
+
+        // Classic Admin "Update now" trigger (see GEO_DB_REBUILD_FIELD /
+        // widgets/geo-db-status.html.twig). Plain nonce-protected self-post
+        // rather than the core admin task framework or a JS/AJAX call -
+        // this plugin's classic-admin side is otherwise fully server-
+        // rendered (see onTwigAdminVariables()), and this is the one place
+        // that needs a write action. Runs before the switch below so it
+        // applies to POSTs from either "$routes['base']" (dashboard) or
+        // "$routes['topCountries']" (dedicated page) - both render the same
+        // widget. Never redirects on GET, only reacts to an actual POST.
+        if (in_array($uri->path(), $routes) && $uri->post(self::GEO_DB_REBUILD_FIELD) !== null) {
+            $this->handleGeoDbRebuildPost($uri);
+        }
+
         $page = new Page;
 
         switch ($uri->path()) {
