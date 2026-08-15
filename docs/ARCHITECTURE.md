@@ -270,6 +270,21 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
    temporarily raises `memory_limit` to 512M for this one call as the change that actually
    matters. A reminder that a hand-built fixture only proves parsing *logic* is correct, not that
    it fits in memory at real scale.
+8. **`CountryIndexBuilder::build()`'s own `memory_limit` restore crashed a build that had already
+   succeeded.** The `finally` block from bug #7's fix restores `memory_limit` back to its
+   pre-build value once the download/parse/build/write pipeline finishes. On a real installation
+   this itself turned fatal: `ini_set('memory_limit', ...)` to a value *below* current usage isn't
+   a no-op or a warning, it's a catchable `\Error` ("Failed to set memory limit to 134217728 bytes
+   (Current memory usage is ~300MB bytes)", `Zend/zend_alloc.c`) - and the parsed/index arrays are
+   still referenced (and thus still counted) at the point the `finally` block runs, routinely well
+   above a stock 128M default even after a successful build. Because this throws from inside
+   `finally`, it replaces the method's already-computed return value, so the admin UI reported
+   "Could not update the geo country database" even though the index file had already been written
+   to disk. Fixed by only restoring when `memory_get_usage(true)` is safely below the target limit
+   (`CountryIndexBuilder::restoreMemoryLimit()`/`parseMemoryLimit()`) - skipping the restore is
+   harmless since PHP resets every `ini_set()` change at the end of the request/PHP-FPM worker
+   cycle regardless. A reminder that "restore the old value in `finally`" isn't automatically
+   safe when the thing you raised is itself a function of how much memory is currently in use.
 
 ## Known cleanup items
 

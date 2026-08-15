@@ -101,9 +101,72 @@ class CountryIndexBuilder
             return $this->buildFromText($text, $outputPath, $sourceUrl);
         } finally {
             if ($previousMemoryLimit !== false) {
-                ini_set('memory_limit', $previousMemoryLimit);
+                $this->restoreMemoryLimit($previousMemoryLimit);
             }
         }
+    }
+
+    /**
+     * Restores memory_limit to its pre-build() value, but only if that's
+     * actually safe.
+     *
+     * Lowering memory_limit below the memory already in use isn't a no-op
+     * or a warning - PHP raises a hard, catchable \Error ("Failed to set
+     * memory limit to X bytes (Current memory usage is Y bytes)",
+     * Zend/zend_alloc.c) the moment ini_set() is called with such a value.
+     * The arrays built while parsing/indexing the real, multi-MB RIR file
+     * are still referenced by $parsed's return value at this point in the
+     * finally block, so usage is routinely still well above a typical 128M
+     * default even though the build itself already completed successfully -
+     * observed in production as "Failed to set memory limit to 134217728
+     * bytes (Current memory usage is ~300MB bytes)", which surfaced as a
+     * false "Could not update the geo country database" failure even
+     * though the index file had already been written.
+     *
+     * Restoring the limit is a courtesy for the rest of the request, not a
+     * hard requirement - PHP resets every ini_set() change at the end of
+     * the request/PHP-FPM worker cycle regardless - so it's safe to just
+     * leave the raised limit in place for the remainder of this request
+     * rather than risk crashing an otherwise-successful build.
+     */
+    private function restoreMemoryLimit(string $previousMemoryLimit): void
+    {
+        $limitBytes = self::parseMemoryLimit($previousMemoryLimit);
+        if ($limitBytes !== null && memory_get_usage(true) >= $limitBytes) {
+            return;
+        }
+
+        ini_set('memory_limit', $previousMemoryLimit);
+    }
+
+    /**
+     * Parses a php.ini-style memory_limit value ("128M", "512K", "1G", a
+     * bare byte count, or "-1" for unlimited) into a byte count.
+     *
+     * Returns null for "-1"/unlimited (never unsafe to "restore" to) and
+     * for anything unparseable (fails safe: treated as "unknown", so the
+     * caller falls through to attempting the restore as before).
+     */
+    private static function parseMemoryLimit(string $value): ?int
+    {
+        $value = trim($value);
+        if ($value === '-1') {
+            return null;
+        }
+
+        if (!preg_match('/^(\d+)\s*([KMG])?$/i', $value, $matches)) {
+            return null;
+        }
+
+        $number = (int) $matches[1];
+        $unit = strtoupper($matches[2] ?? '');
+
+        return match ($unit) {
+            'G' => $number * 1024 * 1024 * 1024,
+            'M' => $number * 1024 * 1024,
+            'K' => $number * 1024,
+            default => $number,
+        };
     }
 
     /**
