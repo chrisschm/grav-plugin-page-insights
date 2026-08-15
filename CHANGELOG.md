@@ -1,5 +1,5 @@
 # v3.1.1
-## unreleased
+## 08/15/2026
 
 1. [](#improved)
     * meta: removed `classes/Api/PageStatsApiController.php` and `admin-next/pages/page-stats.js`, two orphaned leftovers from the Page Stats → Page Insights rename that were never deleted and are no longer referenced anywhere - `PageInsightsApiController.php`/`page-insights.js` have been the active files since the fork.
