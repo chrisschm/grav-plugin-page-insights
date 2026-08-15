@@ -1,7 +1,7 @@
 {
     "name": "chschmidt/page-insights",
     "type": "grav-plugin",
-    "description": "Enhaced statistics for grav. This site or product includes IP2Location LITE data available from http://www.ip2location.com",
+    "description": "Enhaced statistics for grav.",
     "keywords": [
         "plugin"
     ],
@@ -22,8 +22,10 @@
     "require": {
         "php": ">=8.0",
         "ext-sqlite3": "*",
-        "ext-pdo": "*",
-        "ip2location/ip2location-php": "^8.3"
+        "ext-pdo": "*"
+    },
+    "suggest": {
+        "ext-curl": "Used to download the RIR delegated-stats snapshot when (re)building the geo country index; falls back to file_get_contents() if unavailable."
     },
     "autoload": {
         "psr-4": {

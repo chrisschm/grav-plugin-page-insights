@@ -1,2 +1,9 @@
 /data/geolocation.sqlite
 /data/migrations/MUST_MIGRATE
+
+# Self-built geo country index (see classes/Geolocation/CountryIndexBuilder.php).
+# Built on demand via the Admin2 config screen - never shipped in the repo
+# or a release archive, and per IP2Location LITE's own terms the BIN file
+# this replaces should never have been either (see 2026-08-15 session notes).
+/data/geo-country-index.bin
+/data/*.tmp-*

@@ -7,14 +7,14 @@ namespace Composer\Autoload;
 class ComposerStaticInitPageInsightsGravPlugin
 {
     public static $prefixLengthsPsr4 = array (
-        'G' =>
+        'G' => 
         array (
             'Grav\\Plugin\\PageInsights\\' => 25,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'Grav\\Plugin\\PageInsights\\' =>
+        'Grav\\Plugin\\PageInsights\\' => 
         array (
             0 => __DIR__ . '/../..' . '/classes',
         ),
@@ -23,9 +23,6 @@ class ComposerStaticInitPageInsightsGravPlugin
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'Grav\\Plugin\\PageInsightsPlugin' => __DIR__ . '/../..' . '/page-insights.php',
-        'IP2Location\\Database' => __DIR__ . '/..' . '/ip2location/ip2location-php/IP2Location.php',
-        'IP2Location\\IpTools' => __DIR__ . '/..' . '/ip2location/ip2location-php/IP2Location.php',
-        'IP2Location\\WebService' => __DIR__ . '/..' . '/ip2location/ip2location-php/IP2Location.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
