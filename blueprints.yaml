@@ -137,7 +137,14 @@ form:
                                     help: PLUGIN_PAGE_INSIGHTS.DATETIME_OFFSET_HELP
                                     default: 'localtime'
                                     validate:
-                                      pattern: '[+-][[:digit:]]{2,2}:[[:digit:]]{2,2}|localtime'
+                                      # \d rather than the POSIX class [[:digit:]]: POSIX classes
+                                      # are valid PCRE (server-side PHP validation) but not valid
+                                      # JS RegExp syntax - Admin2 constructs a native RegExp
+                                      # straight from this string client-side, so [[:digit:]] threw
+                                      # "Invalid regular expression" in the browser console on
+                                      # every page using this blueprint. \d works identically in
+                                      # both PCRE and JS.
+                                      pattern: '[+-]\d{2,2}:\d{2,2}|localtime'
                                 log_admin:
                                     type: toggle
                                     label: PLUGIN_PAGE_INSIGHTS.LOG_ADMIN_LABEL
