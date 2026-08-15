@@ -1,3 +1,17 @@
+# v3.1.0
+## 08/15/2026
+
+1. [](#new)
+    * feat: replaced the `ip2location/ip2location-php` dependency and the committed ~47 MB `IP2LOCATION-LITE-DB3.BIN` with a self-built, country-only IP lookup sourced directly from the five Regional Internet Registries' public delegated-stats data (via the RIPE-NCC/nro-delegated-stats project). The database is no longer shipped in the release archive or the repository at all - it's built on demand by an explicit admin action, keeping the plugin's own daily-refresh cadence independent of any third party's licensing or release schedule. This also resolves an unnoticed licensing issue: IP2Location LITE's terms prohibit "third party database repository" redistribution, which a public mirrored git repo effectively was.
+    * feat: the geo index rebuild trigger now lives on the Page Insights dashboard itself, next to "Top countries" (rather than in the config form, since triggering a rebuild is an action, not a setting) - a status/button widget in Classic Admin (server-rendered, nonce-protected self-post form) and in Admin2 (calls the existing REST endpoints, degrades cleanly if `grav-plugin-api` isn't installed). The geo database's source URL remains configurable under Config > General.
+
+2. [](#bugfix)
+    * bugfix: fixed a fatal `Allowed memory size ... exhausted` error when rebuilding the geo index against the real, multi-hundred-thousand-line RIR source file (only ever tested before against a small fixture) - `RirStatsParser` no longer materializes a full array of every line via `preg_split()`, and the rebuild now temporarily raises `memory_limit` for the duration of the download-parse-build pipeline.
+    * bugfix: `datetime_offset`'s validation pattern in `blueprints.yaml` used a POSIX character class (`[[:digit:]]`), valid in PHP/PCRE but not in JavaScript - this threw an "Invalid regular expression" console error in Admin2 on every admin page using this blueprint. Replaced with `\d`, valid in both.
+
+3. [](#improved)
+    * meta: fixed `.forgejo/workflows/lint.yml` silently skipping all language-file checks after a force-push - it diffed against `github.event.before`, which becomes unreachable once history is rewritten, and swallowed the resulting `git diff` failure with `|| true`. Now falls back to a root-commit comparison (matching the existing empty/null-SHA fallback) and no longer hides genuine failures.
+
 # v3.0.1
 ## 08/14/2026 ([612054b](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/612054b0ab5dee3149048a2677db8ce420103dfd))
 
