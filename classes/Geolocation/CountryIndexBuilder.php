@@ -65,7 +65,7 @@ class CountryIndexBuilder
      * parsing, no `RirStatsParser` involvement, no elevated memory_limit
      * needed on the consuming site at all.
      */
-    public const DEFAULT_PREBUILT_URL = 'https://codeberg.org/chschmidt/page-insights-geo-db/releases/download/latest/geo-country-index.bin';
+    public const DEFAULT_PREBUILT_URL = 'https://github.com/chrisschm/page-insights-geo-db/releases/download/latest/geo-country-index.bin';
 
     /** Keep in sync with CountryLookup::HEADER_SIZE - both classes independently encode/decode against the format documented above. */
     private const HEADER_SIZE = 25;

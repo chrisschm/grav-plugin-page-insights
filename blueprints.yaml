@@ -236,7 +236,7 @@ form:
                                     type: text
                                     label: PLUGIN_PAGE_INSIGHTS.GEO_DB_PREBUILT_URL_LABEL
                                     help: PLUGIN_PAGE_INSIGHTS.GEO_DB_PREBUILT_URL_HELP
-                                    placeholder: 'https://codeberg.org/chschmidt/page-insights-geo-db/releases/download/latest/geo-country-index.bin'
+                                    placeholder: 'https://github.com/chrisschm/page-insights-geo-db/releases/download/latest/geo-country-index.bin'
                                 geo_db_source_url:
                                     type: text
                                     label: PLUGIN_PAGE_INSIGHTS.GEO_DB_SOURCE_URL_LABEL
