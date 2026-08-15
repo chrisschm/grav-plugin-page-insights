@@ -45,8 +45,8 @@ user/plugins/page-insights/
 │   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see below
 │   └── migrations/{1..4}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
-├── admin-next/fields/geodbupdate.js       # custom Admin2 blueprint field, see "Geolocation" below
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
+│   └── widgets/geo-db-status.html.twig    # geo index status + "Update now" (see "Geolocation")
 ├── pages/*.md                             # Classic Admin virtual page stubs (one per sub-page)
 ├── languages/{en,de,fr}.yaml              # Admin panel translations (Codeberg Translate/Weblate)
 └── vendor/                                # committed on purpose, see below
@@ -167,12 +167,25 @@ carries real data.
   file doesn't exist yet or is corrupt, never throwing. A missing or stale geo database must never
   break page collection.
 - **Building the index is never automatic** - not at install time, not on the page-request path,
-  not on a timer (yet). It's an explicit admin action: `PageInsightsApiController::rebuildGeoDb()`
-  (`POST /page-insights/geo-db/rebuild`, `api.system.write`) drives the whole
-  download-parse-build-write pipeline synchronously, triggered from a custom Admin2 blueprint
-  field (`admin-next/fields/geodbupdate.js`, `type: geodbupdate` in `blueprints.yaml` ->
-  `tab_general` -> `section_geolocation`) that also polls `GET /page-insights/geo-db/status`
-  (`api.system.read`) to show the current build's age/source date without triggering a rebuild.
+  not on a timer (yet). It's an explicit admin action, triggered next to the "Top countries" stat
+  in both admin UIs rather than from the config form (it's an action tied to that stat, not a
+  setting - `geo_db_source_url` is the only geolocation field left in `blueprints.yaml`):
+  - **Admin2**: a button in the "Top countries" card in `admin-next/pages/page-insights.js`
+    (`_updateGeoDb()`/`_geoStatusHtml()`), calling `PageInsightsApiController::rebuildGeoDb()`
+    (`POST /page-insights/geo-db/rebuild`, `api.system.write`) and `::geoDbStatus()`
+    (`GET /page-insights/geo-db/status`, `api.system.read`). These REST endpoints only exist when
+    `grav-plugin-api` is installed (see "Notable past bugs" #6 below for why that matters) - the
+    card degrades to showing no status/control rather than failing if it's missing or 404s.
+  - **Classic Admin**: a plain nonce-protected self-post form
+    (`themes/admin/templates/widgets/geo-db-status.html.twig`, included from both the dashboard
+    widget and the dedicated Top Countries page) handled by
+    `PageInsightsPlugin::handleGeoDbRebuildPost()`, called from the top of `onAdminPage()`. No
+    AJAX - this plugin's classic-admin side is otherwise fully server-rendered, and there's no
+    core admin task convention for a plugin-defined action like this one.
+
+  Both paths call `CountryIndexBuilder::build()` directly/via the same REST logic - there is no
+  third, separate implementation of the rebuild itself.
+
   **Follow-up, not yet built:** a Scheduler-friendly console command reusing the same
   `CountryIndexBuilder` for an unattended daily refresh (matches the source data's own daily
   update cadence) - deliberately scoped out of the first pass.
@@ -238,6 +251,25 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
    history of subtle bugs.
 5. **SQLite under load without `PRAGMA busy_timeout`/WAL** - suspected cause of a server outage.
    Fixed with `busy_timeout = 5000`, `journal_mode = WAL`, `synchronous = NORMAL`.
+6. **Admin2 custom field silently rendered as a plain text input.** The first geo-db rebuild UI
+   was a custom Admin2 blueprint field (`admin-next/fields/geodbupdate.js`, since removed). The
+   discovery mechanism itself (`{plugin}/admin-next/fields/*.js` auto-registered by
+   `grav-plugin-api`'s `GpmController`, served to Admin2 via `GET /custom-fields`) is real and
+   correctly implemented - the site it was tested on simply doesn't run `grav-plugin-api` at all
+   (Classic Admin only), so the field type was never registered and Admin2 fell back to its
+   default text input for an unrecognized type - no error, no console output, just a blank box.
+   Worth checking *which* admin UI (and, for Admin2, whether `grav-plugin-api` is installed) is
+   actually in use before debugging a "field doesn't render" report any further. Replaced with the
+   dashboard-integrated trigger described above, which works without that dependency.
+7. **`RirStatsParser::parse()` exhausting a stock 128M `memory_limit`** on the real, tens-of-MB
+   RIR source file - only ever tested before against a small hand-built fixture. `preg_split()`
+   over the whole file materializes an array holding every line as its own string, on top of the
+   full text already being in memory; replaced with a `strtok()`-based loop. Confirmed via a
+   synthetic `memory_get_peak_usage()` comparison that the line-splitting change alone isn't
+   sufficient headroom for a realistically-sized file - `CountryIndexBuilder::build()` also
+   temporarily raises `memory_limit` to 512M for this one call as the change that actually
+   matters. A reminder that a hand-built fixture only proves parsing *logic* is correct, not that
+   it fits in memory at real scale.
 
 ## Known cleanup items
 
