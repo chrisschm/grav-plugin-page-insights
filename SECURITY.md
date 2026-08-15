@@ -41,13 +41,19 @@ welcome around:
   API session, not independently authenticated)
 - XSS via stored, user-influenced values (page routes, usernames, browser/platform strings)
   rendered in `admin-next/pages/page-insights.js`
-- Handling of visitor IP data in `classes/Geolocation/*.php`, including interaction with the
-  bundled IP2Location database
+- Handling of visitor IP data in `classes/Geolocation/*.php`, including the self-built,
+  admin-triggered country lookup
 
-This plugin does not fetch remote URLs on a schedule or on user input (no feed/SSRF surface); the
-IP2Location lookup is against the locally bundled database only. General Grav core or
-hosting/infrastructure vulnerabilities are out of scope here — please report those to the Grav
-project or your hosting provider directly.
+Per-page-view IP lookups are against a locally built index only — no remote call happens on the
+page-request path. The one exception is the geo country index (re)build itself
+(`CountryIndexBuilder`, `POST /page-insights/geo-db/rebuild`): an explicit, admin-only action
+(requires `api.system.write`, never automatic/scheduled/user-triggered) that downloads a
+third-party URL, defaulting to a fixed RIPE NCC/NRO endpoint but overridable via the
+`geo_db_source_url` config field. That URL is only ever admin-configurable, not exposed to
+site visitors, so it's not a public SSRF surface — but it is a new outbound network call this
+plugin didn't previously make, worth knowing about if you're auditing egress from your server.
+General Grav core or hosting/infrastructure vulnerabilities are out of scope here — please report
+those to the Grav project or your hosting provider directly.
 
 ---
 

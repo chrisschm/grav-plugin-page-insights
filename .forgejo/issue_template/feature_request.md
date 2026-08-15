@@ -15,9 +15,9 @@ labels:
 Mockups, links to similar features in other plugins, etc.
 
 <!--
-Reminder for larger changes: page-insights intentionally keeps its one external
-Composer dependency (ip2location/ip2location-php) minimal and must keep working
-on both Classic Admin and Admin2 (see CONTRIBUTING.md, "Design goals"). If your
-idea would touch either of those, it helps to flag that here so we can discuss
-the approach before anyone invests time in a PR.
+Reminder for larger changes: page-insights intentionally keeps no third-party
+runtime Composer dependency and must keep working on both Classic Admin and
+Admin2 (see CONTRIBUTING.md, "Design goals"). If your idea would touch either
+of those, it helps to flag that here so we can discuss the approach before
+anyone invests time in a PR.
 -->

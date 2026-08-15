@@ -14,10 +14,14 @@ closed/redirected.
 
 ## Design goals (please keep these in mind for any change)
 
-- Must stay installable via GPM without any manual steps by the end user. The plugin has one real
-  runtime dependency (`ip2location/ip2location-php`), but `vendor/` is committed to the repository
-  precisely so that end users installing via GPM or Admin never need Composer themselves. Any
-  change to dependencies must keep this working — see the note on the autoloader below.
+- Must stay installable via GPM without any manual steps by the end user. The plugin has no
+  third-party runtime dependency as of 2026-08-15 (see `docs/ARCHITECTURE.md` "Geolocation"), but
+  `vendor/` is still committed to the repository so end users installing via GPM or Admin never
+  need Composer themselves. Any change to dependencies must keep this working — see the note on
+  the autoloader below.
+- Must never ship or download a third-party geo/IP database automatically — the self-built country
+  index (`classes/Geolocation/`) is only ever (re)built via an explicit admin action, never at
+  install time or on the page-request path. See `docs/ARCHITECTURE.md` "Geolocation" for why.
 - Must keep working on **both** supported Admin UIs: Classic Admin (Grav 1.x, templates under
   `themes/admin/templates/`) and Admin2 (Grav 2.0, `admin-next/pages/page-insights.js`). A change
   that only considers one of the two is incomplete.
@@ -84,7 +88,8 @@ directly.
   mechanism used throughout
 - `classes/Api/PageInsightsApiController.php` — REST controller backing Admin2
   (`/page-insights/...` endpoints)
-- `classes/Geolocation/` — IP2Location lookups and IP handling/anonymization
+- `classes/Geolocation/` — self-built, country-only IP lookup (from public RIR data) and IP
+  handling/anonymization
 - `blueprints.yaml` — Admin config form, organized in three tabs (General / Classic Admin /
   Admin2); labels/help/titles are translatable via `PLUGIN_PAGE_INSIGHTS.*` keys in
   `languages/*.yaml`

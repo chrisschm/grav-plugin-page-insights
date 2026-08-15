@@ -100,8 +100,12 @@ Have a look at the Grav error log to make sure the plugin is running fine.
 
 ## Credits
 
-This plugin includes IP2Location LITE data available from
-<a href="https://lite.ip2location.com">https://lite.ip2location.com</a>.
+Country-level IP lookup is built by the plugin itself (on demand, from the Admin config screen -
+see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#geolocation-classesgeolocation)) from the public
+delegated-stats data of the five Regional Internet Registries (RIPE NCC, ARIN, APNIC, LACNIC,
+AFRINIC), combined and published daily by RIPE NCC on behalf of the
+<a href="https://www.nro.net">Number Resource Organization (NRO)</a>. No third-party geolocation
+database is bundled with or downloaded automatically by the plugin.
 
 Country flags from <a href="https://flagcdn.com">https://flagcdn.com</a>.
 

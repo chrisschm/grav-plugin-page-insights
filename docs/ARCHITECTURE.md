@@ -21,10 +21,11 @@ These apply to any future change (see also `CONTRIBUTING.md`):
 
 - Dual-Admin compatibility: every user-facing feature must work under **both** Classic Admin and
   Admin2, not just the currently more actively developed one.
-- One real Composer dependency (`ip2location/ip2location-php`, for IP-to-country resolution) is
-  accepted, but `vendor/` is deliberately committed to the repository (see "Composer & the
-  compiled autoloader" below) so installation stays a plain file copy - no build step, no
-  `composer install` required on the target server.
+- No third-party runtime Composer dependency (the last one, `ip2location/ip2location-php`, was
+  removed 2026-08-15 - see "Geolocation" below). `vendor/` is still deliberately committed to the
+  repository (see "Composer & the compiled autoloader" below) so installation stays a plain file
+  copy - no build step, no `composer install` required on the target server; that's now purely a
+  convenience for the plugin's own PSR-4 autoloading, not a dependency-vendoring concern.
 - Must stay installable via GPM (once listed) or a manual ZIP drop, without any manual step by
   the end user beyond copying files.
 
@@ -35,15 +36,16 @@ user/plugins/page-insights/
 ├── page-insights.php                      # events, IP/geo collection, Classic Admin + Admin2 wiring
 ├── page-insights.yaml                     # default configuration
 ├── blueprints.yaml                        # Admin config form (3 tabs, see below)
-├── composer.json                          # one real dependency (ip2location/ip2location-php)
+├── composer.json                          # no third-party runtime dependency (see Geolocation below)
 ├── classes/
 │   ├── Stats.php                          # data layer (PDO/SQLite), UI-independent
 │   ├── Api/PageInsightsApiController.php  # REST controller consumed by Admin2
-│   └── Geolocation/                       # IP2Location wrapper (Geolocation, GeolocationData, Ip)
+│   └── Geolocation/                       # self-built country lookup (see "Geolocation" below)
 ├── data/
-│   ├── IP2LOCATION-LITE-DB3.BIN           # bundled offline geo database (country/region/city)
+│   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see below
 │   └── migrations/{1..4}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
+├── admin-next/fields/geodbupdate.js       # custom Admin2 blueprint field, see "Geolocation" below
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
 ├── pages/*.md                             # Classic Admin virtual page stubs (one per sub-page)
 ├── languages/{en,de,fr}.yaml              # Admin panel translations (Codeberg Translate/Weblate)
@@ -120,12 +122,63 @@ a Twig template in Admin2. The common denominator that works on both: `section` 
 
 ## Geolocation (`classes/Geolocation/`)
 
-Country/region/city resolution wraps the `ip2location/ip2location-php` package around the bundled
-offline database `data/IP2LOCATION-LITE-DB3.BIN` (no external API call per page view).
-`Geolocation::locate()` looks up an IP and always returns a `GeolocationData` value object, with
-`'unknown'` as the fallback for every field if the lookup throws or the IP isn't found - a bad or
-unresolvable IP must never break page collection. `Ip::toNumber()`/`toIP()` are IPv4 <-> integer
-helpers used internally by the IP2Location lookup format.
+**Country-only, self-built, never shipped in the repo.** Until 2026-08-15 this wrapped the
+`ip2location/ip2location-php` Composer package around a committed `data/IP2LOCATION-LITE-DB3.BIN`
+(country+region+city). That file alone was ~47 MB - over 90% of the plugin's total checkout size,
+and shipped in every GitHub release archive since `release-from-tag.yml` just archives the tagged
+tree. Worse, IP2Location LITE's own terms prohibit exactly that ("third party database
+repository" redistribution is explicitly disallowed - only a per-user, individually registered
+download is permitted). Investigating the fix surfaced two more findings that changed the design
+rather than just the data source: (1) `region`/`city` were written to the stats DB on every hit
+but never read back anywhere - no query, no admin UI - only `countryCode` was ever used; (2) *any*
+snapshot committed once per plugin release goes stale between releases regardless of vendor or
+license, which a fixed-file model can't fix at all.
+
+The replacement (`RirStatsParser`, `CountryIndexBuilder`, `CountryLookup`) is built from the
+combined **RIR delegated-stats** file - the same public, daily-updated ground-truth allocation
+data (RIPE NCC/ARIN/APNIC/LACNIC/AFRINIC via the NRO) that commercial GeoIP vendors themselves
+build on top of, published free of any license/token/account gate at
+`https://ftp.ripe.net/pub/stats/ripencc/nro-stats/latest/nro-delegated-stats` (format spec:
+`https://ftp.ripe.net/ripe/stats/RIR-Statistics-Exchange-Format.txt`). Only country-level data
+exists in this source in the first place, which matches finding (1) above - `GeolocationData`
+keeps its `countryName()`/`region()`/`city()` accessors (so `Stats.php`'s existing column
+bindings don't need a schema migration) but they now just return `'unknown'`; only `countryCode()`
+carries real data.
+
+- **`RirStatsParser`** - pure text-in/ranges-out. Parses the pipe-delimited format, keeps only
+  `type=ipv4|ipv6` records with `status=allocated|assigned` (skips `available`/`reserved`/`asn`),
+  normalizes IPv4 ranges to `[startInt, endInt]` and IPv6 ranges to `[start16ByteString,
+  end16ByteString]` (host bits set from the CIDR prefix length). No HTTP, no file I/O - kept
+  independently testable against a small in-memory fixture instead of the real ~20-30 MB file
+  (which this sandbox's network policy couldn't download directly anyway - see "Notable past
+  bugs"/session notes for how the parser was verified instead).
+- **`CountryIndexBuilder`** - fetches the source URL (curl if available, `file_get_contents`
+  fallback), sorts ranges per IP version, and **gap-fills**: every possible address must resolve
+  to exactly one entry, so unallocated/reserved holes between real ranges get an explicit
+  `UNKNOWN_CC` ("ZZ", ISO 3166-1's reserved "unknown country" code) entry rather than being left
+  out - that's what lets `CountryLookup` always do a plain "greatest start <= address" binary
+  search with no separate end-of-range check. Adjacent same-country entries are merged. Writes its
+  own small, fully self-documented binary format (see the class doc comment for the exact byte
+  layout) - deliberately not IP2Location's BIN format, nothing left to reverse-engineer.
+- **`CountryLookup`** - the read side, instantiated fresh on every single page hit
+  (`PageInsightsPlugin::collectPageData()`). Binary search directly against the file via
+  `fseek`/`fread` per probe (nothing loaded into memory up front, same approach the old
+  IP2Location library used) - construction and lookup both degrade to a no-op/`null` if the index
+  file doesn't exist yet or is corrupt, never throwing. A missing or stale geo database must never
+  break page collection.
+- **Building the index is never automatic** - not at install time, not on the page-request path,
+  not on a timer (yet). It's an explicit admin action: `PageInsightsApiController::rebuildGeoDb()`
+  (`POST /page-insights/geo-db/rebuild`, `api.system.write`) drives the whole
+  download-parse-build-write pipeline synchronously, triggered from a custom Admin2 blueprint
+  field (`admin-next/fields/geodbupdate.js`, `type: geodbupdate` in `blueprints.yaml` ->
+  `tab_general` -> `section_geolocation`) that also polls `GET /page-insights/geo-db/status`
+  (`api.system.read`) to show the current build's age/source date without triggering a rebuild.
+  **Follow-up, not yet built:** a Scheduler-friendly console command reusing the same
+  `CountryIndexBuilder` for an unattended daily refresh (matches the source data's own daily
+  update cadence) - deliberately scoped out of the first pass.
+
+`Ip::toNumber()`/`toIP()` (IPv4 <-> integer helpers, previously dead code kept only for a doc
+mention) are now actually used by `CountryLookup`'s IPv4 binary search.
 
 ## Composer & the compiled autoloader (important operational gotcha)
 
