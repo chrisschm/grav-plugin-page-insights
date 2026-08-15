@@ -9,7 +9,7 @@ use Grav\Common\Plugin;
 use Grav\Common\Utils;
 use RocketTheme\Toolbox\Event\Event;;
 
-use Grav\Plugin\PageInsights\Geolocation\CountryIndexBuilder;
+use Grav\Plugin\PageInsights\Geolocation\GeoDbUpdater;
 use Grav\Plugin\PageInsights\Geolocation\Geolocation;
 use Grav\Plugin\PageInsights\Geolocation\CountryLookup;
 use Grav\Plugin\PageInsights\Stats;
@@ -478,13 +478,12 @@ class PageInsightsPlugin extends Plugin
             $this->grav->redirect($uri->path());
         }
 
-        $sourceUrl = (string) $this->config->get(
-            'plugins.page-insights.geo_db_source_url',
-            CountryIndexBuilder::DEFAULT_SOURCE_URL
-        );
+        $mode = (string) $this->config->get('plugins.page-insights.geo_db_source_mode', 'prebuilt');
+        $prebuiltUrl = (string) $this->config->get('plugins.page-insights.geo_db_prebuilt_url', '');
+        $rawSourceUrl = (string) $this->config->get('plugins.page-insights.geo_db_source_url', '');
 
         try {
-            (new CountryIndexBuilder())->build(self::GEO_COUNTRY_INDEX, $sourceUrl ?: null);
+            (new GeoDbUpdater())->update(self::GEO_COUNTRY_INDEX, $mode, $prebuiltUrl ?: null, $rawSourceUrl ?: null);
             $admin?->setMessage('Geo country database updated.', 'info');
         } catch (\Throwable $e) {
             $this->grav['log']->addError('PageInsights plugin: geo-db rebuild failed - ' . $e->getMessage());

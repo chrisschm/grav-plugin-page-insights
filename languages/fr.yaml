@@ -168,15 +168,32 @@ PLUGIN_PAGE_INSIGHTS:
       expressions régulières)
   SECTION_GEOLOCATION: Géolocalisation
   SECTION_GEOLOCATION_LABEL: "Détermination du pays à partir de l'IP (\"Top
-    countries\"). Générée par le plugin lui-même à partir des données
-    publiques d'allocation des RIR (Regional Internet Registry) - aucune
-    base de données tierce n'est fournie avec le plugin ni téléchargée
-    automatiquement ; utilisez le bouton \"Mettre à jour\" à côté de Top
-    countries dans le tableau de bord pour la (re)générer."
-  GEO_DB_SOURCE_URL_LABEL: URL source de la base géographique
-  GEO_DB_SOURCE_URL_HELP: "Facultatif, pour utilisateurs avancés. Laisser vide
-    pour utiliser la valeur par défaut : le fichier combiné d'allocation des
-    RIR, publié quotidiennement par le RIPE NCC pour le compte de la NRO."
+    countries\"). Aucune base de données tierce n'est fournie avec le plugin
+    ni téléchargée automatiquement ; utilisez le bouton \"Mettre à jour\" à
+    côté de Top countries dans le tableau de bord pour la (re)générer. Par
+    défaut, cela télécharge un index déjà généré depuis un projet compagnon
+    qui le reconstruit périodiquement à partir des données publiques
+    d'allocation des RIR (Regional Internet Registry) - voir ci-dessous pour
+    le générer vous-même localement à partir de ces données brutes."
+  GEO_DB_SOURCE_MODE_LABEL: Source de la base géographique
+  GEO_DB_SOURCE_MODE_HELP: "\"Index préconstruit\" télécharge un petit index
+    déjà généré et ne nécessite pas de mémoire supplémentaire sur ce site.
+    \"Générer à partir des données RIR brutes\" télécharge le fichier RIR
+    complet (plusieurs Mo) et génère l'index ici même, sans dépendre du
+    projet compagnon - téléchargement plus volumineux et limite de mémoire
+    temporairement relevée pendant la génération."
+  GEO_DB_SOURCE_MODE_PREBUILT: Index préconstruit (recommandé)
+  GEO_DB_SOURCE_MODE_RAW: Générer à partir des données RIR brutes
+  GEO_DB_PREBUILT_URL_LABEL: URL source de l'index préconstruit
+  GEO_DB_PREBUILT_URL_HELP: "Facultatif, pour utilisateurs avancés. Utilisé
+    uniquement si \"Index préconstruit\" est sélectionné ci-dessus. Laisser
+    vide pour utiliser le projet compagnon par défaut."
+  GEO_DB_SOURCE_URL_LABEL: URL source des données RIR brutes
+  GEO_DB_SOURCE_URL_HELP: "Facultatif, pour utilisateurs avancés. Utilisé
+    uniquement si \"Générer à partir des données RIR brutes\" est sélectionné
+    ci-dessus. Laisser vide pour utiliser la valeur par défaut : le fichier
+    combiné d'allocation des RIR, publié quotidiennement par le RIPE NCC pour
+    le compte de la NRO."
   GEO_DB_NOT_BUILT: "Pas encore générée - la détermination du pays renvoie
     \"unknown\" jusqu'à la première mise à jour."
   GEO_DB_BUILT_STATUS: "Générée le %s (date des données %s, %s entrées)."

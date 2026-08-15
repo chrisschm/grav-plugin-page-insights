@@ -169,7 +169,7 @@ carries real data.
 - **Building the index is never automatic** - not at install time, not on the page-request path,
   not on a timer (yet). It's an explicit admin action, triggered next to the "Top countries" stat
   in both admin UIs rather than from the config form (it's an action tied to that stat, not a
-  setting - `geo_db_source_url` is the only geolocation field left in `blueprints.yaml`):
+  setting - `section_geolocation` in `blueprints.yaml` only holds the source configuration):
   - **Admin2**: a button in the "Top countries" card in `admin-next/pages/page-insights.js`
     (`_updateGeoDb()`/`_geoStatusHtml()`), calling `PageInsightsApiController::rebuildGeoDb()`
     (`POST /page-insights/geo-db/rebuild`, `api.system.write`) and `::geoDbStatus()`
@@ -183,12 +183,48 @@ carries real data.
     AJAX - this plugin's classic-admin side is otherwise fully server-rendered, and there's no
     core admin task convention for a plugin-defined action like this one.
 
-  Both paths call `CountryIndexBuilder::build()` directly/via the same REST logic - there is no
-  third, separate implementation of the rebuild itself.
+  Both paths call `GeoDbUpdater::update()` - there is no third, separate implementation of the
+  rebuild itself.
 
-  **Follow-up, not yet built:** a Scheduler-friendly console command reusing the same
-  `CountryIndexBuilder` for an unattended daily refresh (matches the source data's own daily
-  update cadence) - deliberately scoped out of the first pass.
+### Two update modes: prebuilt (default) vs. raw RIR build (`GeoDbUpdater`)
+
+As of 2026-08, rebuilding the index has two modes, selected via the `geo_db_source_mode` config
+field and dispatched by the new `GeoDbUpdater` class (both admin surfaces above call this instead
+of `CountryIndexBuilder` directly now):
+
+- **`prebuilt` (default):** `CountryIndexBuilder::fetchPrebuilt()` downloads an *already-built*
+  index from a small **companion repository** (`page-insights-geo-db`, separate from this plugin's
+  repo) whose only job is running a scheduled GitHub Actions workflow that checks out this
+  repo's `classes/Geolocation` classes unchanged, runs the exact same `build()` pipeline described
+  below, and publishes the result as a rolling `latest` GitHub Release asset. Consuming sites just
+  download that asset (a few MB, not the ~54 MB raw RIR snapshot) and validate+install it
+  (`CountryIndexBuilder::parseHeader()` checks the magic bytes and that the declared entry counts
+  actually match the downloaded byte count, so a truncated/corrupt download is rejected *before*
+  it overwrites a previously working index) - no parsing, no sorting, and therefore no elevated
+  `memory_limit` requirement on the site itself. This exists because the two costs of building
+  locally on every site - a large recurring download on top of shared-hosting traffic budgets, and
+  the PHP-array memory overhead of parsing several hundred thousand individual RIR records (see
+  "Notable past bugs" #8) - only need to be paid once centrally, on a CI runner with far more
+  headroom than typical shared PHP hosting, rather than once per installation.
+- **`raw` (opt-out):** `CountryIndexBuilder::build()`, unchanged from the original design below -
+  downloads the full RIR snapshot and builds locally. Kept as an explicit, fully-documented escape
+  hatch for anyone who doesn't want the companion repo as a middleman: it's a small commercial-free
+  registry-run companion project, but "trust the plugin author's separate repo/CI pipeline, not
+  just the plugin's own code" is still a real trust decision, and this mode means nobody is forced
+  into it. Also the fallback if the companion project is ever unreachable, discontinued, or simply
+  not preferred.
+
+  Both modes have their own optional source-URL override field (`geo_db_prebuilt_url` /
+  `geo_db_source_url` respectively) - empty uses `CountryIndexBuilder::DEFAULT_PREBUILT_URL` /
+  `DEFAULT_SOURCE_URL`. Both fields are always shown in both admin UIs regardless of the selected
+  mode (rather than conditionally hidden/shown) - deliberately, after the custom-Admin2-field
+  fallback lesson (see "Notable past bugs" #6): the simplest, most reliably-identical-across-both-
+  admin-UIs form beats a cleverer one.
+
+  **Not yet built:** the companion repo's own workflow is a fresh design as of this session, not
+  yet created/verified live - and a Scheduler-friendly Grav console command for *per-site*
+  unattended refresh (reusing `GeoDbUpdater`, so it'd pick up either mode) remains a separate,
+  still-deferred follow-up on top of this.
 
 `Ip::toNumber()`/`toIP()` (IPv4 <-> integer helpers, previously dead code kept only for a doc
 mention) are now actually used by `CountryLookup`'s IPv4 binary search.

@@ -143,9 +143,15 @@ PLUGIN_PAGE_INSIGHTS:
         HELP: USer agents to classify as bots (can use regular expression)
 
     SECTION_GEOLOCATION: Geolocation
-    SECTION_GEOLOCATION_LABEL: "Country-level IP lookup for \"Top countries\". Self-built from the public RIR (Regional Internet Registry) delegation data - no third-party database is bundled with the plugin or downloaded automatically; use the \"Update now\" button next to Top countries on the dashboard to (re)build it."
-    GEO_DB_SOURCE_URL_LABEL: Geo database source URL
-    GEO_DB_SOURCE_URL_HELP: "Advanced/optional. Leave empty to use the default: the daily-refreshed combined RIR delegated-stats snapshot published by RIPE NCC on behalf of the NRO."
+    SECTION_GEOLOCATION_LABEL: "Country-level IP lookup for \"Top countries\". No third-party database is bundled with the plugin or downloaded automatically; use the \"Update now\" button next to Top countries on the dashboard to (re)build it. By default this downloads an already-built index from a companion project that rebuilds it periodically from the public RIR (Regional Internet Registry) delegation data - see below to build it yourself from that raw data locally instead."
+    GEO_DB_SOURCE_MODE_LABEL: Geo database source
+    GEO_DB_SOURCE_MODE_HELP: "\"Pre-built index\" downloads a small, already-built index and needs no extra memory on this site. \"Build from raw RIR data\" downloads the full multi-MB RIR snapshot and builds the index here instead, without depending on the companion project - larger download and a temporarily raised memory limit during the build."
+    GEO_DB_SOURCE_MODE_PREBUILT: Pre-built index (recommended)
+    GEO_DB_SOURCE_MODE_RAW: Build from raw RIR data locally
+    GEO_DB_PREBUILT_URL_LABEL: Pre-built index URL
+    GEO_DB_PREBUILT_URL_HELP: "Advanced/optional. Only used when the source above is set to \"Pre-built index\". Leave empty to use the default companion repository."
+    GEO_DB_SOURCE_URL_LABEL: Raw RIR data source URL
+    GEO_DB_SOURCE_URL_HELP: "Advanced/optional. Only used when the source above is set to \"Build from raw RIR data locally\". Leave empty to use the default: the daily-refreshed combined RIR delegated-stats snapshot published by RIPE NCC on behalf of the NRO."
     GEO_DB_NOT_BUILT: "Not built yet - country lookups return \"unknown\" until the first update."
     GEO_DB_BUILT_STATUS: "Built %s (source date %s, %s entries)."
     GEO_DB_UNKNOWN: unknown

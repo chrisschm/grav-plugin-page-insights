@@ -53,10 +53,147 @@ class CountryIndexBuilder
 
     public const DEFAULT_SOURCE_URL = 'https://ftp.ripe.net/pub/stats/ripencc/nro-stats/latest/nro-delegated-stats';
 
+    /**
+     * A companion repository whose sole job is to run this same class
+     * (RirStatsParser + CountryIndexBuilder, unchanged) once per cycle on a
+     * well-resourced CI runner and publish the resulting index as a rolling
+     * release asset - see docs/ARCHITECTURE.md "Geolocation" for the full
+     * reasoning (this replaced a per-site daily/weekly raw-RIR download,
+     * which was both a meaningful traffic cost on constrained hosting and
+     * the reason build() needs a raised memory_limit in the first place).
+     * fetchPrebuilt() below just downloads and validates this file - no
+     * parsing, no `RirStatsParser` involvement, no elevated memory_limit
+     * needed on the consuming site at all.
+     */
+    public const DEFAULT_PREBUILT_URL = 'https://codeberg.org/chschmidt/page-insights-geo-db/releases/download/latest/geo-country-index.bin';
+
+    /** Keep in sync with CountryLookup::HEADER_SIZE - both classes independently encode/decode against the format documented above. */
+    private const HEADER_SIZE = 25;
+
     private const IPV4_MAX = 0xFFFFFFFF;
 
     public function __construct(private RirStatsParser $parser = new RirStatsParser())
     {
+    }
+
+    /**
+     * Downloads an already-built index (produced by build() elsewhere, e.g.
+     * a companion repo's CI job) and installs it directly - no parsing, no
+     * sorting, no RirStatsParser involvement, and therefore no elevated
+     * memory_limit requirement on this site's own process. This is the
+     * default consumption path; build() remains available as the "trust
+     * nobody, build it yourself from the raw RIR data locally" fallback
+     * (see the geo_db_source_mode config field).
+     *
+     * Validates the downloaded bytes look like a genuine PIGC1 index
+     * (correct magic + internally consistent entry counts) *before*
+     * touching $outputPath, so a corrupt/truncated/wrong-content download
+     * never clobbers a previously working index - an "Update now" click
+     * that fails should leave the site exactly as good as it was before the
+     * click, never worse.
+     *
+     * @return array{
+     *     builtAt: ?int,
+     *     sourceDate: ?string,
+     *     sourceUrl: string,
+     *     recordsParsed: null,
+     *     ipv4Entries: int,
+     *     ipv6Entries: int,
+     *     fileSize: int,
+     * }
+     *
+     * @throws \RuntimeException on download failure or if the downloaded
+     *   content doesn't parse as a valid index.
+     */
+    public function fetchPrebuilt(string $outputPath, ?string $url = null): array
+    {
+        $url = $url ?: self::DEFAULT_PREBUILT_URL;
+
+        $bytes = $this->fetch($url);
+        $meta = self::parseHeader($bytes);
+
+        if ($meta === null) {
+            throw new \RuntimeException(
+                "Downloaded file from '{$url}' doesn't look like a valid geo country index " .
+                "(missing/corrupt header or truncated download) - left the existing index untouched."
+            );
+        }
+
+        self::writeBytesAtomically($outputPath, $bytes);
+
+        return [
+            'builtAt' => $meta['builtAt'],
+            'sourceDate' => $meta['sourceDate'],
+            'sourceUrl' => $url,
+            'recordsParsed' => null,
+            'ipv4Entries' => $meta['ipv4Count'],
+            'ipv6Entries' => $meta['ipv6Count'],
+            'fileSize' => strlen($bytes),
+        ];
+    }
+
+    /**
+     * Reads and validates the PIGC1 header from raw index bytes (mirrors
+     * CountryLookup::open()'s parsing, kept independent/duplicated
+     * deliberately - see the HEADER_SIZE doc comment above). Also checks
+     * that the declared entry counts actually account for the rest of the
+     * byte string, which CountryLookup's own streaming reader has no reason
+     * to check up front but a one-shot download validation very much does:
+     * a download that got cut off mid-transfer would otherwise pass the
+     * magic-byte check and only fail later, per-lookup, in a much more
+     * confusing way.
+     *
+     * @return array{builtAt: int, sourceDate: ?string, ipv4Count: int, ipv6Count: int}|null
+     */
+    private static function parseHeader(string $bytes): ?array
+    {
+        if (strlen($bytes) < self::HEADER_SIZE || substr($bytes, 0, 5) !== self::FORMAT_MAGIC) {
+            return null;
+        }
+
+        $builtAt = unpack('N', substr($bytes, 5, 4))[1];
+        $sourceDate = substr($bytes, 9, 8);
+        $ipv4Count = unpack('N', substr($bytes, 17, 4))[1];
+        $ipv6Count = unpack('N', substr($bytes, 21, 4))[1];
+
+        $expectedSize = self::HEADER_SIZE + $ipv4Count * 6 + $ipv6Count * 18;
+        if (strlen($bytes) !== $expectedSize) {
+            return null;
+        }
+
+        return [
+            'builtAt' => $builtAt,
+            'sourceDate' => $sourceDate === '00000000' ? null : $sourceDate,
+            'ipv4Count' => $ipv4Count,
+            'ipv6Count' => $ipv6Count,
+        ];
+    }
+
+    /**
+     * Minimal standalone atomic-write helper (temp file + rename) for
+     * fetchPrebuilt(), which has nothing to build - it already has the
+     * complete file contents in hand. Deliberately independent of
+     * writeFile() below (which assembles the file incrementally from
+     * entry arrays via an open file handle) rather than generalizing both
+     * into one shared helper, to avoid touching writeFile()'s existing,
+     * already-shipped read/write logic for this addition.
+     */
+    private static function writeBytesAtomically(string $outputPath, string $contents): void
+    {
+        $dir = dirname($outputPath);
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new \RuntimeException("Unable to create directory '{$dir}' for the geo country index.");
+        }
+
+        $tmpPath = $outputPath . '.tmp-' . bin2hex(random_bytes(4));
+        if (@file_put_contents($tmpPath, $contents) === false) {
+            throw new \RuntimeException("Unable to write '{$tmpPath}'.");
+        }
+
+        if (!@rename($tmpPath, $outputPath)) {
+            @unlink($tmpPath);
+            throw new \RuntimeException("Unable to move the downloaded index into place at '{$outputPath}'.");
+        }
     }
 
     /**

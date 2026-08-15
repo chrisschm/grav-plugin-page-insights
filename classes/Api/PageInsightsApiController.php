@@ -9,7 +9,7 @@ use Grav\Common\Grav;
 use Grav\Plugin\Api\Controllers\AbstractApiController;
 use Grav\Plugin\Api\Exceptions\ValidationException;
 use Grav\Plugin\Api\Response\ApiResponse;
-use Grav\Plugin\PageInsights\Geolocation\CountryIndexBuilder;
+use Grav\Plugin\PageInsights\Geolocation\GeoDbUpdater;
 use Grav\Plugin\PageInsights\Geolocation\CountryLookup;
 use Grav\Plugin\PageInsights\Stats;
 use Grav\Plugin\PageInsightsPlugin;
@@ -279,6 +279,7 @@ class PageInsightsApiController extends AbstractApiController
         $this->requirePermission($request, self::READ_PERMISSION);
 
         $lookup = new CountryLookup(PageInsightsPlugin::GEO_COUNTRY_INDEX);
+        $grav = Grav::instance();
 
         return ApiResponse::create([
             'built' => $lookup->isAvailable(),
@@ -286,35 +287,42 @@ class PageInsightsApiController extends AbstractApiController
             'source_date' => $lookup->sourceDate(),
             'ipv4_entries' => $lookup->ipv4EntryCount(),
             'ipv6_entries' => $lookup->ipv6EntryCount(),
+            'source_mode' => (string) $grav['config']->get('plugins.page-insights.geo_db_source_mode', 'prebuilt'),
         ]);
     }
 
     /**
      * POST /page-insights/geo-db/rebuild
      *
-     * Downloads the current combined RIR delegated-stats snapshot and
-     * rebuilds classes/Geolocation - see CountryIndexBuilder for the format
-     * and full reasoning. Synchronous and admin-triggered only for now (no
-     * install-time or per-request download, ever) - a Scheduler-friendly
-     * console command for a daily automatic refresh is intended as a
-     * follow-up, reusing this same CountryIndexBuilder.
+     * Updates classes/Geolocation's country index - see GeoDbUpdater for
+     * which of the two update paths (download a prebuilt index vs. build
+     * locally from the raw RIR delegated-stats snapshot) actually runs,
+     * selected via the geo_db_source_mode config field. Synchronous and
+     * admin-triggered only for now (no install-time or per-request
+     * download, ever) - a Scheduler-friendly console command for automatic
+     * refresh is intended as a follow-up, reusing this same GeoDbUpdater.
      *
-     * The source file is tens of MB of text; this can take a while and is
-     * why it needs its own explicit write permission rather than piggy-
-     * backing on a read endpoint.
+     * The raw-mode source file is tens of MB of text; even the default
+     * prebuilt-mode download can take a moment, which is why this needs its
+     * own explicit write permission rather than piggy-backing on a read
+     * endpoint.
      */
     public function rebuildGeoDb(ServerRequestInterface $request): ResponseInterface
     {
         $this->requirePermission($request, self::WRITE_PERMISSION);
 
         $grav = Grav::instance();
-        $sourceUrl = (string) $grav['config']->get(
-            'plugins.page-insights.geo_db_source_url',
-            CountryIndexBuilder::DEFAULT_SOURCE_URL
-        );
+        $mode = (string) $grav['config']->get('plugins.page-insights.geo_db_source_mode', 'prebuilt');
+        $prebuiltUrl = (string) $grav['config']->get('plugins.page-insights.geo_db_prebuilt_url', '');
+        $rawSourceUrl = (string) $grav['config']->get('plugins.page-insights.geo_db_source_url', '');
 
         try {
-            $result = (new CountryIndexBuilder())->build(PageInsightsPlugin::GEO_COUNTRY_INDEX, $sourceUrl ?: null);
+            $result = (new GeoDbUpdater())->update(
+                PageInsightsPlugin::GEO_COUNTRY_INDEX,
+                $mode,
+                $prebuiltUrl ?: null,
+                $rawSourceUrl ?: null
+            );
         } catch (\Throwable $e) {
             $grav['log']->addError('PageInsights plugin: geo-db rebuild failed - ' . $e->getMessage());
 
@@ -323,9 +331,10 @@ class PageInsightsApiController extends AbstractApiController
             // exception this codebase already has confirmed error-response
             // handling for (see pageDetail()/userDetail() above). Not a
             // perfect semantic fit for "upstream download failed", but a
-            // 4xx with a clear message beats a raw 500.
+            // 4xx with a clear message beats a raw 500. Field name reflects
+            // whichever URL was actually in play for this mode.
             throw new ValidationException('Could not rebuild the geo country index: ' . $e->getMessage(), [
-                ['field' => 'geo_db_source_url', 'message' => $e->getMessage()],
+                ['field' => $mode === 'raw' ? 'geo_db_source_url' : 'geo_db_prebuilt_url', 'message' => $e->getMessage()],
             ]);
         }
 

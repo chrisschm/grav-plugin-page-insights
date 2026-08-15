@@ -137,13 +137,29 @@ PLUGIN_PAGE_INSIGHTS:
     TEXT: Bot User Agents
     HELP: Als Bots zu klassifizierende User-Agents (reguläre Ausdrücke möglich)
   SECTION_GEOLOCATION: Geolokalisierung
-  SECTION_GEOLOCATION_LABEL: Land-Ermittlung für IP-Adressen ("Top countries"). Wird
-    selbst aus den öffentlichen RIR-Zuteilungsdaten (Regional Internet Registry)
-    gebaut - es wird keine Drittanbieter-Datenbank mit dem Plugin ausgeliefert
-    oder automatisch heruntergeladen; die (Neu-)Erstellung wird über den Button
-    "Jetzt aktualisieren" bei "Top Länder" im Dashboard ausgelöst.
-  GEO_DB_SOURCE_URL_LABEL: Quell-URL der Geo-Datenbank
-  GEO_DB_SOURCE_URL_HELP: Optional, für Fortgeschrittene. Leer lassen für den
+  SECTION_GEOLOCATION_LABEL: Land-Ermittlung für IP-Adressen ("Top countries"). Es
+    wird keine Drittanbieter-Datenbank mit dem Plugin ausgeliefert oder automatisch
+    heruntergeladen; die (Neu-)Erstellung wird über den Button "Jetzt aktualisieren"
+    bei "Top Länder" im Dashboard ausgelöst. Standardmäßig wird dabei ein bereits
+    fertig gebauter Index von einem Begleitprojekt geladen, das ihn regelmäßig aus
+    den öffentlichen RIR-Zuteilungsdaten (Regional Internet Registry) neu baut -
+    siehe unten, um ihn stattdessen selbst lokal aus diesen Rohdaten zu bauen.
+  GEO_DB_SOURCE_MODE_LABEL: Quelle der Geo-Datenbank
+  GEO_DB_SOURCE_MODE_HELP: "\"Fertiger Index\" lädt einen kleinen, bereits gebauten
+    Index herunter und braucht dafür keinen zusätzlichen Arbeitsspeicher auf dieser
+    Website. \"Aus RIR-Rohdaten selbst bauen\" lädt stattdessen den vollständigen,
+    mehrere MB großen RIR-Datensatz und baut den Index hier vor Ort - ohne
+    Abhängigkeit vom Begleitprojekt, dafür mit größerem Download und einem für den
+    Bauvorgang vorübergehend angehobenen Speicherlimit."
+  GEO_DB_SOURCE_MODE_PREBUILT: Fertiger Index (empfohlen)
+  GEO_DB_SOURCE_MODE_RAW: Aus RIR-Rohdaten selbst bauen
+  GEO_DB_PREBUILT_URL_LABEL: Quell-URL des fertigen Index
+  GEO_DB_PREBUILT_URL_HELP: Optional, für Fortgeschrittene. Wird nur verwendet,
+    wenn oben "Fertiger Index" ausgewählt ist. Leer lassen für das
+    Standard-Begleitprojekt.
+  GEO_DB_SOURCE_URL_LABEL: Quell-URL der RIR-Rohdaten
+  GEO_DB_SOURCE_URL_HELP: Optional, für Fortgeschrittene. Wird nur verwendet, wenn
+    oben "Aus RIR-Rohdaten selbst bauen" ausgewählt ist. Leer lassen für den
     Standard - den täglich aktualisierten, kombinierten RIR-Zuteilungsdatensatz,
     den die RIPE NCC im Auftrag der NRO veröffentlicht.
   GEO_DB_NOT_BUILT: Noch nicht erstellt - die Länderermittlung liefert bis zur
