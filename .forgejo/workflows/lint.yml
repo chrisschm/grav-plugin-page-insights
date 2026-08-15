@@ -42,10 +42,20 @@ jobs:
       - name: Geänderte Dateien ermitteln
         run: |
           BASE="${{ github.event.before }}"
-          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+          # Leerer/Null-SHA (erster Push eines neuen Branches) oder ein SHA,
+          # den es im aktuellen Checkout gar nicht (mehr) gibt - insbesondere
+          # nach einem Force-Push/History-Rewrite ist "before" der alte,
+          # jetzt unerreichbare Commit ("fatal: bad object ..."). In beiden
+          # Fällen lieber gegen den Root-Commit vergleichen (= sämtliche
+          # Dateien gelten als geändert), statt den `git diff` unten still
+          # scheitern zu lassen und dadurch effektiv gar nichts zu prüfen.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             BASE=$(git rev-list --max-parents=0 HEAD)
           fi
-          git diff --name-only --diff-filter=d "$BASE" HEAD > changed.txt || true
+          # Kein "|| true" mehr: ein weiterhin fehlschlagendes git diff (aus
+          # einem anderen, hier nicht vorhergesehenen Grund) soll den Job
+          # jetzt sichtbar rot machen statt changed.txt leer zu lassen.
+          git diff --name-only --diff-filter=d "$BASE" HEAD > changed.txt
           cat changed.txt
 
       - name: PHP-Syntax prüfen
