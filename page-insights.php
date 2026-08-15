@@ -9,10 +9,10 @@ use Grav\Common\Plugin;
 use RocketTheme\Toolbox\Event\Event;;
 
 use Grav\Plugin\PageInsights\Geolocation\Geolocation;
+use Grav\Plugin\PageInsights\Geolocation\CountryLookup;
 use Grav\Plugin\PageInsights\Stats;
 use Grav\Plugin\PageInsights\Api\PageInsightsApiController;
 use RocketTheme\Toolbox\Event\EventSubscriberInterface;
-use IP2Location\Database;
 
 /**
  * Class PageInsightsPlugin
@@ -21,7 +21,13 @@ use IP2Location\Database;
 class PageInsightsPlugin extends Plugin
 {
     // const GEO_DB = __DIR__ . '/data/geolocation.sqlite';
-    const GEO_DB = __DIR__ . '/data/IP2LOCATION-LITE-DB3.BIN';
+
+    // Self-built, country-only geo index (see classes/Geolocation/CountryIndexBuilder.php).
+    // Deliberately NOT shipped in the plugin's git repo/release archive and
+    // NOT built automatically on install - it's built on demand via the
+    // Admin2 config screen (or, in a later step, a Scheduler-friendly
+    // console command), see PageInsightsApiController::rebuildGeoDb().
+    const GEO_COUNTRY_INDEX = __DIR__ . '/data/geo-country-index.bin';
 
     const PATH_ADMIN_STATS = '/page-insights';
     const PATH_ADMIN_PAGE_DETAIL = '/page-details';
@@ -245,7 +251,7 @@ class PageInsightsPlugin extends Plugin
 
             $page = $this->grav['page'];
             $ip = $this->getUserIP();
-            $geo = (new Geolocation(new Database(self::GEO_DB)))->locate($ip);
+            $geo = (new Geolocation(new CountryLookup(self::GEO_COUNTRY_INDEX)))->locate($ip);
             $uri = $this->grav['uri']->uri(false);
             $user = $this->grav['user'];
             $now = new DateTimeImmutable();
@@ -559,6 +565,12 @@ class PageInsightsPlugin extends Plugin
             $group->get('/users', [$controller, 'users']);
             $group->get('/users/detail', [$controller, 'userDetail']);
             $group->get('/recent', [$controller, 'recent']);
+
+            // Geo country index: read-only status (used to render "last
+            // updated" in the config tab) plus the actual admin-triggered
+            // (re)build action - see docs/ARCHITECTURE.md "Geolocation".
+            $group->get('/geo-db/status', [$controller, 'geoDbStatus']);
+            $group->post('/geo-db/rebuild', [$controller, 'rebuildGeoDb']);
         });
     }
 

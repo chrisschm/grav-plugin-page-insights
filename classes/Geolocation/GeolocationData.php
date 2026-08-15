@@ -1,27 +1,29 @@
 <?php
-declare (strict_types=1);
+
+declare(strict_types=1);
 
 namespace Grav\Plugin\PageInsights\Geolocation;
 
+/**
+ * Result of a Geolocation::locate() call.
+ *
+ * Historically carried countryName/region/city as well (populated from the
+ * committed IP2Location LITE BIN file). Neither the RIR delegated-stats data
+ * this plugin now builds its own country index from, nor - it turns out -
+ * any part of this plugin's actual code, ever used anything beyond
+ * countryCode(): region/city were written to the stats DB but never
+ * queried/displayed, and countryName() was never called at all (see the
+ * 2026-08-15 session notes). Those three accessors are kept, returning
+ * 'unknown', purely so Stats.php's existing column bindings don't need a
+ * schema migration alongside this change.
+ */
+class GeolocationData
+{
+    private const UNKNOWN = 'unknown';
 
-class GeolocationData {
-    private  $countryCode;
-    private  $countryName;
-    private  $region;
-    private  $city;
-
-    public function __construct(
-         $countryCode,
-         $countryName,
-         $region,
-         $city
-    ) {
-        $this->countryCode = $countryCode;
-        $this->countryName = $countryName;
-        $this->region = $region;
-        $this->city = $city;
+    public function __construct(private string $countryCode)
+    {
     }
-
 
     public function countryCode(): string
     {
@@ -30,16 +32,16 @@ class GeolocationData {
 
     public function countryName(): string
     {
-        return $this->countryName;
+        return self::UNKNOWN;
     }
 
     public function city(): string
     {
-        return $this->city;
+        return self::UNKNOWN;
     }
 
     public function region(): string
     {
-        return $this->region;
+        return self::UNKNOWN;
     }
 }
