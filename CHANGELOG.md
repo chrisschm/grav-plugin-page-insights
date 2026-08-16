@@ -1,5 +1,5 @@
 # v3.1.2
-## 08/16/2026
+## 08/16/2026 ([cdc233c](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/cdc233c3274e464baed2a48fa84e213e0b0dfb3c))
 
 1. [](#new)
     * feat: added a `prebuilt` geo-db source mode (now the default) that downloads an already-built country index from a companion repo's scheduled CI build instead of parsing the ~54 MB RIR/NRO snapshot locally on every site - no more temporarily elevated `memory_limit` needed on the consuming site. Validates magic bytes and declared entry counts against the actual download size before ever touching the existing index, so a corrupt/truncated download can't clobber a working one. The existing `geo_db_source_url` raw-RIR local build remains fully supported as an explicit fallback for anyone who'd rather not depend on the companion repo.
