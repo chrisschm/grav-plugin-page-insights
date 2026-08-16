@@ -149,13 +149,14 @@ data.", range-picker buttons, etc.) live under a new `PLUGIN_PAGE_INSIGHTS.ADMIN
 `RECENTLY_VIEWED_PAGES`, the `GEO_DB_*` geo-status keys, etc.) reuses the existing top-level keys
 rather than duplicating them.
 
-**Short-code vs. BCP47 language files - see "Notable past bugs" #10.** `/translations` (the API
-endpoint the bridge above actually calls) resolves plugin strings by the *exact* admin locale code
-(`de-DE`), while this plugin's `languages/*.yaml` use the short-code convention (`de`) - two
+**Short-code vs. BCP47 language files - see "Notable past bugs" #10 and #11.** `/translations` (the
+API endpoint the bridge above actually calls) resolves plugin strings by the *exact* admin locale
+code (`de-DE`), while this plugin's `languages/*.yaml` use the short-code convention (`de`) - two
 buckets that Grav core never merges on its own.
-`PageInsightsPlugin::mergeAdmin2TranslationAliases()` (hooked into `onApiRegisterRoutes()`) bridges
-this at runtime; if `has()` ever returns `false` for a key that's clearly present in
-`languages/de.yaml`, check there before assuming the key itself is missing.
+`PageInsightsPlugin::mergeAdmin2TranslationAliases()` (hooked into `onPluginsInitialized()` -
+**not** an `onApi*` event, see #11 for why) bridges this at runtime; if `has()` ever returns `false`
+for a key that's clearly present in `languages/de.yaml`, check there before assuming the key itself
+is missing.
 
 Not yet covered: chart x-axis date labels (`_formatDayLabel()`) are still a fixed `DD.MM.` format
 regardless of admin language - locale-aware date formatting remains a separate, still-open README
@@ -411,6 +412,21 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     reporting the right locale doesn't mean the data behind it is actually reachable - worth an
     end-to-end check on a real Admin2 instance with a non-English admin language, not just
     `node --check` and a code read.
+11. **The first fix for #10 hooked `mergeAdmin2TranslationAliases()` into `onApiRegisterRoutes()`
+    and still showed English after deploying to the real test instance.** Cause: `grav-plugin-api`'s
+    `ApiRouter::createDispatcher()` wraps its entire route table in FastRoute's `cachedDispatcher()`,
+    backed by `cache://api/route.cache`. Once that cache file exists - which in practice means every
+    request after the very first one, since it isn't tied to Grav's own cache-clear at all, only to
+    `system.debugger.enabled` - FastRoute deserializes the cached route table directly and never
+    re-invokes the route-definition closure, so `onApiRegisterRoutes` (fired from inside that
+    closure) simply doesn't run. Any plugin logic riding on that event for a side effect other than
+    literally registering routes silently stops firing as soon as the route cache warms up. Fixed by
+    moving the call to `onPluginsInitialized()` instead, which Grav core fires unconditionally on
+    every request regardless of any plugin's own route/response caching. A reminder that an
+    `onApi*` event firing "no-op when the API plugin isn't installed" (true) is not the same
+    guarantee as "fires on every request" (false, for the route-registration events specifically) -
+    worth checking a plugin event's *caching* behavior, not just whether it fires at all, before
+    hanging unrelated logic off it.
 
 ## Known cleanup items
 

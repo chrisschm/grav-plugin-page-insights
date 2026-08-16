@@ -107,6 +107,10 @@ class PageInsightsPlugin extends Plugin
      */
     public function onPluginsInitialized(): void
     {
+        // Admin2 i18n bridge: must run unconditionally, on every single
+        // request - see the docblock on mergeAdmin2TranslationAliases() for
+        // why this can't live in an API-plugin-fired event instead.
+        $this->mergeAdmin2TranslationAliases();
 
         // Don't proceed if we are in the admin plugin
         if ($this->isAdmin()) {
@@ -624,8 +628,6 @@ class PageInsightsPlugin extends Plugin
      */
     public function onApiRegisterRoutes(Event $event): void
     {
-        $this->mergeAdmin2TranslationAliases();
-
         $routes = $event['routes'];
         $controller = PageInsightsApiController::class;
 
@@ -674,6 +676,16 @@ class PageInsightsPlugin extends Plugin
      * clobber another plugin's or theme's BCP47-keyed strings. Defensive by
      * design (silently no-ops on any unexpected shape) since this leans on
      * a Grav-internal API not covered by any compatibility guarantee.
+     *
+     * Deliberately called from `onPluginsInitialized()`, not from an
+     * `onApi*` event: `grav-plugin-api`'s `ApiRouter::createDispatcher()`
+     * wraps its whole route table in FastRoute's `cachedDispatcher()`
+     * (`cache://api/route.cache`). Once that cache file exists - i.e. on
+     * every request after the first - FastRoute returns the dispatcher
+     * straight from the cache file and never re-invokes the route
+     * definition callback at all, so `onApiRegisterRoutes` (an earlier,
+     * broken version of this fix hooked there) simply never fires. See
+     * docs/ARCHITECTURE.md "Notable past bugs" #11.
      */
     private function mergeAdmin2TranslationAliases(): void
     {
