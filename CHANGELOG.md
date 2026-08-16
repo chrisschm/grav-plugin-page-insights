@@ -1,5 +1,14 @@
+# v3.1.2
+## 08/16/2026
+
+1. [](#new)
+    * feat: added a `prebuilt` geo-db source mode (now the default) that downloads an already-built country index from a companion repo's scheduled CI build instead of parsing the ~54 MB RIR/NRO snapshot locally on every site - no more temporarily elevated `memory_limit` needed on the consuming site. Validates magic bytes and declared entry counts against the actual download size before ever touching the existing index, so a corrupt/truncated download can't clobber a working one. The existing `geo_db_source_url` raw-RIR local build remains fully supported as an explicit fallback for anyone who'd rather not depend on the companion repo.
+
+2. [](#bugfix)
+    * bugfix: fixed a fatal error when restoring `memory_limit` after a successful geo-db rebuild - `ini_set()` to a value below current memory usage is a catchable `\Error`, which was being thrown from inside a `finally` block and replacing an already-successful result, so the admin UI reported a rebuild failure even though the index file had already been written correctly. The restore is now skipped (harmlessly) whenever memory usage is still above the target value.
+
 # v3.1.1
-## 08/15/2026
+## 08/15/2026 ([26338f0](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/26338f0961dbc57856816bc33933f822584a0ea7))
 
 1. [](#improved)
     * meta: removed `classes/Api/PageStatsApiController.php` and `admin-next/pages/page-stats.js`, two orphaned leftovers from the Page Stats → Page Insights rename that were never deleted and are no longer referenced anywhere - `PageInsightsApiController.php`/`page-insights.js` have been the active files since the fork.
