@@ -426,7 +426,15 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     `onApi*` event firing "no-op when the API plugin isn't installed" (true) is not the same
     guarantee as "fires on every request" (false, for the route-registration events specifically) -
     worth checking a plugin event's *caching* behavior, not just whether it fires at all, before
-    hanging unrelated logic off it.
+    hanging unrelated logic off it. Deploying the corrected code confirmed a second, separate
+    caching layer on top: restarting/reloading the PHP-FPM pool alone was **not** enough to pick up
+    the change - an explicit `bin/grav clear-cache` (or the Admin "Clear Cache" action) was required
+    before the fix took effect, most likely because of Grav's own compiled-config/language cache
+    (`cache://compiled/languages/master-*.php`, see `ConfigServiceProvider::languages()`) combined
+    with this environment's APCu-backed cache driver - both persist across a PHP-FPM pool
+    reload/restart and are only invalidated by Grav's own cache-clear, not by the webserver/PHP
+    process cycling. Worth remembering for *any* plugin PHP change on this environment, not just
+    this one: reloading `php8.5-fpm` is not a substitute for `bin/grav clear-cache`.
 
 ## Known cleanup items
 
