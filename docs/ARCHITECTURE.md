@@ -149,6 +149,14 @@ data.", range-picker buttons, etc.) live under a new `PLUGIN_PAGE_INSIGHTS.ADMIN
 `RECENTLY_VIEWED_PAGES`, the `GEO_DB_*` geo-status keys, etc.) reuses the existing top-level keys
 rather than duplicating them.
 
+**Short-code vs. BCP47 language files - see "Notable past bugs" #10.** `/translations` (the API
+endpoint the bridge above actually calls) resolves plugin strings by the *exact* admin locale code
+(`de-DE`), while this plugin's `languages/*.yaml` use the short-code convention (`de`) - two
+buckets that Grav core never merges on its own.
+`PageInsightsPlugin::mergeAdmin2TranslationAliases()` (hooked into `onApiRegisterRoutes()`) bridges
+this at runtime; if `has()` ever returns `false` for a key that's clearly present in
+`languages/de.yaml`, check there before assuming the key itself is missing.
+
 Not yet covered: chart x-axis date labels (`_formatDayLabel()`) are still a fixed `DD.MM.` format
 regardless of admin language - locale-aware date formatting remains a separate, still-open README
 To Do item.
@@ -385,6 +393,24 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
    reminder that removing a file from the tree and removing it from the repository are not the
    same operation, and that this matters most for anything a public host will happily zip up and
    serve on request.
+10. **Admin2 i18n (`9eb3514`) worked in code review and `node --check`, but rendered entirely in
+    English on a real Admin2 instance with the admin language set to German.** `window.__GRAV_I18N`
+    existed, reported `locale: 'de-DE'` correctly, yet `has('PLUGIN_PAGE_INSIGHTS.TOP_COUNTRIES')`
+    was `false` for every plugin key. Root cause, found by reading `grav-plugin-api`'s
+    `SystemController::translations()`/`buildTranslationDictionary()` down into Grav core's
+    `Config\Languages::flattenByLang()` and `Config\ConfigFileFinder`: the `/translations` endpoint
+    looks up strings by the *exact* requested locale code (`de-DE`), a bucket populated only by
+    language files literally named `de-DE.yaml` (confirmed empirically - `grav-plugin-admin2`'s own
+    `languages/` folder ships only BCP47-coded filenames). This plugin's `languages/de.yaml`
+    populates a separate `de` bucket that `/translations` never reads, no matter the admin
+    language - a gap invisible to Classic Admin, which resolves the same short-code files through
+    the older, separate `Language::translate()` service instead. Fixed without duplicating the
+    language files (which would drift out of sync with Weblate) by merging the short-code strings
+    into the BCP47 buckets at runtime - see "Admin2 i18n" above and
+    `PageInsightsPlugin::mergeAdmin2TranslationAliases()`. A reminder that a bridge existing and
+    reporting the right locale doesn't mean the data behind it is actually reachable - worth an
+    end-to-end check on a real Admin2 instance with a non-English admin language, not just
+    `node --check` and a code read.
 
 ## Known cleanup items
 

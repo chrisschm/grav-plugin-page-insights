@@ -624,6 +624,8 @@ class PageInsightsPlugin extends Plugin
      */
     public function onApiRegisterRoutes(Event $event): void
     {
+        $this->mergeAdmin2TranslationAliases();
+
         $routes = $event['routes'];
         $controller = PageInsightsApiController::class;
 
@@ -645,6 +647,54 @@ class PageInsightsPlugin extends Plugin
             $group->get('/geo-db/status', [$controller, 'geoDbStatus']);
             $group->post('/geo-db/rebuild', [$controller, 'rebuildGeoDb']);
         });
+    }
+
+    /**
+     * `grav-plugin-api`'s `/translations` endpoint (consumed by
+     * `window.__GRAV_I18N` - see docs/ARCHITECTURE.md "Admin2 i18n") resolves
+     * plugin strings via `Grav\Common\Config\Languages::flattenByLang()`, a
+     * raw, unaliased lookup keyed by the *exact* admin locale code (e.g.
+     * `"de-DE"`). This plugin's `languages/*.yaml` files use the legacy
+     * short-code convention (`de.yaml`, not `de-DE.yaml`) that the rest of
+     * the Grav 1.x plugin ecosystem and Weblate/Codeberg Translate expect
+     * (see CONTRIBUTING.md "Translations") - so without this, every
+     * `PLUGIN_PAGE_INSIGHTS.*` string is invisible to Admin2 regardless of
+     * the admin's configured language, even though Classic Admin (and the
+     * legacy `Language::translate()` call used for the sidebar label just
+     * below) resolves the very same short-code files correctly.
+     *
+     * Fix: alias our already-loaded short-code strings into the BCP47
+     * buckets Admin2 actually reads from, at runtime, in memory -
+     * deliberately *not* by shipping duplicate `languages/de-DE.yaml`-style
+     * files, which would silently drift out of sync with Weblate (the
+     * source of truth stays `languages/<short-code>.yaml`). Mirrors the
+     * pattern Grav core itself uses for theme languages
+     * (`Themes::init()` -> `$this->grav['languages']->mergeRecursive()`).
+     * Scoped to only our own `PLUGIN_PAGE_INSIGHTS` key so this can never
+     * clobber another plugin's or theme's BCP47-keyed strings. Defensive by
+     * design (silently no-ops on any unexpected shape) since this leans on
+     * a Grav-internal API not covered by any compatibility guarantee.
+     */
+    private function mergeAdmin2TranslationAliases(): void
+    {
+        $languages = $this->grav['languages'] ?? null;
+        if (!$languages) {
+            return;
+        }
+
+        // Only the locales this plugin actually ships translations for.
+        $aliases = [
+            'de' => 'de-DE',
+            'en' => 'en-US',
+            'fr' => 'fr-FR',
+        ];
+
+        foreach ($aliases as $shortCode => $bcp47Code) {
+            $strings = $languages[$shortCode]['PLUGIN_PAGE_INSIGHTS'] ?? null;
+            if (is_array($strings) && $strings) {
+                $languages->mergeRecursive([$bcp47Code => ['PLUGIN_PAGE_INSIGHTS' => $strings]]);
+            }
+        }
     }
 
     /**
