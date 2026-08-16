@@ -124,7 +124,9 @@ Originally created by Nuno Costa as [Page Stats](https://github.com/francodacost
 - [ ] Referer analysis, to better understand where visitors are coming from
 - [ ] Overview limited to "real" content pages (`.md` files under `user/pages`, excluding assets/sitemap/robots.txt),
       with a date-range filter
-- [ ] i18n for Admin2 labels and date formatting
+- [X] i18n for Admin2 labels
+- [ ] Locale-aware date formatting on the Admin2 dashboard (chart x-axis labels are
+      still a fixed `DD.MM.` format regardless of admin language)
 - [ ] World map view
 - [ ] Show city-level stats on the country stats page
 - [ ] Enable/disable front-end event collection

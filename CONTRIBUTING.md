@@ -93,7 +93,10 @@ directly.
 - `blueprints.yaml` — Admin config form, organized in three tabs (General / Classic Admin /
   Admin2); labels/help/titles are translatable via `PLUGIN_PAGE_INSIGHTS.*` keys in
   `languages/*.yaml`
-- `admin-next/pages/page-insights.js` — the Admin2 dashboard (single Web Component, Shadow DOM)
+- `admin-next/pages/page-insights.js` — the Admin2 dashboard (single Web Component, Shadow DOM);
+  UI strings are translatable via the same `PLUGIN_PAGE_INSIGHTS.*` keys, reached through
+  `window.__GRAV_I18N` (see `docs/ARCHITECTURE.md` "Admin2 i18n") rather than Grav's Twig `|t`
+  filter - use the file's own `_t()`/`_tf()` helpers, not the key strings directly
 - `themes/admin/templates/` — Classic Admin (Grav 1.x) dashboard widgets and detail pages
 
 See the plugin's own `README.md` for the full list of configuration options, and

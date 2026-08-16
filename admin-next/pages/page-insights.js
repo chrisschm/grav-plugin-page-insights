@@ -44,18 +44,68 @@ class PageInsightsPage extends HTMLElement {
     #view = 'dashboard'; // 'dashboard' | 'page-detail' | 'user-detail'
     #viewParams = {};
     #onPopState = null;
+    #unsubscribeLocale = null;
 
     connectedCallback() {
         this.attachShadow({ mode: 'open' });
         this._syncViewFromLocation();
         this.#onPopState = () => this._handlePopState();
         window.addEventListener('popstate', this.#onPopState);
+        // Re-render on a live admin language switch (see window.__GRAV_I18N.subscribe()
+        // doc comment in grav-admin-next) - everything here is plain template-string
+        // HTML, not reactive, so without this the dashboard would keep showing
+        // strings in the old language until a full page reload. Re-runs _load()
+        // too rather than just _render(): the dashboard path re-renders cheaply
+        // from cached #overview/#summary via _renderBody(), but the detail views
+        // don't keep their last response around, so a full reload is the simplest
+        // correct behaviour for the rare "switch language mid-session" case.
+        this.#unsubscribeLocale = window.__GRAV_I18N?.subscribe(() => {
+            this._render();
+            this._load();
+        }) ?? null;
         this._render();
         this._load();
     }
 
     disconnectedCallback() {
         if (this.#onPopState) window.removeEventListener('popstate', this.#onPopState);
+        this.#unsubscribeLocale?.();
+    }
+
+    /**
+     * Translate a PLUGIN_PAGE_INSIGHTS.* key via the Admin2 i18n bridge
+     * (window.__GRAV_I18N - a read-only global admin-next itself installs,
+     * see src/lib/stores/i18n.svelte.ts in getgrav/grav-admin-next), falling
+     * back to the given English source string when the bridge is unavailable
+     * (an older admin-next build without it) or the key has no translation.
+     *
+     * Plugin keys arrive via the bridge as plain, non-ICU strings sourced
+     * from this repo's own languages/*.yaml (through the /translations API
+     * endpoint) - has() is checked explicitly rather than trusting a
+     * returned value, since an entirely unknown key still resolves to a
+     * humanized fallback string instead of undefined.
+     */
+    _t(key, fallback) {
+        const full = 'PLUGIN_PAGE_INSIGHTS.' + key;
+        const bridge = window.__GRAV_I18N;
+        if (!bridge || !bridge.has(full)) return fallback;
+        return bridge.t(full);
+    }
+
+    /**
+     * Like _t(), but for keys with %s placeholders. Deliberately NOT using
+     * __GRAV_I18N.t()'s own ICU `params` support - plugin keys are the
+     * plain (non-ICU) strings described in _t()'s doc comment, so t()
+     * returns them verbatim without substitution. This instead mirrors the
+     * sprintf-style substitution Classic Admin's Twig templates already get
+     * for free from Grav's `|t(a, b, ...)` filter (see e.g.
+     * GEO_DB_BUILT_STATUS in themes/admin/templates/widgets/geo-db-status.html.twig) -
+     * same keys, same %s placeholder order, same positional args.
+     */
+    _tf(key, fallback, ...args) {
+        const str = this._t(key, fallback);
+        let i = 0;
+        return str.replace(/%s/g, () => String(args[i++] ?? ''));
     }
 
     /**
@@ -150,7 +200,7 @@ class PageInsightsPage extends HTMLElement {
         const resp = await fetch(url, { headers: this._apiHeaders() });
         if (!resp.ok) {
             const body = await resp.json().catch(() => ({}));
-            throw new Error(body.detail || body.title || `Request failed (${resp.status})`);
+            throw new Error(body.detail || body.title || this._tf('ADMIN2.REQUEST_FAILED', 'Request failed (%s)', resp.status));
         }
         const json = await resp.json();
         return json.data !== undefined ? json.data : json;
@@ -160,7 +210,7 @@ class PageInsightsPage extends HTMLElement {
         const resp = await fetch(this._apiUrl(path), { method: 'POST', headers: this._apiHeaders() });
         if (!resp.ok) {
             const body = await resp.json().catch(() => ({}));
-            throw new Error(body.detail || body.title || `Request failed (${resp.status})`);
+            throw new Error(body.detail || body.title || this._tf('ADMIN2.REQUEST_FAILED', 'Request failed (%s)', resp.status));
         }
         const json = await resp.json().catch(() => ({}));
         return json.data !== undefined ? json.data : json;
@@ -241,12 +291,12 @@ class PageInsightsPage extends HTMLElement {
         }
 
         if (overviewResult.status === 'rejected') {
-            this._error = overviewResult.reason?.message || 'Could not load page stats';
+            this._error = overviewResult.reason?.message || this._t('ADMIN2.ERROR_LOAD_DASHBOARD', 'Could not load page stats');
             window.__GRAV_TOAST?.error(this._error);
         } else if (summaryResult.status === 'rejected') {
             // Non-fatal: the KPI numbers and top lists come from /overview
             // and still work, only the trend sparklines are missing.
-            window.__GRAV_TOAST?.error(summaryResult.reason?.message || 'Could not load trend data');
+            window.__GRAV_TOAST?.error(summaryResult.reason?.message || this._t('ADMIN2.ERROR_LOAD_TREND', 'Could not load trend data'));
         }
 
         this.#loading = false;
@@ -272,9 +322,9 @@ class PageInsightsPage extends HTMLElement {
         try {
             await this._apiPost('/page-insights/geo-db/rebuild');
             this.#geoStatus = await this._apiGet('/page-insights/geo-db/status');
-            window.__GRAV_TOAST?.success('Geo country database updated.');
+            window.__GRAV_TOAST?.success(this._t('ADMIN2.GEO_DB_UPDATED_TOAST', 'Geo country database updated.'));
         } catch (err) {
-            this.#geoError = err?.message || 'Could not update the geo country database.';
+            this.#geoError = err?.message || this._t('ADMIN2.ERROR_GEO_DB_UPDATE', 'Could not update the geo country database.');
             window.__GRAV_TOAST?.error(this.#geoError);
         } finally {
             this.#geoBusy = false;
@@ -296,7 +346,7 @@ class PageInsightsPage extends HTMLElement {
     async _loadPageDetail() {
         const body = this._detailBodyEl();
         if (!body) return;
-        body.innerHTML = `<div class="state">Loading…</div>`;
+        body.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.LOADING', 'Loading…'))}</div>`;
 
         const route = this.#viewParams.route;
         const params = { ...this._dateRangeParams(), route, limit: 100 };
@@ -306,7 +356,7 @@ class PageInsightsPage extends HTMLElement {
         ]);
 
         if (detailResult.status === 'rejected') {
-            body.innerHTML = `<div class="state error">${this._esc(detailResult.reason?.message || 'Could not load page detail')}</div>`;
+            body.innerHTML = `<div class="state error">${this._esc(detailResult.reason?.message || this._t('ADMIN2.ERROR_LOAD_PAGE_DETAIL', 'Could not load page detail'))}</div>`;
             return;
         }
 
@@ -317,29 +367,29 @@ class PageInsightsPage extends HTMLElement {
 
         body.innerHTML = `
             <div class="charts">
-                ${this._chartCard('Page views', d.hits, hitsSeries, 'var(--primary)')}
+                ${this._chartCard(this._t('PAGE_VIEWS_WIDGET', 'Page views'), d.hits, hitsSeries, 'var(--primary)')}
             </div>
             <div class="grid">
                 <div class="card">
-                    <h3>Top countries</h3>
+                    <h3>${this._esc(this._t('TOP_COUNTRIES', 'Top countries'))}</h3>
                     ${this._bars(d.top_countries, 'country')}
                 </div>
                 <div class="card">
-                    <h3>Top browsers</h3>
+                    <h3>${this._esc(this._t('TOP_BROWSERS', 'Top browsers'))}</h3>
                     ${this._bars(d.top_browsers, 'browser')}
                 </div>
                 <div class="card">
-                    <h3>Top platforms</h3>
+                    <h3>${this._esc(this._t('TOP_PLATFORMS', 'Top platforms'))}</h3>
                     ${this._bars(d.top_platforms, 'platform')}
                 </div>
                 <div class="card wide">
-                    <h3>Recent views (${this._esc(String(d.hits))} hits, ${this._esc(String(d.visitors))} unique visitors)</h3>
+                    <h3>${this._esc(this._tf('ADMIN2.RECENT_VIEWS_HEADING', 'Recent views (%s hits, %s unique visitors)', d.hits, d.visitors))}</h3>
                     ${this._table(
-                        ['User', 'Browser', 'Platform', 'Date'],
+                        [this._t('TABLE_USER', 'User'), this._t('TABLE_BROWSER', 'Browser'), this._t('TABLE_PLATFORM', 'Platform'), this._t('TABLE_DATE', 'Date')],
                         (d.views || []).map((v) => [
                             this._userCellHtml({ user: v.user, ip: v.ip }),
-                            this._esc(v.browser || 'unknown'),
-                            this._esc(v.platform || 'unknown'),
+                            this._esc(v.browser || this._t('GEO_DB_UNKNOWN', 'unknown')),
+                            this._esc(v.platform || this._t('GEO_DB_UNKNOWN', 'unknown')),
                             `${this._esc(v.day || '')} ${this._esc(v.time || '')}`,
                         ])
                     )}
@@ -357,7 +407,7 @@ class PageInsightsPage extends HTMLElement {
     async _loadUserDetail() {
         const body = this._detailBodyEl();
         if (!body) return;
-        body.innerHTML = `<div class="state">Loading…</div>`;
+        body.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.LOADING', 'Loading…'))}</div>`;
 
         const identity = this.#viewParams.user ? { user: this.#viewParams.user } : { ip: this.#viewParams.ip };
         const params = { ...this._dateRangeParams(), ...identity, limit: 100 };
@@ -367,7 +417,7 @@ class PageInsightsPage extends HTMLElement {
         ]);
 
         if (detailResult.status === 'rejected') {
-            body.innerHTML = `<div class="state error">${this._esc(detailResult.reason?.message || 'Could not load user detail')}</div>`;
+            body.innerHTML = `<div class="state error">${this._esc(detailResult.reason?.message || this._t('ADMIN2.ERROR_LOAD_USER_DETAIL', 'Could not load user detail'))}</div>`;
             return;
         }
 
@@ -378,24 +428,24 @@ class PageInsightsPage extends HTMLElement {
 
         body.innerHTML = `
             <div class="charts">
-                ${this._chartCard('Page views', d.hits, hitsSeries, 'var(--primary)')}
+                ${this._chartCard(this._t('PAGE_VIEWS_WIDGET', 'Page views'), d.hits, hitsSeries, 'var(--primary)')}
             </div>
             <div class="grid">
                 <div class="card wide">
-                    <h3>Top pages</h3>
+                    <h3>${this._esc(this._t('TOP_PAGES', 'Top pages'))}</h3>
                     ${this._table(
-                        ['Page', 'Hits'],
+                        [this._t('TABLE_PAGE', 'Page'), this._t('TABLE_HITS', 'Hits')],
                         (d.top_pages || []).map((p) => [this._pageCellHtml(p.route), p.hits])
                     )}
                 </div>
                 <div class="card wide">
-                    <h3>Recent views (${this._esc(String(d.hits))} hits)</h3>
+                    <h3>${this._esc(this._tf('ADMIN2.RECENT_VIEWS_HEADING_USER', 'Recent views (%s hits)', d.hits))}</h3>
                     ${this._table(
-                        ['Page', 'Browser', 'Platform', 'Date'],
+                        [this._t('TABLE_PAGE', 'Page'), this._t('TABLE_BROWSER', 'Browser'), this._t('TABLE_PLATFORM', 'Platform'), this._t('TABLE_DATE', 'Date')],
                         (d.views || []).map((v) => [
                             this._pageCellHtml(v.route),
-                            this._esc(v.browser || 'unknown'),
-                            this._esc(v.platform || 'unknown'),
+                            this._esc(v.browser || this._t('GEO_DB_UNKNOWN', 'unknown')),
+                            this._esc(v.platform || this._t('GEO_DB_UNKNOWN', 'unknown')),
                             `${this._esc(v.day || '')} ${this._esc(v.time || '')}`,
                         ])
                     )}
@@ -419,32 +469,32 @@ class PageInsightsPage extends HTMLElement {
             <div class="wrap">
                 <div class="toolbar">
                     <div class="range">
-                        <button data-range="7">7d</button>
-                        <button data-range="30">30d</button>
-                        <button data-range="90">90d</button>
-                        <button data-range="all">All time</button>
+                        <button data-range="7">${this._esc(this._t('ADMIN2.RANGE_7D', '7d'))}</button>
+                        <button data-range="30">${this._esc(this._t('ADMIN2.RANGE_30D', '30d'))}</button>
+                        <button data-range="90">${this._esc(this._t('ADMIN2.RANGE_90D', '90d'))}</button>
+                        <button data-range="all">${this._esc(this._t('ADMIN2.RANGE_ALL_TIME', 'All time'))}</button>
                     </div>
                     <div class="toolbar-end">
-                        <span class="db-size" title="SQLite database file size"></span>
-                        <button class="refresh" title="Refresh">&#8635; Refresh</button>
+                        <span class="db-size" title="${this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'))}"></span>
+                        <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
                     </div>
                 </div>
                 <div class="body"></div>
 
                 <div class="lookup">
                     <div class="lookup-box">
-                        <h3>Page lookup</h3>
+                        <h3>${this._esc(this._t('ADMIN2.PAGE_LOOKUP', 'Page lookup'))}</h3>
                         <div class="lookup-row">
                             <input type="text" class="page-route" placeholder="/blog/some-article" />
-                            <button class="page-search">Search</button>
+                            <button class="page-search">${this._esc(this._t('ADMIN2.SEARCH', 'Search'))}</button>
                         </div>
                         <div class="page-result"></div>
                     </div>
                     <div class="lookup-box">
-                        <h3>User lookup</h3>
+                        <h3>${this._esc(this._t('ADMIN2.USER_LOOKUP', 'User lookup'))}</h3>
                         <div class="lookup-row">
                             <input type="text" class="user-name" placeholder="username" />
-                            <button class="user-search">Search</button>
+                            <button class="user-search">${this._esc(this._t('ADMIN2.SEARCH', 'Search'))}</button>
                         </div>
                         <div class="user-result"></div>
                     </div>
@@ -484,18 +534,18 @@ class PageInsightsPage extends HTMLElement {
             <style>${this._styles()}</style>
             <div class="wrap">
                 <div class="detail-header">
-                    <a href="${this._esc(location.pathname)}" class="back-link" data-nav="dashboard">&larr; Back to dashboard</a>
+                    <a href="${this._esc(location.pathname)}" class="back-link" data-nav="dashboard">&larr; ${this._esc(this._t('ADMIN2.BACK_TO_DASHBOARD', 'Back to dashboard'))}</a>
                     <h2>${this._esc(this._detailTitle())}</h2>
                 </div>
                 <div class="toolbar">
                     <div class="range">
-                        <button data-range="7">7d</button>
-                        <button data-range="30">30d</button>
-                        <button data-range="90">90d</button>
-                        <button data-range="all">All time</button>
+                        <button data-range="7">${this._esc(this._t('ADMIN2.RANGE_7D', '7d'))}</button>
+                        <button data-range="30">${this._esc(this._t('ADMIN2.RANGE_30D', '30d'))}</button>
+                        <button data-range="90">${this._esc(this._t('ADMIN2.RANGE_90D', '90d'))}</button>
+                        <button data-range="all">${this._esc(this._t('ADMIN2.RANGE_ALL_TIME', 'All time'))}</button>
                     </div>
                     <div class="toolbar-end">
-                        <button class="refresh" title="Refresh">&#8635; Refresh</button>
+                        <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
                     </div>
                 </div>
                 <div class="detail-body"></div>
@@ -517,11 +567,11 @@ class PageInsightsPage extends HTMLElement {
 
     _detailTitle() {
         if (this.#view === 'page-detail') {
-            return `Page detail: ${this.#viewParams.route || ''}`;
+            return this._tf('ADMIN2.PAGE_DETAIL_TITLE', 'Page detail: %s', this.#viewParams.route || '');
         }
         if (this.#view === 'user-detail') {
-            if (this.#viewParams.user) return `User detail: ${this.#viewParams.user}`;
-            if (this.#viewParams.ip) return `User detail: ${this.#viewParams.ip} (anonymous)`;
+            if (this.#viewParams.user) return this._tf('ADMIN2.USER_DETAIL_TITLE', 'User detail: %s', this.#viewParams.user);
+            if (this.#viewParams.ip) return this._tf('ADMIN2.USER_DETAIL_TITLE_ANONYMOUS', 'User detail: %s (anonymous)', this.#viewParams.ip);
         }
         return '';
     }
@@ -537,18 +587,18 @@ class PageInsightsPage extends HTMLElement {
         if (!body) return;
 
         if (this.#loading) {
-            body.innerHTML = `<div class="state">Loading…</div>`;
+            body.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.LOADING', 'Loading…'))}</div>`;
             return;
         }
 
         if (!this.#overview) {
-            body.innerHTML = `<div class="state error">${this._error || 'No data available.'}</div>`;
+            body.innerHTML = `<div class="state error">${this._esc(this._error || this._t('ADMIN2.NO_DATA_AVAILABLE', 'No data available.'))}</div>`;
             return;
         }
 
         const o = this.#overview;
         const dbBadge = this.shadowRoot.querySelector('.db-size');
-        if (dbBadge) dbBadge.textContent = o.db?.mb !== undefined ? `Database size: ${o.db.mb} MB` : '';
+        if (dbBadge) dbBadge.textContent = o.db?.mb !== undefined ? this._tf('ADMIN2.DB_SIZE', 'Database size: %s MB', o.db.mb) : '';
 
         const { from, to } = this._currentDateRange();
         const hitsSeries = this._buildDailySeries(this.#summary?.hits, from, to);
@@ -557,16 +607,16 @@ class PageInsightsPage extends HTMLElement {
 
         body.innerHTML = `
             <div class="charts">
-                ${this._chartCard('Page views', o.total_page_views, hitsSeries, 'var(--primary)')}
-                ${this._chartCard('Unique visitors', o.total_unique_visitors, visitorsSeries, '#22d3ee')}
-                ${this._chartCard('Unique users', o.total_unique_users, usersSeries, '#f59e0b')}
+                ${this._chartCard(this._t('PAGE_VIEWS_WIDGET', 'Page views'), o.total_page_views, hitsSeries, 'var(--primary)')}
+                ${this._chartCard(this._t('UNIQUE_VISITORS_WIDGET', 'Unique visitors'), o.total_unique_visitors, visitorsSeries, '#22d3ee')}
+                ${this._chartCard(this._t('UNIQUE_USERS_WIDGET', 'Unique users'), o.total_unique_users, usersSeries, '#f59e0b')}
             </div>
 
             <div class="grid">
                 <div class="card wide">
-                    <h3>Top pages</h3>
+                    <h3>${this._esc(this._t('TOP_PAGES', 'Top pages'))}</h3>
                     ${this._table(
-                        ['Page', 'Hits', 'Visitors'],
+                        [this._t('TABLE_PAGE', 'Page'), this._t('TABLE_HITS', 'Hits'), this._t('TABLE_UNIQUE_VISITORS', 'Visitors')],
                         (o.top_pages || []).map((p) => [
                             `<span title="${this._esc(p.route)}">${this._esc(p.page_title || p.route)}</span>`,
                             p.hits,
@@ -576,27 +626,27 @@ class PageInsightsPage extends HTMLElement {
                 </div>
 
                 <div class="card">
-                    <h3>Top countries</h3>
+                    <h3>${this._esc(this._t('TOP_COUNTRIES', 'Top countries'))}</h3>
                     ${this._bars(o.top_countries, 'country')}
                     ${this._geoStatusHtml()}
                 </div>
 
                 <div class="card">
-                    <h3>Top browsers</h3>
+                    <h3>${this._esc(this._t('TOP_BROWSERS', 'Top browsers'))}</h3>
                     ${this._bars(o.top_browsers, 'browser')}
                 </div>
 
                 <div class="card">
-                    <h3>Top platforms</h3>
+                    <h3>${this._esc(this._t('TOP_PLATFORMS', 'Top platforms'))}</h3>
                     ${this._bars(o.top_platforms, 'platform')}
                 </div>
 
                 <div class="card">
-                    <h3>Top users</h3>
+                    <h3>${this._esc(this._t('TOP_USERS', 'Top users'))}</h3>
                     ${this._table(
-                        ['User', 'Hits'],
+                        [this._t('TABLE_USER', 'User'), this._t('TABLE_HITS', 'Hits')],
                         (o.top_users || []).map((u) => [
-                            u.user ? this._userCellHtml({ user: u.user }) : this._esc('(anonymous)'),
+                            u.user ? this._userCellHtml({ user: u.user }) : this._esc(this._t('ADMIN2.ANONYMOUS', '(anonymous)')),
                             u.hits,
                         ])
                     )}
@@ -604,23 +654,23 @@ class PageInsightsPage extends HTMLElement {
 
                 <div class="card wide">
                     <div class="recent-header">
-                        <h3>Recently viewed pages</h3>
-                        <div class="scope-toggle" role="group" aria-label="Filter pages shown">
-                            <button class="scope-btn ${this.#recentScope === 'all' ? 'active' : ''}" data-scope="all">All pages</button>
-                            <button class="scope-btn ${this.#recentScope === 'real' ? 'active' : ''}" data-scope="real" title="Only pages that exist under user/pages - excludes assets, sitemap.xml, robots.txt, 404s etc.">Real pages only</button>
+                        <h3>${this._esc(this._t('RECENTLY_VIEWED_PAGES', 'Recently viewed pages'))}</h3>
+                        <div class="scope-toggle" role="group" aria-label="${this._esc(this._t('ADMIN2.FILTER_PAGES_SHOWN', 'Filter pages shown'))}">
+                            <button class="scope-btn ${this.#recentScope === 'all' ? 'active' : ''}" data-scope="all">${this._esc(this._t('DEFAULT_PAGES_SCOPE_ALL', 'All pages'))}</button>
+                            <button class="scope-btn ${this.#recentScope === 'real' ? 'active' : ''}" data-scope="real" title="${this._esc(this._t('ADMIN2.REAL_PAGES_ONLY_HELP', 'Only pages that exist under user/pages - excludes assets, sitemap.xml, robots.txt, 404s etc.'))}">${this._esc(this._t('DEFAULT_PAGES_SCOPE_REAL', 'Real pages only'))}</button>
                         </div>
                     </div>
                     ${this._table(
-                        ['Page', 'User', 'Browser', 'Platform', 'Date'],
+                        [this._t('TABLE_PAGE', 'Page'), this._t('TABLE_USER', 'User'), this._t('TABLE_BROWSER', 'Browser'), this._t('TABLE_PLATFORM', 'Platform'), this._t('TABLE_DATE', 'Date')],
                         this.#recentPages.map((r) => [
                             this._pageCellHtml(r.route),
                             this._userCellHtml({ user: r.user, ip: r.ip }),
-                            this._esc(r.browser || 'unknown'),
-                            this._esc(r.platform || 'unknown'),
+                            this._esc(r.browser || this._t('GEO_DB_UNKNOWN', 'unknown')),
+                            this._esc(r.platform || this._t('GEO_DB_UNKNOWN', 'unknown')),
                             `${this._esc(r.day || '')} ${this._esc(r.time || '')}`,
                         ])
                     )}
-                    ${this.#recentPages.length && this.#recentHasMore ? `<button class="load-more-recent">Load more</button>` : ''}
+                    ${this.#recentPages.length && this.#recentHasMore ? `<button class="load-more-recent">${this._esc(this._t('ADMIN2.LOAD_MORE', 'Load more'))}</button>` : ''}
                 </div>
             </div>
         `;
@@ -659,8 +709,8 @@ class PageInsightsPage extends HTMLElement {
     _pageCellHtml(route) {
         const encoded = encodeURIComponent(route || '');
         return `<span class="recent-page-cell">
-            <a href="${this._esc(route)}" target="_blank" rel="noopener noreferrer" class="recent-page-link" title="${this._esc(route)} in neuem Tab öffnen">${this._externalLinkIcon()}</a>
-            <a href="?view=page-detail&route=${this._esc(encoded)}" class="recent-page-link nav-link" data-nav="page-detail" data-nav-route="${this._esc(route)}" title="View page detail">${this._trendIcon()}</a>
+            <a href="${this._esc(route)}" target="_blank" rel="noopener noreferrer" class="recent-page-link" title="${this._esc(this._tf('ADMIN2.OPEN_IN_NEW_TAB', 'Open %s in a new tab', route))}">${this._externalLinkIcon()}</a>
+            <a href="?view=page-detail&route=${this._esc(encoded)}" class="recent-page-link nav-link" data-nav="page-detail" data-nav-route="${this._esc(route)}" title="${this._esc(this._t('ADMIN2.VIEW_PAGE_DETAIL', 'View page detail'))}">${this._trendIcon()}</a>
             <span class="recent-page-route" title="${this._esc(route)}">${this._esc(route)}</span>
         </span>`;
     }
@@ -674,14 +724,14 @@ class PageInsightsPage extends HTMLElement {
      * to get a plain, unlinked "(anonymous)" label.
      */
     _userCellHtml({ user, ip } = {}) {
-        const label = user || ip || '(anonymous)';
+        const label = user || ip || this._t('ADMIN2.ANONYMOUS', '(anonymous)');
         if (!user && !ip) {
             return this._esc(label);
         }
         const param = user ? `user=${encodeURIComponent(user)}` : `ip=${encodeURIComponent(ip)}`;
         const navAttr = user ? `data-nav-user="${this._esc(user)}"` : `data-nav-ip="${this._esc(ip)}"`;
         return `<span class="recent-page-cell">
-            <a href="?view=user-detail&${this._esc(param)}" class="recent-page-link nav-link" data-nav="user-detail" ${navAttr} title="View user detail">${this._trendIcon()}</a>
+            <a href="?view=user-detail&${this._esc(param)}" class="recent-page-link nav-link" data-nav="user-detail" ${navAttr} title="${this._esc(this._t('ADMIN2.VIEW_USER_DETAIL', 'View user detail'))}">${this._trendIcon()}</a>
             <span class="recent-page-route">${this._esc(label)}</span>
         </span>`;
     }
@@ -705,7 +755,7 @@ class PageInsightsPage extends HTMLElement {
             this.#recentLimit = nextLimit;
             this.#recentHasMore = this.#recentPages.length >= nextLimit;
         } catch (err) {
-            window.__GRAV_TOAST?.error(err.message || 'Could not load more recently viewed pages');
+            window.__GRAV_TOAST?.error(err.message || this._t('ADMIN2.ERROR_LOAD_MORE_RECENT', 'Could not load more recently viewed pages'));
         }
         this._renderBody();
     }
@@ -729,12 +779,12 @@ class PageInsightsPage extends HTMLElement {
             this.#recentPages = data.pages || [];
             this.#recentHasMore = this.#recentPages.length >= this.#recentLimit;
         } catch (err) {
-            window.__GRAV_TOAST?.error(err.message || 'Could not load recently viewed pages');
+            window.__GRAV_TOAST?.error(err.message || this._t('ADMIN2.ERROR_LOAD_RECENT', 'Could not load recently viewed pages'));
         }
     }
 
     _chartCard(title, total, series, color) {
-        const chart = series.length ? this._lineChart(series, color) : `<div class="state">No data.</div>`;
+        const chart = series.length ? this._lineChart(series, color) : `<div class="state">${this._esc(this._t('ADMIN2.NO_DATA', 'No data.'))}</div>`;
         return `
             <div class="card chart-card">
                 <div class="chart-head">
@@ -892,7 +942,7 @@ class PageInsightsPage extends HTMLElement {
             const lower = code.toLowerCase();
             return `<img class="bar-flag" src="https://flagcdn.com/${lower}.svg" alt="${this._esc(code.toUpperCase())}" loading="lazy" width="18" height="13">`;
         }
-        return `<span class="bar-flag bar-flag-unknown" title="Unknown">${this._globeIcon()}</span>`;
+        return `<span class="bar-flag bar-flag-unknown" title="${this._esc(this._t('GEO_DB_UNKNOWN', 'unknown'))}">${this._globeIcon()}</span>`;
     }
 
     _globeIcon() {
@@ -945,27 +995,27 @@ class PageInsightsPage extends HTMLElement {
 
         let statusText;
         if (s === null) {
-            statusText = 'Status unavailable.';
+            statusText = this._t('ADMIN2.GEO_STATUS_UNAVAILABLE', 'Status unavailable.');
         } else if (!s.built) {
-            statusText = 'Not built yet - country lookups return "unknown" until the first update.';
+            statusText = this._t('GEO_DB_NOT_BUILT', 'Not built yet - country lookups return "unknown" until the first update.');
         } else {
-            const builtAt = s.built_at ? new Date(s.built_at * 1000).toLocaleString() : 'unknown time';
-            const sourceDate = s.source_date || 'unknown';
+            const builtAt = s.built_at ? new Date(s.built_at * 1000).toLocaleString() : this._t('ADMIN2.UNKNOWN_TIME', 'unknown time');
+            const sourceDate = s.source_date || this._t('GEO_DB_UNKNOWN', 'unknown');
             const entries = (s.ipv4_entries || 0) + (s.ipv6_entries || 0);
-            statusText = `Built ${builtAt} (source date ${this._esc(sourceDate)}, ${entries.toLocaleString()} entries).`;
+            statusText = this._tf('GEO_DB_BUILT_STATUS', 'Built %s (source date %s, %s entries).', builtAt, sourceDate, entries.toLocaleString());
         }
 
         return `
             <div class="geo-db-status">
                 <span class="geo-db-status-text">${this._esc(statusText)}</span>
-                <button class="geo-db-update-btn" ${busy ? 'disabled' : ''}>${busy ? 'Updating…' : 'Update now'}</button>
+                <button class="geo-db-update-btn" ${busy ? 'disabled' : ''}>${this._esc(busy ? this._t('ADMIN2.UPDATING', 'Updating…') : this._t('GEO_DB_UPDATE_NOW', 'Update now'))}</button>
             </div>
             ${this.#geoError ? `<div class="geo-db-error">${this._esc(this.#geoError)}</div>` : ''}
         `;
     }
 
     _bars(items, key) {
-        if (!items || !items.length) return `<div class="state">No data.</div>`;
+        if (!items || !items.length) return `<div class="state">${this._esc(this._t('ADMIN2.NO_DATA', 'No data.'))}</div>`;
         const max = Math.max(...items.map((i) => Number(i.hits) || 0), 1);
         return `<div class="bars">${items
             .map((i) => {
@@ -973,7 +1023,7 @@ class PageInsightsPage extends HTMLElement {
                 const flag = key === 'country' ? this._flagIcon(i[key]) : '';
                 return `
                     <div class="bar-row">
-                        <span class="bar-label">${flag}${this._esc(String(i[key] || 'unknown'))}</span>
+                        <span class="bar-label">${flag}${this._esc(String(i[key] || this._t('GEO_DB_UNKNOWN', 'unknown')))}</span>
                         <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
                         <span class="bar-value">${this._esc(String(i.hits))}${i.share !== undefined ? ` (${i.share}%)` : ''}</span>
                     </div>`;
@@ -982,7 +1032,7 @@ class PageInsightsPage extends HTMLElement {
     }
 
     _table(headers, rows) {
-        if (!rows.length) return `<div class="state">No data.</div>`;
+        if (!rows.length) return `<div class="state">${this._esc(this._t('ADMIN2.NO_DATA', 'No data.'))}</div>`;
         return `
             <table>
                 <thead><tr>${headers.map((h) => `<th>${this._esc(h)}</th>`).join('')}</tr></thead>
@@ -994,13 +1044,13 @@ class PageInsightsPage extends HTMLElement {
         const route = this.shadowRoot.querySelector('.page-route').value.trim();
         const resultEl = this.shadowRoot.querySelector('.page-result');
         if (!route) return;
-        resultEl.innerHTML = `<div class="state">Searching…</div>`;
+        resultEl.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.SEARCHING', 'Searching…'))}</div>`;
         try {
             const data = await this._apiGet('/page-insights/pages/detail', { route, limit: 50 });
             resultEl.innerHTML = `
-                <p>${data.hits} hits, ${data.visitors} unique visitors</p>
+                <p>${this._esc(this._tf('ADMIN2.HITS_VISITORS_SUMMARY', '%s hits, %s unique visitors', data.hits, data.visitors))}</p>
                 ${this._table(
-                    ['User', 'Date', 'Browser'],
+                    [this._t('TABLE_USER', 'User'), this._t('TABLE_DATE', 'Date'), this._t('TABLE_BROWSER', 'Browser')],
                     (data.views || []).map((v) => [
                         this._userCellHtml({ user: v.user, ip: v.ip }),
                         `${this._esc(v.day || '')} ${this._esc(v.time || '')}`,
@@ -1017,13 +1067,16 @@ class PageInsightsPage extends HTMLElement {
         const user = this.shadowRoot.querySelector('.user-name').value.trim();
         const resultEl = this.shadowRoot.querySelector('.user-result');
         if (!user) return;
-        resultEl.innerHTML = `<div class="state">Searching…</div>`;
+        resultEl.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.SEARCHING', 'Searching…'))}</div>`;
         try {
             const data = await this._apiGet('/page-insights/users/detail', { user, limit: 50 });
             resultEl.innerHTML = `
-                <p>${data.hits} hits</p>
+                <p>${this._esc(this._tf('ADMIN2.HITS_SUMMARY', '%s hits', data.hits))}</p>
                 ${this._table(
-                    ['Route', 'Date'],
+                    // Reuses TABLE_PAGE ("Page") rather than a separate "Route" key - same
+                    // meaning, and every other table in this file already uses TABLE_PAGE
+                    // for this column (see _renderBody()/_loadPageDetail()).
+                    [this._t('TABLE_PAGE', 'Page'), this._t('TABLE_DATE', 'Date')],
                     (data.views || []).map((v) => [this._pageCellHtml(v.route), `${this._esc(v.day || '')} ${this._esc(v.time || '')}`])
                 )}`;
             this._bindNavLinks(resultEl);

@@ -107,6 +107,52 @@ views (shared `#range` state).
 Both detail views are assembled entirely from existing dashboard building blocks (`_chartCard()`,
 `_lineChart()`, `_bars()`, `_table()`) - no separate rendering code path to maintain.
 
+## Admin2 i18n
+
+Unlike Classic Admin's Twig templates (which resolve `'PLUGIN_PAGE_INSIGHTS.X'|t` automatically
+against the active admin language), `admin-next/pages/page-insights.js` is a plain Web Component
+with no built-in connection to Grav's translation system - until this was wired up, every UI
+string in the Admin2 dashboard was a hardcoded English literal, regardless of the admin's
+configured language (while the Classic Admin config form for the same plugin correctly rendered
+translated). Confirmed there is no plugin-side workaround needed: `grav-admin-next` (the
+SvelteKit SPA behind Admin2) itself installs a read-only global bridge for exactly this,
+`window.__GRAV_I18N` (`src/lib/stores/i18n.svelte.ts`, doc comment: *"Global i18n bridge for
+plugin web-component bundles ... that aren't built against admin-next's Svelte runtime"*) - the
+same pattern already used here for `window.__GRAV_TOAST`. Interface: `t(key, params?)`,
+`tHtml(key, params?)`, `has(key)`, `locale`, `dir`, `subscribe(fn)`.
+
+Two things worth knowing before touching this:
+
+- **No `%s`/ICU substitution for plugin keys.** `t()`'s ICU `params` support only applies to keys
+  registered under admin-next's own `ICU.*` namespace (its core UI strings, translated via
+  translations.getgrav.org) - plugin keys arrive as plain strings sourced from this repo's
+  `languages/*.yaml` via the `/translations` API endpoint and are returned verbatim. `page-insights.js`'s
+  `_t()`/`_tf()` helpers wrap the bridge: `_t(key, fallback)` returns the translation or the given
+  English fallback if the bridge/key is unavailable (checking `has()` explicitly, since an
+  unknown key still humanizes into readable-ish text rather than returning `undefined`); `_tf()`
+  additionally does client-side `%s` substitution, mirroring the sprintf-style positional args
+  Classic Admin's Twig templates already get for free from Grav's `|t(a, b, ...)` filter (see
+  `GEO_DB_BUILT_STATUS` in `themes/admin/templates/widgets/geo-db-status.html.twig` - same key,
+  same placeholder order, reused as-is by the Admin2 side of the geo-db status line).
+- **No reactivity.** Everything in this file is plain `innerHTML` template strings, not a
+  reactive framework - a live admin language switch wouldn't otherwise be reflected until a full
+  reload. `connectedCallback()` subscribes to `window.__GRAV_I18N.subscribe()` and re-runs
+  `_render()` + `_load()` on a locale change (unsubscribed in `disconnectedCallback()`). This
+  costs an extra API round-trip on every language switch (simplest correct behaviour across all
+  three views - the dashboard alone could re-render cheaply from cached state, but the detail
+  views don't keep their last response around) - an acceptable trade-off given how rarely a user
+  changes admin language mid-session.
+
+New Admin2-only strings (dashboard chrome with no Classic Admin equivalent - "Loading…", "No
+data.", range-picker buttons, etc.) live under a new `PLUGIN_PAGE_INSIGHTS.ADMIN2.*` block in
+`languages/{en,de,fr}.yaml`; everything with a direct Classic Admin equivalent (`TOP_COUNTRIES`,
+`RECENTLY_VIEWED_PAGES`, the `GEO_DB_*` geo-status keys, etc.) reuses the existing top-level keys
+rather than duplicating them.
+
+Not yet covered: chart x-axis date labels (`_formatDayLabel()`) are still a fixed `DD.MM.` format
+regardless of admin language - locale-aware date formatting remains a separate, still-open README
+To Do item.
+
 ## Config blueprint: 3 tabs
 
 `blueprints.yaml` is organized into three tabs: **Allgemein/General** (applies to both Admin
@@ -368,6 +414,14 @@ Filter-Anforderungen bereits ab - vor einer neuen, eigens gefilterten Methode im
 Admin2s Sub-Routing für Page/User Detail läuft bewusst über Query-Parameter auf der festen
 Plugin-Route (`?view=page-detail&route=...`), nicht über zusätzliche Pfadsegmente - SvelteKits
 Router kennt kein tieferes Segment. Details siehe Abschnitt "Admin2 sub-routing" oben.
+
+Das Admin2-Dashboard (`admin-next/pages/page-insights.js`) übersetzt seine UI-Texte über
+`window.__GRAV_I18N` - eine von `grav-admin-next` selbst bereitgestellte, read-only globale
+Brücke für genau diesen Zweck (dasselbe Muster wie das bereits genutzte `window.__GRAV_TOAST`),
+mit Fallback auf hartcodiertes Englisch, falls die Brücke fehlt oder ein Schlüssel unübersetzt
+ist. Details siehe Abschnitt "Admin2 i18n" oben - insbesondere: keine automatische
+`%s`-Ersetzung für Plugin-Schlüssel (dafür der eigene `_tf()`-Helfer), und Re-Render bei
+Sprachwechsel zur Laufzeit über `subscribe()`.
 
 Wichtigster operativer Stolperstein: `vendor/` ist bewusst committet (Grav installiert
 Composer-Abhängigkeiten nie selbst), aber die **kompilierten** Autoloader-Dateien

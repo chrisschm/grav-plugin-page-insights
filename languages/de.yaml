@@ -93,6 +93,7 @@ PLUGIN_PAGE_INSIGHTS:
   TABLE_VIEWS: Aufrufe
   TABLE_UNIQUE_VISITORS: Eindeutige Besucher
   TABLE_UNIQUE_LOGGED_IN_USERS: Eindeutige angemeldete Benutzer
+  TABLE_HITS: Treffer
   VIEW_ALL: Zeige Alle
   ALL_PAGES: Alle Seiten
   PAGE_DETAILS_TITLE: Seitendetails
@@ -169,3 +170,49 @@ PLUGIN_PAGE_INSIGHTS:
   GEO_DB_UPDATE_NOW: Jetzt aktualisieren
   LOG_ADMIN_LABEL: Aktivitäten von Administratoren protokollieren
   USING: Nutzt
+
+  ADMIN2:
+    LOADING: Wird geladen…
+    SEARCHING: Suche läuft…
+    UPDATING: Wird aktualisiert…
+    NO_DATA: Keine Daten.
+    NO_DATA_AVAILABLE: Keine Daten verfügbar.
+    REFRESH: Aktualisieren
+    SEARCH: Suchen
+    LOAD_MORE: Mehr laden
+    BACK_TO_DASHBOARD: Zurück zum Dashboard
+    ANONYMOUS: (anonym)
+    UNKNOWN_TIME: unbekannte Zeit
+    RANGE_7D: 7T
+    RANGE_30D: 30T
+    RANGE_90D: 90T
+    RANGE_ALL_TIME: Gesamter Zeitraum
+    PAGE_LOOKUP: Seiten-Suche
+    USER_LOOKUP: Benutzer-Suche
+    DB_SIZE: 'Datenbankgröße: %s MB'
+    DB_SIZE_TITLE: Größe der SQLite-Datenbankdatei
+    GEO_STATUS_UNAVAILABLE: Status nicht verfügbar.
+    FILTER_PAGES_SHOWN: Angezeigte Seiten filtern
+    OPEN_IN_NEW_TAB: '%s in neuem Tab öffnen'
+    VIEW_PAGE_DETAIL: Seitendetails anzeigen
+    VIEW_USER_DETAIL: Benutzerdetails anzeigen
+    REAL_PAGES_ONLY_HELP: Nur Seiten, die unter user/pages existieren - ohne
+      Assets, sitemap.xml, robots.txt, 404-Seiten usw.
+    PAGE_DETAIL_TITLE: 'Seitendetail: %s'
+    USER_DETAIL_TITLE: 'Benutzerdetail: %s'
+    USER_DETAIL_TITLE_ANONYMOUS: 'Benutzerdetail: %s (anonym)'
+    RECENT_VIEWS_HEADING: 'Letzte Aufrufe (%s Treffer, %s eindeutige Besucher)'
+    RECENT_VIEWS_HEADING_USER: 'Letzte Aufrufe (%s Treffer)'
+    HITS_VISITORS_SUMMARY: '%s Treffer, %s eindeutige Besucher'
+    HITS_SUMMARY: '%s Treffer'
+    REQUEST_FAILED: 'Anfrage fehlgeschlagen (%s)'
+    ERROR_LOAD_DASHBOARD: Seitenstatistiken konnten nicht geladen werden
+    ERROR_LOAD_TREND: Trenddaten konnten nicht geladen werden
+    ERROR_LOAD_PAGE_DETAIL: Seitendetails konnten nicht geladen werden
+    ERROR_LOAD_USER_DETAIL: Benutzerdetails konnten nicht geladen werden
+    ERROR_LOAD_MORE_RECENT: Weitere kürzlich besuchte Seiten konnten nicht
+      geladen werden
+    ERROR_LOAD_RECENT: Kürzlich besuchte Seiten konnten nicht geladen werden
+    ERROR_GEO_DB_UPDATE: Die Geo-Länderdatenbank konnte nicht aktualisiert
+      werden.
+    GEO_DB_UPDATED_TOAST: Geo-Länderdatenbank aktualisiert.

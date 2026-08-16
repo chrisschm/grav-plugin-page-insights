@@ -111,6 +111,7 @@ PLUGIN_PAGE_INSIGHTS:
   TABLE_PAGE_VIEWS: Page vues
   TABLE_UNIQUE_VISITORS: Visiteurs uniques
   TABLE_UNIQUE_LOGGED_IN_USERS: Visiteurs uniques connecté
+  TABLE_HITS: Vues
 
   VIEW_ALL: Tout voir
   ALL_PAGES: Toutes les pages
@@ -199,3 +200,49 @@ PLUGIN_PAGE_INSIGHTS:
   GEO_DB_BUILT_STATUS: "Générée le %s (date des données %s, %s entrées)."
   GEO_DB_UNKNOWN: inconnu
   GEO_DB_UPDATE_NOW: Mettre à jour
+
+  ADMIN2:
+    LOADING: "Chargement…"
+    SEARCHING: "Recherche en cours…"
+    UPDATING: "Mise à jour…"
+    NO_DATA: Aucune donnée.
+    NO_DATA_AVAILABLE: Aucune donnée disponible.
+    REFRESH: Actualiser
+    SEARCH: Rechercher
+    LOAD_MORE: Charger plus
+    BACK_TO_DASHBOARD: Retour au tableau de bord
+    ANONYMOUS: (anonyme)
+    UNKNOWN_TIME: heure inconnue
+    RANGE_7D: 7j
+    RANGE_30D: 30j
+    RANGE_90D: 90j
+    RANGE_ALL_TIME: Toute la période
+    PAGE_LOOKUP: Recherche de page
+    USER_LOOKUP: Recherche d'utilisateur
+    DB_SIZE: "Taille de la base de données : %s Mo"
+    DB_SIZE_TITLE: Taille du fichier de la base de données SQLite
+    GEO_STATUS_UNAVAILABLE: Statut indisponible.
+    FILTER_PAGES_SHOWN: Filtrer les pages affichées
+    OPEN_IN_NEW_TAB: "Ouvrir %s dans un nouvel onglet"
+    VIEW_PAGE_DETAIL: Voir les détails de la page
+    VIEW_USER_DETAIL: "Voir les détails de l'utilisateur"
+    REAL_PAGES_ONLY_HELP: "Seulement les pages existant sous user/pages - hors
+      ressources, sitemap.xml, robots.txt, pages 404, etc."
+    PAGE_DETAIL_TITLE: "Détail de la page : %s"
+    USER_DETAIL_TITLE: "Détail utilisateur : %s"
+    USER_DETAIL_TITLE_ANONYMOUS: "Détail utilisateur : %s (anonyme)"
+    RECENT_VIEWS_HEADING: "Vues récentes (%s vues, %s visiteurs uniques)"
+    RECENT_VIEWS_HEADING_USER: "Vues récentes (%s vues)"
+    HITS_VISITORS_SUMMARY: "%s vues, %s visiteurs uniques"
+    HITS_SUMMARY: "%s vues"
+    REQUEST_FAILED: "Échec de la requête (%s)"
+    ERROR_LOAD_DASHBOARD: Impossible de charger les statistiques
+    ERROR_LOAD_TREND: Impossible de charger les données de tendance
+    ERROR_LOAD_PAGE_DETAIL: Impossible de charger le détail de la page
+    ERROR_LOAD_USER_DETAIL: "Impossible de charger le détail de l'utilisateur"
+    ERROR_LOAD_MORE_RECENT: "Impossible de charger davantage de pages
+      récemment consultées"
+    ERROR_LOAD_RECENT: Impossible de charger les pages récemment consultées
+    ERROR_GEO_DB_UPDATE: "Impossible de mettre à jour la base de données
+      géographique."
+    GEO_DB_UPDATED_TOAST: Base de données géographique mise à jour.

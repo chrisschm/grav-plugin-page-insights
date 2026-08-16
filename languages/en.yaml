@@ -90,6 +90,7 @@ PLUGIN_PAGE_INSIGHTS:
     TABLE_PAGE_VIEWS: Page Views
     TABLE_UNIQUE_VISITORS: Unique visitors
     TABLE_UNIQUE_LOGGED_IN_USERS: Unique logged in Users
+    TABLE_HITS: Hits
 
     VIEW_ALL: View all
     ALL_PAGES: All Pages
@@ -156,3 +157,52 @@ PLUGIN_PAGE_INSIGHTS:
     GEO_DB_BUILT_STATUS: "Built %s (source date %s, %s entries)."
     GEO_DB_UNKNOWN: unknown
     GEO_DB_UPDATE_NOW: Update now
+
+    # Admin2 dashboard (admin-next/pages/page-insights.js) only - UI chrome
+    # for the consolidated Web Component dashboard that has no equivalent in
+    # Classic Admin's per-widget Twig templates. Reached via window.__GRAV_I18N
+    # (see docs/ARCHITECTURE.md "Admin2 i18n"); keys with %s are substituted
+    # client-side (_tf()), same positional-args convention as GEO_DB_BUILT_STATUS
+    # above.
+    ADMIN2:
+        LOADING: "Loading…"
+        SEARCHING: "Searching…"
+        UPDATING: "Updating…"
+        NO_DATA: "No data."
+        NO_DATA_AVAILABLE: "No data available."
+        REFRESH: Refresh
+        SEARCH: Search
+        LOAD_MORE: Load more
+        BACK_TO_DASHBOARD: Back to dashboard
+        ANONYMOUS: "(anonymous)"
+        UNKNOWN_TIME: "unknown time"
+        RANGE_7D: 7d
+        RANGE_30D: 30d
+        RANGE_90D: 90d
+        RANGE_ALL_TIME: All time
+        PAGE_LOOKUP: Page lookup
+        USER_LOOKUP: User lookup
+        DB_SIZE: "Database size: %s MB"
+        DB_SIZE_TITLE: SQLite database file size
+        GEO_STATUS_UNAVAILABLE: "Status unavailable."
+        FILTER_PAGES_SHOWN: Filter pages shown
+        OPEN_IN_NEW_TAB: "Open %s in a new tab"
+        VIEW_PAGE_DETAIL: View page detail
+        VIEW_USER_DETAIL: View user detail
+        REAL_PAGES_ONLY_HELP: "Only pages that exist under user/pages - excludes assets, sitemap.xml, robots.txt, 404s etc."
+        PAGE_DETAIL_TITLE: "Page detail: %s"
+        USER_DETAIL_TITLE: "User detail: %s"
+        USER_DETAIL_TITLE_ANONYMOUS: "User detail: %s (anonymous)"
+        RECENT_VIEWS_HEADING: "Recent views (%s hits, %s unique visitors)"
+        RECENT_VIEWS_HEADING_USER: "Recent views (%s hits)"
+        HITS_VISITORS_SUMMARY: "%s hits, %s unique visitors"
+        HITS_SUMMARY: "%s hits"
+        REQUEST_FAILED: "Request failed (%s)"
+        ERROR_LOAD_DASHBOARD: Could not load page stats
+        ERROR_LOAD_TREND: Could not load trend data
+        ERROR_LOAD_PAGE_DETAIL: Could not load page detail
+        ERROR_LOAD_USER_DETAIL: Could not load user detail
+        ERROR_LOAD_MORE_RECENT: Could not load more recently viewed pages
+        ERROR_LOAD_RECENT: Could not load recently viewed pages
+        ERROR_GEO_DB_UPDATE: Could not update the geo country database.
+        GEO_DB_UPDATED_TOAST: Geo country database updated.
