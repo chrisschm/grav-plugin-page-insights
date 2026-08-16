@@ -132,7 +132,8 @@ download is permitted). Investigating the fix surfaced two more findings that ch
 rather than just the data source: (1) `region`/`city` were written to the stats DB on every hit
 but never read back anywhere - no query, no admin UI - only `countryCode` was ever used; (2) *any*
 snapshot committed once per plugin release goes stale between releases regardless of vendor or
-license, which a fixed-file model can't fix at all.
+license, which a fixed-file model can't fix at all. (Addendum, 2026-08-16: the removed binary was
+still reachable via git history through the `3.0.0`/`3.0.1` tags - see "Notable past bugs" #9.)
 
 The replacement (`RirStatsParser`, `CountryIndexBuilder`, `CountryLookup`) is built from the
 combined **RIR delegated-stats** file - the same public, daily-updated ground-truth allocation
@@ -321,6 +322,23 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
    harmless since PHP resets every `ini_set()` change at the end of the request/PHP-FPM worker
    cycle regardless. A reminder that "restore the old value in `finally`" isn't automatically
    safe when the thing you raised is itself a function of how much memory is currently in use.
+9. **The old `IP2LOCATION-LITE-DB3.BIN` removed in 2026-08-15 (see Geolocation above) was still
+   being served from git history itself.** Removing a file from HEAD via `git rm` only stops it
+   from being in future commits - the blob stayed reachable through the `3.0.0`/`3.0.1` tags,
+   both of which predate the removal, meaning GitHub's and Codeberg's auto-generated "Source code
+   (zip)" downloads for those two tags kept serving the ~47 MB non-redistributable binary (plus a
+   second, smaller `IP2LOCATION-LITE-DB1.BIN` bundled as a sample inside
+   `vendor/ip2location/ip2location-php/databases/`, easy to miss since it isn't the file anyone
+   was looking for) long after the release archives themselves were clean. Fixed 2026-08-16 with
+   a full history rewrite (`git filter-repo`, both blob IDs stripped via
+   `--strip-blobs-with-ids`) rooted at `a1677c4` ("Initial commit for the fork") as the new
+   parentless root - chosen over either discarding history entirely or a plain blob-strip, since
+   the blob's first appearance predated the fork itself and a blob-strip alone would have
+   rewritten essentially the same range of commits anyway. All commit hashes from that point on
+   changed as a result; anyone with an existing clone needs to re-clone rather than pull. A
+   reminder that removing a file from the tree and removing it from the repository are not the
+   same operation, and that this matters most for anything a public host will happily zip up and
+   serve on request.
 
 ## Known cleanup items
 
