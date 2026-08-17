@@ -1,3 +1,13 @@
+# v3.1.3
+## Unreleased
+
+1. [](#bugfix)
+    * bugfix: fixed the Admin2 dashboard rendering in English regardless of the configured admin language - Admin2's `/translations` endpoint looks up plugin strings by the exact BCP47 locale code (e.g. `de-DE`), but Page Insights' language files use the short-form convention (`de.yaml`) like the rest of the Grav 1.x ecosystem/Weblate, a bucket Admin2 never reads. Plugin strings are now additionally mirrored into the BCP47 buckets at runtime, without duplicating any language files.
+    * bugfix: fixed the above fix not taking effect after the first request in some environments - `grav-plugin-api` caches its whole route table via FastRoute once compiled, and the registration callback the fix's hook originally lived on then never runs again. Moved the hook to `onPluginsInitialized()`, which Grav fires unconditionally on every request.
+
+2. [](#improved)
+    * improved: the geo country index's location is now configurable (`geo_db_index_path`, default `user/data/page-insights/geo-country-index.bin`) and lives outside the plugin's own directory by default, so it survives a GPM update instead of being silently deleted along with the rest of the plugin directory on every update.
+
 # v3.1.2
 ## 08/16/2026 ([cdc233c](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/cdc233c3274e464baed2a48fa84e213e0b0dfb3c))
 

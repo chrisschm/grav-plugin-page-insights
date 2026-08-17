@@ -18,6 +18,13 @@ datetime_offset: 'localtime'
 
 default_pages_scope: all
 
+# Path to the built geo country index, relative to the Grav root - same
+# convention as `db` above. Deliberately outside the plugin's own directory
+# (user/data/, not user/plugins/page-insights/data/) so it survives a GPM
+# update, which replaces the whole plugin directory on every install
+# (see docs/ARCHITECTURE.md, "Notable past bugs" #8).
+geo_db_index_path: user/data/page-insights/geo-country-index.bin
+
 # Empty = use CountryIndexBuilder::DEFAULT_SOURCE_URL (the RIPE NCC/NRO
 # combined RIR delegated-stats "latest" snapshot). See blueprints.yaml,
 # tab_general -> section_geolocation.

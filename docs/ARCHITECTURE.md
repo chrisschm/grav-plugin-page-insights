@@ -42,8 +42,12 @@ user/plugins/page-insights/
 │   ├── Api/PageInsightsApiController.php  # REST controller consumed by Admin2
 │   └── Geolocation/                       # self-built country lookup (see "Geolocation" below)
 ├── data/
+<<<<<<< HEAD
 │   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see below
 │   └── migrations/{1..5}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
+=======
+│   └── migrations/{1..4}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
+>>>>>>> develop
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
 │   └── widgets/geo-db-status.html.twig    # geo index status + "Update now" (see "Geolocation")
@@ -51,6 +55,18 @@ user/plugins/page-insights/
 ├── languages/{en,de,fr}.yaml              # Admin panel translations (Codeberg Translate/Weblate)
 └── vendor/                                # committed on purpose, see below
 ```
+
+Two runtime-generated files live outside this tree entirely, in `user/data/page-insights/`
+(sibling to `user/plugins/`, not inside it) rather than in the plugin's own directory: the SQLite
+hit database (`db` config key, default `user/data/page-insights.sqlite`) and, since 2026-08-17,
+the geo country index (`geo_db_index_path` config key, default
+`user/data/page-insights/geo-country-index.bin`; before that it lived at
+`data/geo-country-index.bin` *inside* the plugin directory, shown above). Both config keys just
+hold a plain path string, relative to the Grav root - no stream/locator indirection - which works
+because Grav requests always run with the Grav root as the working directory. The reason both live
+outside `user/plugins/page-insights/`: GPM replaces the *entire* plugin directory on every update
+(see "Notable past bugs" #8) - anything written inside it, e.g. the geo index before this move, is
+silently lost on the next update. `user/data/` isn't touched by a plugin update, so it survives.
 
 ## Two Admin UIs, one data layer
 
@@ -225,7 +241,10 @@ carries real data.
 - **Building the index is never automatic** - not at install time, not on the page-request path,
   not on a timer (yet). It's an explicit admin action, triggered next to the "Top countries" stat
   in both admin UIs rather than from the config form (it's an action tied to that stat, not a
-  setting - `section_geolocation` in `blueprints.yaml` only holds the source configuration):
+  setting - `section_geolocation` in `blueprints.yaml` only holds the source configuration and,
+  since 2026-08-17, the *destination* path (`geo_db_index_path`, see the file-layout note above) -
+  where to write the result, as opposed to `geo_db_source_mode`/`geo_db_prebuilt_url`/
+  `geo_db_source_url` below, which control where the build reads from):
   - **Admin2**: a button in the "Top countries" card in `admin-next/pages/page-insights.js`
     (`_updateGeoDb()`/`_geoStatusHtml()`), calling `PageInsightsApiController::rebuildGeoDb()`
     (`POST /page-insights/geo-db/rebuild`, `api.system.write`) and `::geoDbStatus()`

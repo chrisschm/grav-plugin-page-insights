@@ -33,7 +33,12 @@ class PageInsightsPlugin extends Plugin
     // GEO_DB_REBUILD_FIELD handling in onAdminPage() below) - or, in a
     // later step, a Scheduler-friendly console command. Not a config-form
     // field in either UI: it's an action tied to this stat, not a setting.
-    const GEO_COUNTRY_INDEX = __DIR__ . '/data/geo-country-index.bin';
+    // Its *location* is a config value though (geo_db_index_path, default
+    // user/data/page-insights/geo-country-index.bin - see page-insights.yaml
+    // and section_geolocation in blueprints.yaml), same convention as `db`
+    // below: deliberately outside this plugin's own directory so it
+    // survives a GPM update, which replaces the whole plugin directory on
+    // every install (see docs/ARCHITECTURE.md, "Notable past bugs" #8).
 
     // Classic Admin only (Admin2 goes through the REST endpoints in
     // PageInsightsApiController instead - grav-plugin-api isn't guaranteed
@@ -271,7 +276,7 @@ class PageInsightsPlugin extends Plugin
 
             $page = $this->grav['page'];
             $ip = $this->getUserIP();
-            $geo = (new Geolocation(new CountryLookup(self::GEO_COUNTRY_INDEX)))->locate($ip);
+            $geo = (new Geolocation(new CountryLookup($config['geo_db_index_path'])))->locate($ip);
             $uri = $this->grav['uri']->uri(false);
             $user = $this->grav['user'];
             $now = new DateTimeImmutable();
@@ -415,7 +420,7 @@ class PageInsightsPlugin extends Plugin
         $routes = $this->getPluginRoutes();
 
         if (in_array($uri->path(), $routes)) {
-            $lookup = new CountryLookup(self::GEO_COUNTRY_INDEX);
+            $lookup = new CountryLookup($config['geo_db_index_path']);
 
             $this->grav['twig']->twig_vars['pageStats'] = [
                 'db' =>  new Stats($dbPath, $this->config()),
@@ -482,12 +487,13 @@ class PageInsightsPlugin extends Plugin
             $this->grav->redirect($uri->path());
         }
 
+        $indexPath = (string) $this->config->get('plugins.page-insights.geo_db_index_path', 'user/data/page-insights/geo-country-index.bin');
         $mode = (string) $this->config->get('plugins.page-insights.geo_db_source_mode', 'prebuilt');
         $prebuiltUrl = (string) $this->config->get('plugins.page-insights.geo_db_prebuilt_url', '');
         $rawSourceUrl = (string) $this->config->get('plugins.page-insights.geo_db_source_url', '');
 
         try {
-            (new GeoDbUpdater())->update(self::GEO_COUNTRY_INDEX, $mode, $prebuiltUrl ?: null, $rawSourceUrl ?: null);
+            (new GeoDbUpdater())->update($indexPath, $mode, $prebuiltUrl ?: null, $rawSourceUrl ?: null);
             $admin?->setMessage('Geo country database updated.', 'info');
         } catch (\Throwable $e) {
             $this->grav['log']->addError('PageInsights plugin: geo-db rebuild failed - ' . $e->getMessage());

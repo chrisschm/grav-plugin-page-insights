@@ -278,8 +278,9 @@ class PageInsightsApiController extends AbstractApiController
     {
         $this->requirePermission($request, self::READ_PERMISSION);
 
-        $lookup = new CountryLookup(PageInsightsPlugin::GEO_COUNTRY_INDEX);
         $grav = Grav::instance();
+        $indexPath = (string) $grav['config']->get('plugins.page-insights.geo_db_index_path', 'user/data/page-insights/geo-country-index.bin');
+        $lookup = new CountryLookup($indexPath);
 
         return ApiResponse::create([
             'built' => $lookup->isAvailable(),
@@ -312,13 +313,14 @@ class PageInsightsApiController extends AbstractApiController
         $this->requirePermission($request, self::WRITE_PERMISSION);
 
         $grav = Grav::instance();
+        $indexPath = (string) $grav['config']->get('plugins.page-insights.geo_db_index_path', 'user/data/page-insights/geo-country-index.bin');
         $mode = (string) $grav['config']->get('plugins.page-insights.geo_db_source_mode', 'prebuilt');
         $prebuiltUrl = (string) $grav['config']->get('plugins.page-insights.geo_db_prebuilt_url', '');
         $rawSourceUrl = (string) $grav['config']->get('plugins.page-insights.geo_db_source_url', '');
 
         try {
             $result = (new GeoDbUpdater())->update(
-                PageInsightsPlugin::GEO_COUNTRY_INDEX,
+                $indexPath,
                 $mode,
                 $prebuiltUrl ?: null,
                 $rawSourceUrl ?: null

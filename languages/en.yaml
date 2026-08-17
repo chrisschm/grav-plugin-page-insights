@@ -145,6 +145,8 @@ PLUGIN_PAGE_INSIGHTS:
 
     SECTION_GEOLOCATION: Geolocation
     SECTION_GEOLOCATION_LABEL: "Country-level IP lookup for \"Top countries\". No third-party database is bundled with the plugin or downloaded automatically; use the \"Update now\" button next to Top countries on the dashboard to (re)build it. By default this downloads an already-built index from a companion project that rebuilds it periodically from the public RIR (Regional Internet Registry) delegation data - see below to build it yourself from that raw data locally instead."
+    GEO_DB_INDEX_PATH_LABEL: Geo database index path
+    GEO_DB_INDEX_PATH_HELP: "Path to the built index file, relative to the Grav root. Deliberately outside the plugin's own folder so it survives a GPM update (which replaces the whole plugin folder on every install)."
     GEO_DB_SOURCE_MODE_LABEL: Geo database source
     GEO_DB_SOURCE_MODE_HELP: "\"Pre-built index\" downloads a small, already-built index and needs no extra memory on this site. \"Build from raw RIR data\" downloads the full multi-MB RIR snapshot and builds the index here instead, without depending on the companion project - larger download and a temporarily raised memory limit during the build."
     GEO_DB_SOURCE_MODE_PREBUILT: Pre-built index (recommended)
