@@ -1,5 +1,8 @@
+# v3.1.4
+## unreleased
+
 # v3.1.3
-## 08/17/2026
+## 08/17/2026 ([6343072](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/6343072742a614ebe8c77d53d1e87eaf75edda64))
 
 1. [](#bugfix)
     * bugfix: fixed the Admin2 dashboard rendering in English regardless of the configured admin language - Admin2's `/translations` endpoint looks up plugin strings by the exact BCP47 locale code (e.g. `de-DE`), but Page Insights' language files use the short-form convention (`de.yaml`) like the rest of the Grav 1.x ecosystem/Weblate, a bucket Admin2 never reads. Plugin strings are now additionally mirrored into the BCP47 buckets at runtime, without duplicating any language files.
