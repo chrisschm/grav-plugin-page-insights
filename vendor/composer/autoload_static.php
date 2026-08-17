@@ -7,14 +7,14 @@ namespace Composer\Autoload;
 class ComposerStaticInitPageInsightsGravPlugin
 {
     public static $prefixLengthsPsr4 = array (
-        'G' => 
+        'G' =>
         array (
             'Grav\\Plugin\\PageInsights\\' => 25,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'Grav\\Plugin\\PageInsights\\' => 
+        'Grav\\Plugin\\PageInsights\\' =>
         array (
             0 => __DIR__ . '/../..' . '/classes',
         ),
