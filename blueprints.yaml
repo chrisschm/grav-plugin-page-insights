@@ -224,6 +224,10 @@ form:
                             text: PLUGIN_PAGE_INSIGHTS.SECTION_GEOLOCATION_LABEL
                             underline: true
                             fields:
+                                geo_db_index_path:
+                                    type: text
+                                    label: PLUGIN_PAGE_INSIGHTS.GEO_DB_INDEX_PATH_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.GEO_DB_INDEX_PATH_HELP
                                 geo_db_source_mode:
                                     type: select
                                     label: PLUGIN_PAGE_INSIGHTS.GEO_DB_SOURCE_MODE_LABEL

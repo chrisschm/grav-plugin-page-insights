@@ -145,6 +145,10 @@ PLUGIN_PAGE_INSIGHTS:
     fertig gebauter Index von einem Begleitprojekt geladen, das ihn regelmäßig aus
     den öffentlichen RIR-Zuteilungsdaten (Regional Internet Registry) neu baut -
     siehe unten, um ihn stattdessen selbst lokal aus diesen Rohdaten zu bauen.
+  GEO_DB_INDEX_PATH_LABEL: Pfad der Geo-Datenbank
+  GEO_DB_INDEX_PATH_HELP: Pfad zur gebauten Indexdatei, relativ zum Grav-Root.
+    Bewusst außerhalb des Plugin-eigenen Ordners, damit sie ein GPM-Update übersteht
+    (das bei jeder Installation den kompletten Plugin-Ordner ersetzt).
   GEO_DB_SOURCE_MODE_LABEL: Quelle der Geo-Datenbank
   GEO_DB_SOURCE_MODE_HELP: "\"Fertiger Index\" lädt einen kleinen, bereits gebauten
     Index herunter und braucht dafür keinen zusätzlichen Arbeitsspeicher auf dieser

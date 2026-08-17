@@ -176,6 +176,11 @@ PLUGIN_PAGE_INSIGHTS:
     qui le reconstruit périodiquement à partir des données publiques
     d'allocation des RIR (Regional Internet Registry) - voir ci-dessous pour
     le générer vous-même localement à partir de ces données brutes."
+  GEO_DB_INDEX_PATH_LABEL: Chemin de l'index géographique
+  GEO_DB_INDEX_PATH_HELP: "Chemin vers le fichier d'index généré, relatif à la
+    racine de Grav. Délibérément en dehors du dossier propre du plugin, afin
+    qu'il survive à une mise à jour GPM (qui remplace tout le dossier du
+    plugin à chaque installation)."
   GEO_DB_SOURCE_MODE_LABEL: Source de la base géographique
   GEO_DB_SOURCE_MODE_HELP: "\"Index préconstruit\" télécharge un petit index
     déjà généré et ne nécessite pas de mémoire supplémentaire sur ce site.
