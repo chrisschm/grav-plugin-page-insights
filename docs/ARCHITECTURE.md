@@ -43,7 +43,7 @@ user/plugins/page-insights/
 │   └── Geolocation/                       # self-built country lookup (see "Geolocation" below)
 ├── data/
 │   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see below
-│   └── migrations/{1..4}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
+│   └── migrations/{1..5}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
 │   └── widgets/geo-db-status.html.twig    # geo index status + "Update now" (see "Geolocation")
