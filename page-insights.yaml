@@ -30,6 +30,23 @@ geo_db_index_path: user/data/page-insights/geo-country-index.bin
 # tab_general -> section_geolocation.
 geo_db_source_url: ''
 
+# "disabled"|"weekly"|"monthly" - see PageInsightsPlugin::onSchedulerInitialized()
+# and classes/AutoSchedule.php for what this actually schedules and why the
+# admin doesn't pick a concrete day/time. On by default: this only refreshes
+# a lookup file, it never touches collected stats.
+geo_db_auto_update: weekly
+
+# Same "disabled"|"weekly"|"monthly" choice as geo_db_auto_update above, but
+# for automatically deleting old stats (see cli/PruneCommand.php,
+# Stats::pruneData()). Off by default, unlike the geo-db refresh - deleting
+# stats is irreversible, so this is opt-in, not opt-out.
+data_auto_prune: disabled
+
+# How far back automatic pruning reaches when data_auto_prune is enabled -
+# same relative ("90d"/"12w"/"6m"/"1y") or absolute ("2025-01-01") syntax as
+# the `prune` CLI command's --older-than option, see classes/RelativeDate.php.
+data_auto_prune_older_than: '365d'
+
 show_top_users_widget: true
 cols_top_users_widget: 'col-12 col-md-3'
 limit_top_users_widget: 10

@@ -172,6 +172,37 @@ PLUGIN_PAGE_INSIGHTS:
   GEO_DB_BUILT_STATUS: Erstellt am %s (Datenstand %s, %s Einträge).
   GEO_DB_UNKNOWN: unbekannt
   GEO_DB_UPDATE_NOW: Jetzt aktualisieren
+  GEO_DB_AUTO_UPDATE_LABEL: Automatische Aktualisierung
+  GEO_DB_AUTO_UPDATE_HELP: Hält die Geo-Datenbank aktuell, ohne den "Jetzt
+    aktualisieren"-Button (siehe cli/GeoDbUpdateCommand.php für den
+    gleichwertigen CLI-Befehl, z. B. für einen eigenen Cron-Eintrag). Setzt
+    voraus, dass Gravs eigener Scheduler aktiv ist (Admin -> Werkzeuge ->
+    Scheduler); dafür ist kein zusätzlicher Crontab-Eintrag nötig. Wochentag/
+    Tag im Monat und Uhrzeit sind hier bewusst nicht einstellbar - sie werden
+    automatisch pro Installation ermittelt, damit sich nicht viele
+    Installationen zum selben, naheliegenden Zeitpunkt häufen.
+  SECTION_DATA_RETENTION: Datenaufbewahrung
+  SECTION_DATA_RETENTION_LABEL: Optionales, unwiderrufliches Löschen alter
+    Seitenaufruf-/Event-Daten. Standardmäßig deaktiviert. Siehe auch die
+    CLI-Befehle `prune`/`vacuum`/`events:prune-orphans` für einmalige oder
+    skriptgesteuerte Nutzung.
+  DATA_AUTO_PRUNE_LABEL: Automatisches Löschen
+  DATA_AUTO_PRUNE_HELP: Löscht Seitenaufruf-/Event-Daten automatisch, die
+    älter sind als die unten angegebene Aufbewahrungsdauer. Standardmäßig
+    deaktiviert - dies löscht Daten unwiderruflich. Wie bei der automatischen
+    Geo-Datenbank-Aktualisierung werden Wochentag/Tag im Monat und Uhrzeit
+    automatisch pro Installation ermittelt statt einstellbar zu sein, um eine
+    Häufung vieler Installationen auf denselben Zeitpunkt zu vermeiden; die
+    Datenbankdatei selbst wird dabei nie automatisch verkleinert (VACUUM) -
+    dafür separat den `vacuum`-CLI-Befehl verwenden.
+  DATA_AUTO_PRUNE_OLDER_THAN_LABEL: Aufbewahrungsdauer
+  DATA_AUTO_PRUNE_OLDER_THAN_HELP: Wie weit zurück Daten aufbewahrt werden,
+    wenn automatisches Löschen oben aktiviert ist. Entweder relativ ("90d",
+    "12w", "6m", "1y") oder ein absolutes Datum ("2025-01-01") - dieselbe
+    Syntax wie die --older-than-Option des `prune`-CLI-Befehls.
+  AUTO_SCHEDULE_DISABLED: Deaktiviert
+  AUTO_SCHEDULE_WEEKLY: Wöchentlich
+  AUTO_SCHEDULE_MONTHLY: Monatlich
   LOG_ADMIN_LABEL: Aktivitäten von Administratoren protokollieren
   USING: Nutzt
 

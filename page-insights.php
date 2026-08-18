@@ -6,12 +6,15 @@ use Composer\Autoload\ClassLoader;
 use DateTimeImmutable;
 use Grav\Common\Page\Page;
 use Grav\Common\Plugin;
+use Grav\Common\Scheduler\Scheduler;
 use Grav\Common\Utils;
 use RocketTheme\Toolbox\Event\Event;;
 
+use Grav\Plugin\PageInsights\AutoSchedule;
 use Grav\Plugin\PageInsights\Geolocation\GeoDbUpdater;
 use Grav\Plugin\PageInsights\Geolocation\Geolocation;
 use Grav\Plugin\PageInsights\Geolocation\CountryLookup;
+use Grav\Plugin\PageInsights\RelativeDate;
 use Grav\Plugin\PageInsights\Stats;
 use Grav\Plugin\PageInsights\Api\PageInsightsApiController;
 use RocketTheme\Toolbox\Event\EventSubscriberInterface;
@@ -94,6 +97,13 @@ class PageInsightsPlugin extends Plugin
             'onApiRegisterRoutes' => ['onApiRegisterRoutes', 0],
             'onApiSidebarItems' => ['onApiSidebarItems', 0],
             'onApiPluginPageInfo' => ['onApiPluginPageInfo', 0],
+
+            // Grav-Core's own Scheduler (`bin/grav scheduler` / the Admin's
+            // Scheduler status page). Registered unconditionally, like the
+            // onApi* events above - this needs to fire in the CLI context
+            // `bin/grav scheduler` runs in, which is neither isAdmin() nor
+            // a normal frontend page load. See onSchedulerInitialized().
+            'onSchedulerInitialized' => ['onSchedulerInitialized', 0],
         ];
     }
 
@@ -751,5 +761,116 @@ class PageInsightsPlugin extends Plugin
             'page_type' => 'component',
             'actions' => [],
         ];
+    }
+
+    /**
+     * Registers the automatic, schedule-driven equivalents of the manual
+     * "Update now" trigger (geo-db, see handleGeoDbRebuildPost()/
+     * PageInsightsApiController::rebuildGeoDb()) and the manual `prune` CLI
+     * command (see cli/PruneCommand.php). Fired by Grav-Core's Scheduler
+     * whenever it actually runs - `bin/grav scheduler` (the site's single,
+     * already-existing cron entry for Grav's built-in Scheduler, not
+     * something this plugin needs its own crontab line for), the Admin's
+     * Scheduler status page, or a Scheduler webhook.
+     *
+     * Both jobs are opt-in via config (geo_db_auto_update / data_auto_prune,
+     * each "disabled"|"weekly"|"monthly" - see blueprints.yaml,
+     * section_geolocation / section_data_retention). "disabled" is the
+     * default for data_auto_prune specifically: deleting stats is
+     * irreversible, so unlike the geo-db refresh it's opt-in, not
+     * opt-out. When enabled, the actual weekday/day-of-month and
+     * time-of-day are NOT admin-chosen - they're derived deterministically
+     * per installation, see AutoSchedule for why and how.
+     */
+    public function onSchedulerInitialized(Event $event): void
+    {
+        /** @var Scheduler $scheduler */
+        $scheduler = $event['scheduler'];
+        $config = $this->config();
+
+        $this->registerGeoDbAutoUpdateJob($scheduler, $config);
+        $this->registerAutoPruneJob($scheduler, $config);
+    }
+
+    private function registerGeoDbAutoUpdateJob(Scheduler $scheduler, array $config): void
+    {
+        $mode = (string) ($config['geo_db_auto_update'] ?? 'disabled');
+        $cron = AutoSchedule::cronExpression(GRAV_ROOT, 'geo-db-update', $mode);
+        if ($cron === null) {
+            return;
+        }
+
+        $indexPath = (string) ($config['geo_db_index_path'] ?? 'user/data/page-insights/geo-country-index.bin');
+        $sourceMode = (string) ($config['geo_db_source_mode'] ?? 'prebuilt');
+        $prebuiltUrl = ((string) ($config['geo_db_prebuilt_url'] ?? '')) ?: null;
+        $rawSourceUrl = ((string) ($config['geo_db_source_url'] ?? '')) ?: null;
+
+        // A plain closure, not a static helper method: GeoDbUpdater::update()
+        // already throws \RuntimeException on failure and deliberately
+        // leaves it uncaught (see its own docblock) because every call site
+        // wraps it - Job::exec() (Grav-Core) already catches \RuntimeException
+        // around a scheduled callable and records the message as the job's
+        // failure output, so no extra try/catch is needed here either.
+        $job = $scheduler->addFunction(
+            function () use ($indexPath, $sourceMode, $prebuiltUrl, $rawSourceUrl) {
+                $result = (new GeoDbUpdater())->update($indexPath, $sourceMode, $prebuiltUrl, $rawSourceUrl);
+
+                return sprintf(
+                    "Geo-DB aktualisiert: %d IPv4- + %d IPv6-Eintraege (Quelldatum: %s)\n",
+                    $result['ipv4Entries'] ?? 0,
+                    $result['ipv6Entries'] ?? 0,
+                    $result['sourceDate'] ?? 'unbekannt'
+                );
+            },
+            [],
+            'page-insights-geo-db-update'
+        );
+        $job->at($cron);
+        $job->output('logs/page-insights-geo-db-update.out');
+    }
+
+    private function registerAutoPruneJob(Scheduler $scheduler, array $config): void
+    {
+        $mode = (string) ($config['data_auto_prune'] ?? 'disabled');
+        $cron = AutoSchedule::cronExpression(GRAV_ROOT, 'data-auto-prune', $mode);
+        if ($cron === null) {
+            return;
+        }
+
+        $olderThanRaw = (string) ($config['data_auto_prune_older_than'] ?? '365d');
+        // Resolved fresh on every onSchedulerInitialized() call (i.e. every
+        // `bin/grav scheduler` tick, whether or not the job is actually due
+        // this minute) rather than once - "older than 365d" should always
+        // mean 365 days before the moment the job *runs*, not before
+        // whatever moment happened to register it.
+        $cutoff = RelativeDate::resolve($olderThanRaw);
+        if ($cutoff === null) {
+            $this->grav['log']->addError(
+                "PageInsights plugin: ungueltiger Wert fuer data_auto_prune_older_than ('{$olderThanRaw}') - automatisches Prune wird uebersprungen."
+            );
+            return;
+        }
+
+        $dbPath = (string) $config['db'];
+
+        // Deliberately never runs VACUUM itself, even though `prune`
+        // (the manual CLI command) offers --vacuum for exactly this
+        // combination - VACUUM takes a brief exclusive lock on the whole
+        // database, and an admin opting into "delete old data automatically"
+        // isn't necessarily also opting into "and briefly lock the database
+        // on an unattended schedule". Use `bin/plugin page-insights vacuum`
+        // (optionally its own cron/scheduler entry) if that's wanted too.
+        $job = $scheduler->addFunction(
+            function () use ($dbPath, $config, $cutoff) {
+                $stats = new Stats($dbPath, $config);
+                $deleted = $stats->pruneData($cutoff);
+
+                return "Prune: {$deleted} Eintrag/Eintraege geloescht (aelter als {$cutoff->format('c')}).\n";
+            },
+            [],
+            'page-insights-data-prune'
+        );
+        $job->at($cron);
+        $job->output('logs/page-insights-data-prune.out');
     }
 }

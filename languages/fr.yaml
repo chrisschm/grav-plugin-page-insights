@@ -205,6 +205,42 @@ PLUGIN_PAGE_INSIGHTS:
   GEO_DB_BUILT_STATUS: "Générée le %s (date des données %s, %s entrées)."
   GEO_DB_UNKNOWN: inconnu
   GEO_DB_UPDATE_NOW: Mettre à jour
+  GEO_DB_AUTO_UPDATE_LABEL: Mise à jour automatique
+  GEO_DB_AUTO_UPDATE_HELP: "Maintient la base géographique à jour sans passer
+    par le bouton \"Mettre à jour\" (voir cli/GeoDbUpdateCommand.php pour la
+    commande CLI équivalente, par ex. pour une tâche cron dédiée). Nécessite
+    que le Scheduler intégré de Grav soit actif (Admin -> Outils ->
+    Scheduler) ; aucune ligne crontab supplémentaire n'est nécessaire pour
+    cela en particulier. Le jour de la semaine/du mois et l'heure exacts ne
+    sont volontairement pas configurables ici - ils sont déterminés
+    automatiquement pour chaque installation, afin d'éviter que de
+    nombreuses installations ne s'exécutent toutes au même moment habituel."
+
+  SECTION_DATA_RETENTION: Conservation des données
+  SECTION_DATA_RETENTION_LABEL: "Suppression optionnelle et irréversible des
+    anciennes données de visites/événements. Désactivée par défaut. Voir
+    aussi les commandes CLI `prune`/`vacuum`/`events:prune-orphans` pour une
+    utilisation ponctuelle ou scriptée."
+  DATA_AUTO_PRUNE_LABEL: Suppression automatique
+  DATA_AUTO_PRUNE_HELP: "Supprime automatiquement les données de visites/
+    événements plus anciennes que la période de conservation ci-dessous.
+    Désactivée par défaut - cette action supprime définitivement des
+    données. Comme pour la mise à jour automatique de la base géographique,
+    le jour de la semaine/du mois et l'heure sont déterminés automatiquement
+    pour chaque installation plutôt que configurables, afin d'éviter que de
+    nombreuses installations ne se concentrent sur le même moment ; le
+    fichier de base de données lui-même n'est jamais réduit automatiquement
+    (VACUUM) dans ce cadre - utiliser séparément la commande CLI `vacuum`
+    pour cela."
+  DATA_AUTO_PRUNE_OLDER_THAN_LABEL: Période de conservation
+  DATA_AUTO_PRUNE_OLDER_THAN_HELP: "Jusqu'où remonter avant de conserver les
+    données lorsque la suppression automatique ci-dessus est activée. Soit
+    relative (\"90d\", \"12w\", \"6m\", \"1y\"), soit une date absolue
+    (\"2025-01-01\") - même syntaxe que l'option --older-than de la commande
+    CLI `prune`."
+  AUTO_SCHEDULE_DISABLED: Désactivée
+  AUTO_SCHEDULE_WEEKLY: Hebdomadaire
+  AUTO_SCHEDULE_MONTHLY: Mensuelle
 
   ADMIN2:
     LOADING: "Chargement…"

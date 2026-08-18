@@ -246,6 +246,42 @@ form:
                                     label: PLUGIN_PAGE_INSIGHTS.GEO_DB_SOURCE_URL_LABEL
                                     help: PLUGIN_PAGE_INSIGHTS.GEO_DB_SOURCE_URL_HELP
                                     placeholder: 'https://ftp.ripe.net/pub/stats/ripencc/nro-stats/latest/nro-delegated-stats'
+                                geo_db_auto_update:
+                                    type: select
+                                    label: PLUGIN_PAGE_INSIGHTS.GEO_DB_AUTO_UPDATE_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.GEO_DB_AUTO_UPDATE_HELP
+                                    default: weekly
+                                    options:
+                                        disabled: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_DISABLED
+                                        weekly: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_WEEKLY
+                                        monthly: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_MONTHLY
+
+                        section_data_retention:
+                            type: section
+                            title: PLUGIN_PAGE_INSIGHTS.SECTION_DATA_RETENTION
+                            text: PLUGIN_PAGE_INSIGHTS.SECTION_DATA_RETENTION_LABEL
+                            underline: true
+                            fields:
+                                data_auto_prune:
+                                    type: select
+                                    label: PLUGIN_PAGE_INSIGHTS.DATA_AUTO_PRUNE_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.DATA_AUTO_PRUNE_HELP
+                                    default: disabled
+                                    options:
+                                        disabled: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_DISABLED
+                                        weekly: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_WEEKLY
+                                        monthly: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_MONTHLY
+                                data_auto_prune_older_than:
+                                    type: text
+                                    label: PLUGIN_PAGE_INSIGHTS.DATA_AUTO_PRUNE_OLDER_THAN_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.DATA_AUTO_PRUNE_OLDER_THAN_HELP
+                                    default: '365d'
+                                    validate:
+                                        # Same two accepted forms as RelativeDate::resolve() (classes/RelativeDate.php),
+                                        # kept in sync manually - \d rather than a POSIX class, same reason as
+                                        # datetime_offset above (valid PCRE, but Admin2 also runs this pattern
+                                        # through a native JS RegExp).
+                                        pattern: '^(\d+[dwmy]|\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?)$'
                 tab_classic_admin:
                     type: tab
                     title: PLUGIN_PAGE_INSIGHTS.TAB_CLASSIC_ADMIN

@@ -159,6 +159,18 @@ PLUGIN_PAGE_INSIGHTS:
     GEO_DB_BUILT_STATUS: "Built %s (source date %s, %s entries)."
     GEO_DB_UNKNOWN: unknown
     GEO_DB_UPDATE_NOW: Update now
+    GEO_DB_AUTO_UPDATE_LABEL: Automatic updates
+    GEO_DB_AUTO_UPDATE_HELP: "Keep the geo database current without the \"Update now\" button (see cli/GeoDbUpdateCommand.php for the equivalent CLI command, e.g. for a plugin-specific cron entry). Requires Grav's own Scheduler to be active (Admin -> Tools -> Scheduler); no extra crontab line is needed for this specifically. The exact weekday/day-of-month and time are deliberately not configurable here - they're derived automatically per installation, so that many independent installations don't all end up running at the same popular time."
+
+    SECTION_DATA_RETENTION: Data retention
+    SECTION_DATA_RETENTION_LABEL: "Optional, irreversible deletion of old page-view/event data. Off by default. See also the `prune`/`vacuum`/`events:prune-orphans` CLI commands for one-off or scripted use."
+    DATA_AUTO_PRUNE_LABEL: Automatic pruning
+    DATA_AUTO_PRUNE_HELP: "Automatically delete page-view/event data older than the retention period below. Off by default - this permanently deletes data. As with automatic geo database updates, the exact weekday/day-of-month and time are derived automatically per installation rather than configurable, to avoid many installations clustering on the same time; the database file itself is never automatically shrunk (VACUUM) as part of this - use the `vacuum` CLI command for that, separately."
+    DATA_AUTO_PRUNE_OLDER_THAN_LABEL: Retention period
+    DATA_AUTO_PRUNE_OLDER_THAN_HELP: "How far back to keep data when automatic pruning is enabled above. Either relative (\"90d\", \"12w\", \"6m\", \"1y\") or an absolute date (\"2025-01-01\") - same syntax as the `prune` CLI command's --older-than option."
+    AUTO_SCHEDULE_DISABLED: Disabled
+    AUTO_SCHEDULE_WEEKLY: Weekly
+    AUTO_SCHEDULE_MONTHLY: Monthly
 
     # Admin2 dashboard (admin-next/pages/page-insights.js) only - UI chrome
     # for the consolidated Web Component dashboard that has no equivalent in

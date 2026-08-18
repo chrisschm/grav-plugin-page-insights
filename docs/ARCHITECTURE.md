@@ -39,6 +39,7 @@ user/plugins/page-insights/
 ├── composer.json                          # no third-party runtime dependency (see Geolocation below)
 ├── classes/
 │   ├── Stats.php                          # data layer (PDO/SQLite), UI-independent
+│   ├── AutoSchedule.php                   # deterministic per-install cron scheduling (see "Automatic scheduling")
 │   ├── RelativeDate.php                   # "--older-than"/"..._older_than" parsing, shared by CLI + scheduler
 │   ├── Api/PageInsightsApiController.php  # REST controller consumed by Admin2
 │   └── Geolocation/                       # self-built country lookup (see "Geolocation" below)
@@ -302,20 +303,22 @@ of `CountryIndexBuilder` directly now):
 mention) are now actually used by `CountryLookup`'s IPv4 binary search.
 
 The previously-deferred "Scheduler-friendly console command for unattended per-site refresh" is
-now `cli/GeoDbUpdateCommand.php` - see "CLI commands" below. Calls the same `GeoDbUpdater::update()`
-as the two manual admin triggers above, so it picks up either source mode identically.
+now `cli/GeoDbUpdateCommand.php` plus, for fully unattended operation with no crontab line of its
+own, the automatic job registered by `PageInsightsPlugin::onSchedulerInitialized()` - see "CLI
+commands" and "Automatic scheduling" below. Both call `GeoDbUpdater::update()`, so they pick up
+either source mode identically to the two manual admin triggers above.
 
 ## CLI commands (`cli/`)
 
 Grav auto-discovers any `Grav\Plugin\Console\<Name>Command` class in a plugin's `cli/<Name>Command.php`
 (see Grav core's `PluginCommandLoader`) - no registration in `composer.json` or anywhere else is
 needed, and `Symfony\Component\Console\*` comes from Grav core's own vendor tree, not this plugin's
-(avoids repeating the vendor-bloat mistake `git` history already went through once, see "Notable
-past bugs" #9/#12).
+(same reasoning as relying on Grav core's Scheduler classes, see below - avoids repeating the
+vendor-bloat mistake `git` history already went through once, see "Notable past bugs" #9/#12).
 
 - **`bin/plugin page-insights geo-db:update [--mode=prebuilt|raw]`** - manual/scriptable equivalent
   of the "Update now" button (see "Geolocation" above); same `GeoDbUpdater::update()` call as the
-  admin triggers.
+  admin triggers and the scheduled job below.
 - **`bin/plugin page-insights prune --older-than=<value> [--yes] [--vacuum]`** - deletes `data` rows
   (page hits) older than `<value>` and, always, any now-orphaned `events` rows (`Stats::pruneData()`
   calls `pruneOrphanedEvents()` internally after every run - see below). `<value>` is either a short
@@ -333,6 +336,44 @@ past bugs" #9/#12).
 - **`bin/plugin page-insights vacuum`** - runs `VACUUM` on its own, independent of `prune`. SQLite
   only frees deleted rows' pages for internal reuse by default; the file itself stays at its
   largest-ever size until `VACUUM` rewrites it. Needs a brief exclusive lock on the database.
+
+## Automatic scheduling (`PageInsightsPlugin::onSchedulerInitialized()`, `AutoSchedule`)
+
+Rather than asking the admin to add a plugin-specific crontab line for `geo-db:update`/`prune`,
+the plugin hooks Grav core's own `onSchedulerInitialized` event - fired by `Grav\Common\Scheduler\
+Scheduler` whenever it actually runs (`bin/grav scheduler`, i.e. the site's single, already-existing
+cron entry for Grav's built-in Scheduler; also the Admin's Scheduler status page, or a Scheduler
+webhook) - and registers two `Scheduler::addFunction()` jobs directly as PHP closures, executed
+in-process by the same `bin/grav scheduler` run (`Job::exec()` calls the closure via
+`call_user_func_array()`, no subprocess). This mirrors exactly how Grav core itself schedules cache
+purge/clear and backups (`Grav\Common\Cache`/`Grav\Common\Backup\Backups`, same event). Registered
+unconditionally in `getSubscribedEvents()` (like `onApiRegisterRoutes` et al.), not inside the
+`isAdmin()` branch - `bin/grav scheduler`'s CLI context is neither `isAdmin()` nor a normal
+frontend request.
+
+Both jobs are opt-in/opt-out via config, independently:
+
+- `geo_db_auto_update` (`disabled`|`weekly`|`monthly`, **default `weekly`**) - safe to default to
+  enabled, it only refreshes a lookup file.
+- `data_auto_prune` (`disabled`|`weekly`|`monthly`, **default `disabled`**) plus
+  `data_auto_prune_older_than` (default `365d`, same syntax as `prune --older-than`) - default
+  *disabled*, unlike the geo-db job: this permanently deletes data, so it's opt-in. Deliberately
+  never runs `VACUUM` itself, even though the manual `prune` command offers `--vacuum` for exactly
+  that combination - an admin opting into unattended deletion isn't necessarily also opting into an
+  unattended brief exclusive database lock; use `vacuum` (optionally its own scheduler/cron entry)
+  separately if that's wanted too.
+
+The admin never picks a concrete weekday or time - only `disabled`/`weekly`/`monthly`. `AutoSchedule
+::cronExpression()` derives the actual weekday/day-of-month and time-of-day deterministically from
+`crc32(GRAV_ROOT . ':' . $jobKey)`. This exists specifically to avoid many independent installations
+of this plugin clustering on the same instinctive time (e.g. "Sunday 00:05", or any round hour/
+top-of-hour minute - all popular default cron times on shared hosting in their own right) once
+there are enough installations for that to matter. `GRAV_ROOT` (not e.g. the request hostname) is
+used as the seed because it's the one value that's stable and available in every context this can
+run from, including `bin/grav scheduler`'s own CLI context, which has no HTTP host to read at all -
+the trade-off is that moving a whole site to a different path/server shifts its computed schedule,
+accepted as a rare, harmless side effect. `$jobKey` (`"geo-db-update"` vs. `"data-auto-prune"`)
+keeps the two jobs on one site from landing on the exact same second.
 
 ## Composer & the compiled autoloader (important operational gotcha)
 
@@ -562,9 +603,14 @@ sichtbar zu werden; `type: display` existiert nur in Admin2 sinnvoll. Gemeinsame
 Infoboxen, die auf beiden Admin-Versionen funktionieren sollen: `section` + `title` + `text` +
 `fields: {}`.
 
-Neu (siehe "CLI commands" oben): vier `bin/plugin page-insights`-Befehle (`geo-db:update`, `prune`,
-`events:prune-orphans`, `vacuum`) unter `cli/`, per Gravs eigener Auto-Discovery erkannt (kein
-Composer-Eintrag nötig). Die vormals als "Phase 2" zurückgestellte automatische Geo-DB-Aktualisierung
-ist damit als manueller/skriptbarer Befehl umgesetzt, ergänzt um ebenso manuelle Befehle zum
-Löschen alter Statistikdaten (`prune`, `events:prune-orphans`) und zum Verkleinern der
-Datenbankdatei (`vacuum`).
+Neu (siehe "CLI commands" / "Automatic scheduling" oben): vier `bin/plugin page-insights`-Befehle
+(`geo-db:update`, `prune`, `events:prune-orphans`, `vacuum`) unter `cli/`, per Gravs eigener
+Auto-Discovery erkannt (kein Composer-Eintrag nötig). Die vormals als "Phase 2" zurückgestellte
+automatische Geo-DB-Aktualisierung ist damit umgesetzt, ergänzt um ein ebenso optionales,
+automatisches Löschen alter Statistikdaten (`data_auto_prune`, standardmäßig deaktiviert - im
+Gegensatz zur Geo-DB-Aktualisierung, die standardmäßig aktiv ist, weil unwiderrufliches Löschen
+ein bewusstes Opt-in bleiben sollte). Beide hängen sich an Gravs eigenes `onSchedulerInitialized`-
+Event (`bin/grav scheduler`) statt einen eigenen Crontab-Eintrag zu verlangen. Wochentag/Tag im
+Monat und Uhrzeit sind dabei nicht einstellbar, sondern werden deterministisch aus einem Hash von
+`GRAV_ROOT` abgeleitet (`AutoSchedule`) - verhindert, dass viele unabhängige Installationen sich
+alle zum selben naheliegenden Zeitpunkt (z. B. "Sonntag 0:05") häufen.
