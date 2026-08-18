@@ -815,11 +815,17 @@ class PageInsightsPlugin extends Plugin
             function () use ($indexPath, $sourceMode, $prebuiltUrl, $rawSourceUrl) {
                 $result = (new GeoDbUpdater())->update($indexPath, $sourceMode, $prebuiltUrl, $rawSourceUrl);
 
+                // Same reasoning as GeoDbUpdateCommand: report both dates,
+                // not just sourceDate, so a scheduler log line never reads
+                // like a mismatch against what the admin dashboards show.
+                $builtAt = $result['builtAt'] ?? null;
+
                 return sprintf(
-                    "Geo-DB aktualisiert: %d IPv4- + %d IPv6-Eintraege (Quelldatum: %s)\n",
+                    "Geo-DB aktualisiert: %d IPv4- + %d IPv6-Eintraege (Datenstand: %s, erstellt: %s)\n",
                     $result['ipv4Entries'] ?? 0,
                     $result['ipv6Entries'] ?? 0,
-                    $result['sourceDate'] ?? 'unbekannt'
+                    $result['sourceDate'] ?? 'unbekannt',
+                    $builtAt !== null ? date('Y-m-d H:i', $builtAt) : 'unbekannt'
                 );
             },
             [],

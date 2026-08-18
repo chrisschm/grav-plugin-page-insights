@@ -8,6 +8,9 @@
 2. [](#bugfix)
     * bugfix: `Stats`'s database connection could be left with `PRAGMA foreign_keys` silently switched on for the remainder of a freshly-migrated connection's lifetime (the shipped migration files end with `PRAGMA foreign_keys = on;`, which leaked onto the connection that ran them) - contradicted this class's own documented assumption that foreign keys are never enforced. Never observed to affect an existing install in practice, but would have broken the new `pruneData()` on a database migrated and pruned within the same connection. Now explicitly reset after migration.
 
+3. [](#improved)
+    * improved: `geo-db:update` and the scheduled auto-update job now report both dates a geo-db index carries - the RIR snapshot's own date and when that snapshot was turned into an index file - instead of only the former. The two normally differ by roughly a day (a nightly build packages the previous day's already-published snapshot), which made a perfectly normal update look like a mismatch against what both admin dashboards already show.
+
 # v3.1.3
 ## 08/17/2026 ([6343072](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/6343072742a614ebe8c77d53d1e87eaf75edda64))
 

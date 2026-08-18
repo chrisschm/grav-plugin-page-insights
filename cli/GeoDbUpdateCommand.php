@@ -54,11 +54,21 @@ class GeoDbUpdateCommand extends ConsoleCommand
             return 1;
         }
 
+        $builtAt = $result['builtAt'] ?? null;
+
+        // Deliberately reports both dates, not just sourceDate: the RIR
+        // snapshot date and the (companion-repo or local) build timestamp
+        // are two different things that normally differ by roughly a day
+        // (a nightly build packages the previous day's already-published
+        // snapshot) - see docs/ARCHITECTURE.md "CLI commands" for the full
+        // explanation. Showing only sourceDate here (as before) looked like
+        // a mismatch against the admin dashboards, which always show both.
         $this->output->writeln(sprintf(
-            '<green>Geo-Länder-Datenbank aktualisiert</green> (%d IPv4- + %d IPv6-Einträge, Quelldatum: %s)',
+            '<green>Geo-Länder-Datenbank aktualisiert</green> (%d IPv4- + %d IPv6-Einträge, Datenstand: %s, erstellt: %s)',
             $result['ipv4Entries'] ?? 0,
             $result['ipv6Entries'] ?? 0,
-            $result['sourceDate'] ?? 'unbekannt'
+            $result['sourceDate'] ?? 'unbekannt',
+            $builtAt !== null ? date('Y-m-d H:i', $builtAt) : 'unbekannt'
         ));
 
         return 0;

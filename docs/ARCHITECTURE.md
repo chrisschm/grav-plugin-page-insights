@@ -318,7 +318,15 @@ vendor-bloat mistake `git` history already went through once, see "Notable past 
 
 - **`bin/plugin page-insights geo-db:update [--mode=prebuilt|raw]`** - manual/scriptable equivalent
   of the "Update now" button (see "Geolocation" above); same `GeoDbUpdater::update()` call as the
-  admin triggers and the scheduled job below.
+  admin triggers and the scheduled job below. Its output (and the scheduled job's log line) reports
+  both dates the index carries - "Datenstand" (`sourceDate`, the RIR snapshot's own date) and
+  "erstellt" (`builtAt`, when that snapshot was turned into an index file) - matching what both
+  admin dashboards already show. **These two dates normally differ by roughly a day and that's
+  expected, not a bug:** in `prebuilt` mode the companion repo's nightly CI build always runs some
+  hours *after* the RIR snapshot it consumes was published, so `builtAt`'s calendar day is
+  consistently one day later than `sourceDate`'s. An earlier version of this command only printed
+  `sourceDate`, which made a perfectly normal build look like a one-day mismatch against the
+  dashboards' "Erstellt am"/"Built" date at a glance.
 - **`bin/plugin page-insights prune --older-than=<value> [--yes] [--vacuum]`** - deletes `data` rows
   (page hits) older than `<value>` and, always, any now-orphaned `events` rows (`Stats::pruneData()`
   calls `pruneOrphanedEvents()` internally after every run - see below). `<value>` is either a short
