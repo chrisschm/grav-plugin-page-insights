@@ -39,12 +39,17 @@ user/plugins/page-insights/
 ├── composer.json                          # no third-party runtime dependency (see Geolocation below)
 ├── classes/
 │   ├── Stats.php                          # data layer (PDO/SQLite), UI-independent
+│   ├── RelativeDate.php                   # "--older-than"/"..._older_than" parsing, shared by CLI + scheduler
 │   ├── Api/PageInsightsApiController.php  # REST controller consumed by Admin2
 │   └── Geolocation/                       # self-built country lookup (see "Geolocation" below)
+├── cli/                                   # `bin/plugin page-insights <command>` (see "CLI commands")
+│   ├── GeoDbUpdateCommand.php             # geo-db:update
+│   ├── PruneCommand.php                   # prune
+│   ├── EventsPruneOrphansCommand.php      # events:prune-orphans
+│   └── VacuumCommand.php                  # vacuum
 ├── data/
 │   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see below
 │   └── migrations/{1..5}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
-│   └── migrations/{1..4}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
 │   └── widgets/geo-db-status.html.twig    # geo index status + "Update now" (see "Geolocation")
@@ -293,13 +298,41 @@ of `CountryIndexBuilder` directly now):
   fallback lesson (see "Notable past bugs" #6): the simplest, most reliably-identical-across-both-
   admin-UIs form beats a cleverer one.
 
-  **Not yet built:** the companion repo's own workflow is a fresh design as of this session, not
-  yet created/verified live - and a Scheduler-friendly Grav console command for *per-site*
-  unattended refresh (reusing `GeoDbUpdater`, so it'd pick up either mode) remains a separate,
-  still-deferred follow-up on top of this.
-
 `Ip::toNumber()`/`toIP()` (IPv4 <-> integer helpers, previously dead code kept only for a doc
 mention) are now actually used by `CountryLookup`'s IPv4 binary search.
+
+The previously-deferred "Scheduler-friendly console command for unattended per-site refresh" is
+now `cli/GeoDbUpdateCommand.php` - see "CLI commands" below. Calls the same `GeoDbUpdater::update()`
+as the two manual admin triggers above, so it picks up either source mode identically.
+
+## CLI commands (`cli/`)
+
+Grav auto-discovers any `Grav\Plugin\Console\<Name>Command` class in a plugin's `cli/<Name>Command.php`
+(see Grav core's `PluginCommandLoader`) - no registration in `composer.json` or anywhere else is
+needed, and `Symfony\Component\Console\*` comes from Grav core's own vendor tree, not this plugin's
+(avoids repeating the vendor-bloat mistake `git` history already went through once, see "Notable
+past bugs" #9/#12).
+
+- **`bin/plugin page-insights geo-db:update [--mode=prebuilt|raw]`** - manual/scriptable equivalent
+  of the "Update now" button (see "Geolocation" above); same `GeoDbUpdater::update()` call as the
+  admin triggers.
+- **`bin/plugin page-insights prune --older-than=<value> [--yes] [--vacuum]`** - deletes `data` rows
+  (page hits) older than `<value>` and, always, any now-orphaned `events` rows (`Stats::pruneData()`
+  calls `pruneOrphanedEvents()` internally after every run - see below). `<value>` is either a short
+  relative offset (`90d`/`12w`/`6m`/`1y`) or an absolute date (`2025-01-01`), parsed by
+  `RelativeDate::resolve()` - deliberately not free-form `strtotime()`, since this drives an
+  irreversible `DELETE`. `--vacuum` runs `VACUUM` immediately afterwards (see `vacuum` below) in the
+  same invocation.
+- **`bin/plugin page-insights events:prune-orphans`** - just the orphaned-`events` cleanup, without
+  any age cutoff. `events.session_id` is declared `REFERENCES data (id)` in the schema but without
+  `ON DELETE CASCADE`, and `Stats`'s own connection explicitly runs `PRAGMA foreign_keys = OFF` (see
+  "Notable past bugs" below) - so deleting a `data` row, by any means, never automatically removes
+  its `events`. `prune` already covers rows it deletes itself; this command is for cleaning up
+  drift that predates `pruneData()`/`pruneOrphanedEvents()` existing at all, without touching any
+  otherwise-current `data`.
+- **`bin/plugin page-insights vacuum`** - runs `VACUUM` on its own, independent of `prune`. SQLite
+  only frees deleted rows' pages for internal reuse by default; the file itself stays at its
+  largest-ever size until `VACUUM` rewrites it. Needs a brief exclusive lock on the database.
 
 ## Composer & the compiled autoloader (important operational gotcha)
 
@@ -452,6 +485,31 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     process cycling. Worth remembering for *any* plugin PHP change on this environment, not just
     this one: reloading `php8.5-fpm` is not a substitute for `bin/grav clear-cache`.
 
+12. **A freshly-migrated `Stats` connection silently left `PRAGMA foreign_keys` switched on for the
+    rest of its own lifetime**, contradicting the class's own documented invariant (see
+    `collectEvent()`'s docblock) that foreign keys are never enforced. Found while adding and
+    testing `pruneData()`: every shipped `data/migrations/*.sql` file ends with an explicit
+    `PRAGMA foreign_keys = on;` - harmless for its original purpose (a standalone script run once
+    via a SQLite GUI/CLI tool), but `migrate()` executes that same SQL directly on `$this->db`, so
+    on a freshly-installed database (the only time `migrate()` ever runs - `FORCE_MIGRATION_FLAG` is
+    deleted at its end) the pragma stayed on afterwards. Never observed in practice on an existing
+    install (no code path deletes a `data` row with matching `events` on that specific connection,
+    at that specific moment), but `pruneData()` does exactly that. Fixed by having `Stats::__construct()`
+    explicitly run `PRAGMA foreign_keys = OFF` right after migration, so the connection's behavior
+    never depends on whether `migrate()` just ran. Reproduced and verified fixed against a scratch
+    SQLite database (pre-existing + newly-orphaned `events` rows, verified gone after `pruneData()`;
+    a second `pruneOrphanedEvents()` call afterwards correctly deletes nothing).
+13. **`VACUUM` on a `journal_mode = WAL` connection (`Stats` always runs in WAL, see `__construct()`)
+    doesn't immediately shrink the main database file's on-disk size** - `VACUUM`'s rewritten pages
+    land in the WAL file first, like any other write, and only get folded back into the main file on
+    a checkpoint. Naively `filesize()`-ing the main file immediately before/after `VACUUM` (as
+    `vacuum()`'s before/after reporting first did) showed the exact same size both times, on a
+    scratch database verified to have genuinely shrunk once the connection was closed (which
+    triggers an implicit checkpoint) - i.e. `VACUUM` worked, but the reported numbers falsely
+    suggested it hadn't. Fixed by running `PRAGMA wal_checkpoint(TRUNCATE)` explicitly, both right
+    before measuring "before" and right after `VACUUM` before measuring "after", so the CLI/scheduler
+    output reflects the true, immediate result rather than whatever happens to be checkpointed yet.
+
 ## Known cleanup items
 
 - `classes/Api/PageStatsApiController.php` and `admin-next/pages/page-stats.js` are leftover,
@@ -503,3 +561,10 @@ Zwei Admin-UI-Blueprint-Eigenheiten: `type: section` braucht in Admin2 zusätzli
 sichtbar zu werden; `type: display` existiert nur in Admin2 sinnvoll. Gemeinsamer Nenner für
 Infoboxen, die auf beiden Admin-Versionen funktionieren sollen: `section` + `title` + `text` +
 `fields: {}`.
+
+Neu (siehe "CLI commands" oben): vier `bin/plugin page-insights`-Befehle (`geo-db:update`, `prune`,
+`events:prune-orphans`, `vacuum`) unter `cli/`, per Gravs eigener Auto-Discovery erkannt (kein
+Composer-Eintrag nötig). Die vormals als "Phase 2" zurückgestellte automatische Geo-DB-Aktualisierung
+ist damit als manueller/skriptbarer Befehl umgesetzt, ergänzt um ebenso manuelle Befehle zum
+Löschen alter Statistikdaten (`prune`, `events:prune-orphans`) und zum Verkleinern der
+Datenbankdatei (`vacuum`).

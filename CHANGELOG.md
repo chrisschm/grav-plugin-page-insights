@@ -1,6 +1,12 @@
 # v3.1.4
 ## unreleased
 
+1. [](#new)
+    * feat: added `bin/plugin page-insights` CLI commands - `geo-db:update` (manual/scriptable equivalent of the "Update now" button), `prune --older-than=<value> [--yes] [--vacuum]` (deletes page-view data older than a relative or absolute cutoff, along with any now-orphaned events), `events:prune-orphans` (the same orphan cleanup on its own, regardless of age) and `vacuum` (reclaims disk space from deleted rows). This also delivers the "Scheduler-friendly console command" previously deferred as a follow-up alongside the prebuilt geo-db index.
+
+2. [](#bugfix)
+    * bugfix: `Stats`'s database connection could be left with `PRAGMA foreign_keys` silently switched on for the remainder of a freshly-migrated connection's lifetime (the shipped migration files end with `PRAGMA foreign_keys = on;`, which leaked onto the connection that ran them) - contradicted this class's own documented assumption that foreign keys are never enforced. Never observed to affect an existing install in practice, but would have broken the new `pruneData()` on a database migrated and pruned within the same connection. Now explicitly reset after migration.
+
 # v3.1.3
 ## 08/17/2026 ([6343072](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/6343072742a614ebe8c77d53d1e87eaf75edda64))
 

@@ -52,6 +52,25 @@ class Stats
         if ($migrate) {
             $this->migrate();
         }
+
+        // Every shipped migration file (data/migrations/*.sql) ends with an
+        // explicit "PRAGMA foreign_keys = on;" - harmless for its original
+        // purpose (a standalone script run once via a SQLite GUI/CLI
+        // tool), but migrate() above runs that same SQL directly on
+        // *this* connection, so on a freshly-migrated database the
+        // pragma silently stays on for the rest of this connection's
+        // lifetime - contradicting the rest of this class, which
+        // documents and relies on foreign keys never being enforced
+        // (see collectEvent()'s docblock, and pruneData()/
+        // pruneOrphanedEvents(), which delete "data" rows that older
+        // "events" rows may still point at, by design, on the
+        // now-unenforced REFERENCES). Only actually observed with an
+        // empty freshly-installed database (migrate() only ever runs
+        // once per install, before FORCE_MIGRATION_FLAG is deleted at
+        // its end) - reset explicitly here rather than relying on that
+        // timing, so this connection's behaviour never depends on
+        // whether migrate() just ran.
+        $this->db->exec('PRAGMA foreign_keys = OFF');
     }
 
     private function getUserAgent()
@@ -117,6 +136,89 @@ class Stats
             'mb' => round($this->dbPath->getSize() / 1024 / 1024, 1),
             'path' => (string) $this->dbPath,
         ];
+    }
+
+    /**
+     * Deletes "data" rows (page hits) older than $before, plus - always, as
+     * a side effect - any "events" rows left pointing at a now-deleted
+     * "data" row (see pruneOrphanedEvents()). Used by both `bin/plugin
+     * page-insights prune` (cli/PruneCommand.php) and the scheduled
+     * equivalent (PageInsightsPlugin::registerAutoPruneJob()), so manual and
+     * automatic pruning always behave identically.
+     *
+     * Uses the same datetime()-wrapped comparison as query()'s date range
+     * filter, and for the same reason: a plain text "date < :cutoff"
+     * comparison is a pure string comparison in SQLite and gives wrong
+     * results across rows stored with differing UTC offsets (see the
+     * docblock on query() - the historical "recently viewed pages" bug this
+     * plugin already fixed once for reads applies identically here).
+     *
+     * @return int Number of deleted "data" rows.
+     */
+    public function pruneData(DateTimeImmutable $before): int
+    {
+        $s = $this->db->prepare('DELETE FROM data WHERE datetime(date) < datetime(:cutoff)');
+        $s->bindValue(':cutoff', $before->format('c'));
+        $s->execute();
+        $deleted = $s->rowCount();
+
+        $this->pruneOrphanedEvents();
+
+        return $deleted;
+    }
+
+    /**
+     * Deletes "events" rows whose "session_id" no longer matches any "data"
+     * row - independent of any age cutoff. "events.session_id" is declared
+     * as "REFERENCES data (id)" in the schema, but without an ON DELETE
+     * CASCADE clause, and this class never runs "PRAGMA foreign_keys = ON"
+     * on its own connection (see collectEvent()'s docblock) - so removing a
+     * "data" row, whether via pruneData() or any other means, never
+     * automatically takes its events with it. pruneData() already calls
+     * this itself after every run; exposed standalone (see
+     * cli/EventsPruneOrphansCommand.php) for cleaning up drift that
+     * predates this method, without touching any otherwise-still-current
+     * "data" rows.
+     *
+     * @return int Number of deleted "events" rows.
+     */
+    public function pruneOrphanedEvents(): int
+    {
+        return (int) $this->db->exec('DELETE FROM events WHERE session_id NOT IN (SELECT id FROM data)');
+    }
+
+    /**
+     * Rebuilds the SQLite file to actually reclaim the disk space of
+     * deleted rows - SQLite otherwise only frees the pages internally and
+     * keeps the file itself at its largest-ever size. Never run implicitly
+     * by pruneData()/pruneOrphanedEvents(): VACUUM needs a brief exclusive
+     * lock on the whole database, so callers decide when that's acceptable
+     * (see cli/VacuumCommand.php and the --vacuum option on `prune`).
+     *
+     * @return array{before: int, after: int} File size in bytes, before/after.
+     */
+    public function vacuum(): array
+    {
+        $path = (string) $this->dbPath;
+
+        // In WAL mode (see __construct()) VACUUM's rewritten pages land in
+        // the WAL file first, same as any other write - the main file's
+        // on-disk size doesn't reflect the shrink until those pages are
+        // checkpointed back into it. Without an explicit TRUNCATE
+        // checkpoint, filesize() below would report the same, unchanged
+        // size before and after VACUUM even though it worked - verified
+        // against a scratch database. before/after are checkpointed
+        // identically so the comparison is meaningful either way.
+        $this->db->exec('PRAGMA wal_checkpoint(TRUNCATE)');
+        clearstatcache(true, $path);
+        $before = @filesize($path) ?: 0;
+
+        $this->db->exec('VACUUM');
+        $this->db->exec('PRAGMA wal_checkpoint(TRUNCATE)');
+        clearstatcache(true, $path);
+        $after = @filesize($path) ?: 0;
+
+        return ['before' => $before, 'after' => $after];
     }
 
     // Bounds for the unauthenticated /event-collection endpoint. It has no
