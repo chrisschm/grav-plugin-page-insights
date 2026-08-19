@@ -1,6 +1,6 @@
 {% import 'macros/macros.html.twig' as macros %}
 
-<div class="col-{{ conf.cols_top_pages }}">
+<div class="{{ conf.cols_top_pages }}">
     <h5 class="d-flex justify-content-between pe-2">
         {{ title|default("PLUGIN_PAGE_INSIGHTS.MOST_VIEWED_PAGES"|t) }}
         {% if hide_show_all is not defined %}<a href="{{ pageStats.urls.allPages }}"> <i class="fa fa-fw fa-line-chart"></i> {{ "PLUGIN_PAGE_INSIGHTS.VIEW_ALL"|t }}</a>{% endif %}
