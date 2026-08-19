@@ -72,6 +72,7 @@ PLUGIN_PAGE_INSIGHTS:
   RECENTLY_VIEWED_PAGES: Kürzlich besuchte Seiten
   VIEW_LAST_1000_PAGES: Die letzten 1000 Seiten anzeigen
   TOP_PAGES: Top Seiten
+  TOP_STATUS_CODES: HTTP-Statuscodes
   TOP_BROWSERS: Top Browser
   TOP_COUNTRIES: Top Länder
   TOP_PLATFORMS: Top Plattformen
@@ -94,6 +95,8 @@ PLUGIN_PAGE_INSIGHTS:
   TABLE_UNIQUE_VISITORS: Eindeutige Besucher
   TABLE_UNIQUE_LOGGED_IN_USERS: Eindeutige angemeldete Benutzer
   TABLE_HITS: Treffer
+  TABLE_STATUS: Status
+  STATUS_CODE_OTHER: Sonstige
   VIEW_ALL: Zeige Alle
   ALL_PAGES: Alle Seiten
   PAGE_DETAILS_TITLE: Seitendetails

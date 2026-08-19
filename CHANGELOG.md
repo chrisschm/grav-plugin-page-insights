@@ -1,5 +1,14 @@
+# v3.1.6
+## unreleased
+
+1. [](#new)
+    * feat: added an "HTTP Status Codes" breakdown next to Top Pages (both Admin UIs), showing the 200/404/other split of collected hits. Backed by the `data.http_code` column, which has existed unused in the schema since the very first migration - now actually populated (`Stats::collect()`) and exposed via a new `Stats::statusCodeSummary()`. Deliberately only distinguishes 200 (routable page) and 404 (`template() === 'notfound'`) - the two states reliably known at collection time - everything else (redirects, 403, etc.) folds into a fixed "other" placeholder bucket for now, kept comparable across periods/installs even when empty.
+
+2. [](#bugfix)
+    * bugfix: the Top Pages dashboard widget's column-width class was rendered as `col-{{ conf.cols_top_pages }}`, doubling the `col-` prefix already contained in every `cols_top_pages` config value (e.g. `col-col-12`) and silently dropping its Bootstrap sizing. Fixed as part of giving this widget a `col-12 col-md-9` default (paired with the new status-codes widget at `col-12 col-md-3`).
+
 # v3.1.5
-## 08/19/2026
+## 08/19/2026 ([4b02fda](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/4b02fdac03c228803571a3c7823fbed7d312c8f6))
 
 1. [](#bugfix)
     * bugfix: the front-end "time on page" collector ping (`js/ps.js`) was recognized only by an exact match against the current `PATH_ADMIN_STATS . PATH_EVENTS_COLLECTION` path. Once that prefix changes underneath an already-rendered page - a plugin rename (as happened for `page-stats` -> `page-insights`) or any stale cache still serving old HTML - the browser keeps POSTing pings to the *previous* collector URL, which no longer matched and was logged as a real page hit instead (visible as a high-traffic, always-404 "page" like `/page-stats/event-collection` in Top Pages). Now recognized structurally (POST + path ending in the fixed collector suffix), which is resilient to future renames and base-path/language-prefix differences.

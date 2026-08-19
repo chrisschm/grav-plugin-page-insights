@@ -613,16 +613,29 @@ class PageInsightsPage extends HTMLElement {
             </div>
 
             <div class="grid">
-                <div class="card wide">
-                    <h3>${this._esc(this._t('TOP_PAGES', 'Top pages'))}</h3>
-                    ${this._table(
-                        [this._t('TABLE_PAGE', 'Page'), this._t('TABLE_HITS', 'Hits'), this._t('TABLE_UNIQUE_VISITORS', 'Visitors')],
-                        (o.top_pages || []).map((p) => [
-                            `<span title="${this._esc(p.route)}">${this._esc(p.page_title || p.route)}</span>`,
-                            p.hits,
-                            p.visitors,
-                        ])
-                    )}
+                <div class="status-row">
+                    <div class="card">
+                        <h3>${this._esc(this._t('TOP_PAGES', 'Top pages'))}</h3>
+                        ${this._table(
+                            [this._t('TABLE_PAGE', 'Page'), this._t('TABLE_HITS', 'Hits'), this._t('TABLE_UNIQUE_VISITORS', 'Visitors')],
+                            (o.top_pages || []).map((p) => [
+                                `<span title="${this._esc(p.route)}">${this._esc(p.page_title || p.route)}</span>`,
+                                p.hits,
+                                p.visitors,
+                            ])
+                        )}
+                    </div>
+
+                    <div class="card">
+                        <h3>${this._esc(this._t('TOP_STATUS_CODES', 'HTTP status codes'))}</h3>
+                        ${this._table(
+                            [this._t('TABLE_STATUS', 'Status'), this._t('TABLE_SHARE', '% share')],
+                            (o.status_codes || []).map((s) => [
+                                s.http_code === 'other' ? this._esc(this._t('STATUS_CODE_OTHER', 'Other')) : s.http_code,
+                                `<span title="${s.hits}">${s.share}%</span>`,
+                            ])
+                        )}
+                    </div>
                 </div>
 
                 <div class="card">
@@ -1133,6 +1146,11 @@ class PageInsightsPage extends HTMLElement {
             .card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
             .card.wide { grid-column: 1 / -1; }
             .card h3 { margin: 0 0 10px; font-size: 14px; }
+            /* Top pages + HTTP status codes: paired 3/4 + 1/4 row, own nested
+               grid so it can sit at that ratio without disturbing the equal-
+               fraction auto-fit layout the other cards share. */
+            .status-row { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); gap: 12px; }
+            @media (max-width: 700px) { .status-row { grid-template-columns: 1fr; } }
             table { width: 100%; border-collapse: collapse; font-size: 13px; }
             th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
             th { color: var(--muted-foreground); font-weight: 600; }

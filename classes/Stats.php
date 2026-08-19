@@ -296,13 +296,14 @@ class Stats
 
         $s = $this->db->prepare('
             INSERT INTO data
-                ("ip", "country", "city", "region", "route", "page_title", "user", "date", "user_agent", "is_bot", "browser", "browser_version", "platform", "referer")
+                ("ip", "country", "city", "region", "route", "page_title", "user", "date", "user_agent", "is_bot", "browser", "browser_version", "platform", "referer", "http_code")
              VALUES
-                (:ip, :country, :city, :region, :route, :title, :user, :date, :user_agent, :is_bot, :browser, :browser_version, :platform, :referer)
+                (:ip, :country, :city, :region, :route, :title, :user, :date, :user_agent, :is_bot, :browser, :browser_version, :platform, :referer, :http_code)
         ');
 
 
-        if ('notfound' == $page->template()) {
+        $isNotFound = ('notfound' == $page->template());
+        if ($isNotFound) {
             $pageTitle = (string) $uri;
         }
         $s->bindValue(':ip', $ip);
@@ -319,6 +320,14 @@ class Stats
         $s->bindValue(':browser_version', $browser->getVersion());
         $s->bindValue(':platform', $browser->getPlatform());
         $s->bindValue(':referer', $_SERVER['HTTP_REFERER']??'');
+        // Only 200/404 are ever written here - the only two states this
+        // hook can determine reliably (see isNotFound above, the same
+        // signal $pageTitle already relies on). Redirects/403/etc. aren't
+        // attempted; statusCodeSummary() bins anything that isn't exactly
+        // 200 or 404 - including NULL from rows written before this column
+        // existed - into a forward-compatible "other" bucket, rather than
+        // this method guessing at a code it can't actually verify.
+        $s->bindValue(':http_code', $isNotFound ? 404 : 200, \PDO::PARAM_INT);
 
         $s->execute();
 
@@ -550,6 +559,44 @@ class Stats
                 'platform' => $platform['platform'],
                 'hits' => $platform['hits'],
                 'share' => round($platform['hits'] * 100 / $totalPages, 2)
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * returns hits grouped by HTTP status, as three fixed, always-present
+     * buckets (200, 404, other) rather than the raw distinct values found -
+     * see collect()'s :http_code binding for what's actually ever written.
+     * Fixed buckets keep this comparable across periods/installs even when
+     * one is empty, and let a future, more precise status detection extend
+     * what lands in "other" without changing this method's shape.
+     */
+    public function statusCodeSummary(?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
+    {
+        $totalPages = $this->totalPageViews($dateFrom, $dateTo, $params)[0]['hits'];
+
+        $q = 'select http_code, count(route) as hits from data %where group by http_code';
+
+        $rows = $this->query($q, $params, null, $dateFrom, $dateTo);
+
+        $buckets = [200 => 0, 404 => 0, 'other' => 0];
+        foreach ($rows as $row) {
+            // (int) on a NULL http_code (rows written before this column
+            // existed) yields 0, which correctly isn't a known bucket key
+            // and falls through to 'other' below.
+            $code = (int) $row['http_code'];
+            $key = array_key_exists($code, $buckets) ? $code : 'other';
+            $buckets[$key] += (int) $row['hits'];
+        }
+
+        $result = [];
+        foreach ($buckets as $code => $hits) {
+            $result[] = [
+                'http_code' => $code,
+                'hits' => $hits,
+                'share' => $totalPages > 0 ? round($hits * 100 / $totalPages, 2) : 0,
             ];
         }
 

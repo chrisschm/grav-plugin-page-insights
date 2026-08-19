@@ -64,6 +64,8 @@ PLUGIN_PAGE_INSIGHTS:
 
     TOP_PAGES: Top Pages
 
+    TOP_STATUS_CODES: HTTP Status Codes
+
     TOP_BROWSERS: Top Browsers
 
     TOP_COUNTRIES: Top Countries
@@ -91,6 +93,8 @@ PLUGIN_PAGE_INSIGHTS:
     TABLE_UNIQUE_VISITORS: Unique visitors
     TABLE_UNIQUE_LOGGED_IN_USERS: Unique logged in Users
     TABLE_HITS: Hits
+    TABLE_STATUS: Status
+    STATUS_CODE_OTHER: Other
 
     VIEW_ALL: View all
     ALL_PAGES: All Pages

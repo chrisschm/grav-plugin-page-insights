@@ -1,0 +1,29 @@
+<div class="mb-5 {{ conf.cols_status_codes }}">
+    <h5 class="mb-2">
+        {{ "PLUGIN_PAGE_INSIGHTS.TOP_STATUS_CODES"|t }}
+    </h5>
+    <table class="table table-hover">
+        <tr>
+            <th>
+                {{ "PLUGIN_PAGE_INSIGHTS.TABLE_STATUS"|t }}
+            </th>
+            <th>
+                {{ "PLUGIN_PAGE_INSIGHTS.TABLE_SHARE"|t }}
+            </th>
+        </tr>
+        {% for s in data %}
+            <tr>
+                <td>
+                    {% if s.http_code == 'other' %}
+                        {{ "PLUGIN_PAGE_INSIGHTS.STATUS_CODE_OTHER"|t }}
+                    {% else %}
+                        {{ s.http_code }}
+                    {% endif %}
+                </td>
+                <td>
+                    <span title="{{ s.hits }}">{{ s.share }}%</span>
+                </td>
+            </tr>
+        {% endfor %}
+    </table>
+</div>

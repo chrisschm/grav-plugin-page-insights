@@ -60,8 +60,10 @@ show_recently_viewed_pages: true
 cols_recently_viewed_pages: col-12
 limit_recently_viewed_pages: 15
 show_top_pages: true
-cols_top_pages: col-12
+cols_top_pages: 'col-12 col-md-9'
 limit_top_pages_pages: 15
+show_status_codes: true
+cols_status_codes: 'col-12 col-md-3'
 show_top_countries: true
 cols_top_countries: 'col-12 col-md-3'
 limit_top_countries: 5

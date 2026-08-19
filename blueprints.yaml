@@ -52,6 +52,7 @@ x-widget-size: &widget-size
         'col-12 col-md-3' : small
         'col-12 col-md-4': 'medium'
         'col-12 col-md-6': 'large'
+        'col-12 col-md-9': 'wide (3/4)'
         'col-12': 'full width'
 x-widget-style: &widget-style
     type: select
@@ -389,6 +390,14 @@ form:
                                         show_top_pages: *widget-enabled
                                         cols_top_pages: *widget-size
                                         limit_top_pages_pages: *widget-limit
+                                fs12:
+                                    type: fieldset
+                                    title: PLUGIN_PAGE_INSIGHTS.TOP_STATUS_CODES
+                                    collapsed: false      # Initial state of fieldset (see collapsible option)
+                                    collapsible: true    # Whether one can expand the fieldset or not
+                                    fields:
+                                        show_status_codes: *widget-enabled
+                                        cols_status_codes: *widget-size
                                 fs10:
                                     type: fieldset
                                     title: PLUGIN_PAGE_INSIGHTS.PAGE_DETAILS.RECENT_VIEWS

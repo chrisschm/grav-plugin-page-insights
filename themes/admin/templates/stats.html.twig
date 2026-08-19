@@ -62,6 +62,9 @@
             {% if conf.show_top_pages and (hide_top_pages is not defined) %}
                 {% include 'widgets/top-pages.html.twig' with {'data': pageStats.db.pagesSummary(conf.limit_top_pages_pages) }  %}
             {% endif %}
+            {% if conf.show_status_codes %}
+                {% include 'widgets/top-status-codes.html.twig' with {'data': pageStats.db.statusCodeSummary() }  %}
+            {% endif %}
         </div>
     </div>
 {% endblock %}

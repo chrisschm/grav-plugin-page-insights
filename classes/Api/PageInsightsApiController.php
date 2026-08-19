@@ -65,6 +65,7 @@ class PageInsightsApiController extends AbstractApiController
             'total_unique_visitors' => (int) ($totalVisitors[0]['visitors'] ?? 0),
             'total_unique_users' => (int) ($totalUsers[0]['users'] ?? 0),
             'top_pages' => $stats->pagesSummary(5, $dateFrom, $dateTo),
+            'status_codes' => $stats->statusCodeSummary($dateFrom, $dateTo),
             'top_countries' => $stats->topCountries(5, $dateFrom, $dateTo),
             'top_browsers' => $stats->topBrowsers(5, $dateFrom, $dateTo),
             'top_platforms' => $stats->topPlatforms(5, $dateFrom, $dateTo),
