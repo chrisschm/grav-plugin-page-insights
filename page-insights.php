@@ -378,9 +378,6 @@ class PageInsightsPlugin extends Plugin
     {
         $uri = $this->grav['uri'];
 
-        $collectorRoute =  self::PATH_ADMIN_STATS . self::PATH_EVENTS_COLLECTION;
-
-
         $page = $this->grav['page'];
         if (false === $this->isEnabledForPage((array)$page->header())) {
             return;
@@ -397,14 +394,48 @@ class PageInsightsPlugin extends Plugin
         }
 
 
-        switch ($uri->path()) {
-            case $collectorRoute:
-                $this->collectEventData();
-                break;
-            default:
-                $this->collectPageData();
-                break;
+        if ($this->isCollectorRequest($uri)) {
+            $this->collectEventData();
+        } else {
+            $this->collectPageData();
         }
+    }
+
+    /**
+     * Recognizes our own front-end collector call (the `time_on_page()`
+     * ping in js/ps.js) structurally - POST plus a path ending in the
+     * fixed PATH_EVENTS_COLLECTION suffix - instead of an exact match
+     * against the full, renameable `PATH_ADMIN_STATS . PATH_EVENTS_COLLECTION`
+     * path.
+     *
+     * An exact match breaks the moment that prefix changes underneath an
+     * already-rendered page: a plugin rename (as happened 11.08.2026,
+     * page-stats -> page-insights) or any stale cache still serving old
+     * HTML embeds the *previous* collector URL in `pageStats.url`, so the
+     * browser keeps POSTing pings to a path that no longer equals the
+     * current constant. Those requests then fell through to the `default`
+     * branch above, i.e. collectPageData() - which deliberately also logs
+     * 404s (see Stats::collect(), 'notfound' template handling, meant for
+     * tracking broken links) - so every such ping got counted as a real
+     * page hit under the stale route (e.g. "/page-stats/event-collection"
+     * showing up in Top Pages with a 404 behind it).
+     *
+     * Matching on the suffix alone is resilient to any future rename of
+     * PATH_ADMIN_STATS and to base-path/language-prefix differences.
+     * Requiring POST additionally rules out real (GET) page requests that
+     * would coincidentally end in "/event-collection" - Grav frontend page
+     * views are never POST.
+     */
+    private function isCollectorRequest($uri): bool
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            return false;
+        }
+
+        $path = $uri->path();
+        $suffix = self::PATH_EVENTS_COLLECTION;
+
+        return substr($path, -strlen($suffix)) === $suffix;
     }
 
 
