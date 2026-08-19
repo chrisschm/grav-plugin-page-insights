@@ -1,6 +1,8 @@
 # Page Insights Plugin
 
-[![Übersetzungsstatus](https://translate.codeberg.org/widget/grav-plugin-page-insights/svg-badge.svg)](https://translate.codeberg.org/engage/grav-plugin-page-insights/)
+[![Latest Release](https://img.shields.io/gitea/v/release/chschmidt/grav-plugin-page-insights?gitea_url=https%3A%2F%2Fcodeberg.org%2F&display_name=release)](https://codeberg.org/chschmidt/grav-plugin-page-insights/releases) 
+[![MIT-Lizenz](https://img.shields.io/badge/License-MIT-blue.svg)](https://de.wikipedia.org/wiki/MIT-Lizenz) 
+[![Übersetzungsstatus](https://translate.codeberg.org/widget/grav-plugin-page-insights/svg-badge.svg)](https://translate.codeberg.org/engage/grav-plugin-page-insights/)  
 
 ![](screenshot.png)
 
