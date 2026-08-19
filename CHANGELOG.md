@@ -1,5 +1,9 @@
+# v3.1.5
+## unreleased
+
+
 # v3.1.4
-## 08/19/2026
+## 08/19/2026 ([88fe4b9](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/88fe4b9266ee6aaf621122e68bddd3ef86c5c8da))
 
 1. [](#new)
     * feat: added `bin/plugin page-insights` CLI commands - `geo-db:update` (manual/scriptable equivalent of the "Update now" button), `prune --older-than=<value> [--yes] [--vacuum]` (deletes page-view data older than a relative or absolute cutoff, along with any now-orphaned events), `events:prune-orphans` (the same orphan cleanup on its own, regardless of age) and `vacuum` (reclaims disk space from deleted rows). This also delivers the "Scheduler-friendly console command" previously deferred as a follow-up alongside the prebuilt geo-db index.
