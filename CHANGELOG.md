@@ -1,5 +1,5 @@
 # v3.1.5
-## unreleased
+## 08/19/2026
 
 1. [](#bugfix)
     * bugfix: the front-end "time on page" collector ping (`js/ps.js`) was recognized only by an exact match against the current `PATH_ADMIN_STATS . PATH_EVENTS_COLLECTION` path. Once that prefix changes underneath an already-rendered page - a plugin rename (as happened for `page-stats` -> `page-insights`) or any stale cache still serving old HTML - the browser keeps POSTing pings to the *previous* collector URL, which no longer matched and was logged as a real page hit instead (visible as a high-traffic, always-404 "page" like `/page-stats/event-collection` in Top Pages). Now recognized structurally (POST + path ending in the fixed collector suffix), which is resilient to future renames and base-path/language-prefix differences.
