@@ -10,6 +10,15 @@ Enhanced page and user analytics for Grav, with full support for both the classi
 
 This plugin adds an entry to the admin plugin sidebar showing detailed page and visitor statistics about your site.
 
+## Documentation
+
+This README covers the essentials. The full user/admin handbook - installation, every
+configuration option, using the dashboards, storage & maintenance, geolocation, privacy &
+security, and a FAQ - lives in the [Codeberg
+wiki](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki), available in German and
+English. Contributors looking to work on the plugin's code itself should start with
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) instead.
+
 ## History
 
 Page Insights is an independent continuation of [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats)
