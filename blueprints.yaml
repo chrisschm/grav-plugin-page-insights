@@ -1,7 +1,7 @@
 name: Page Insights
 slug: page-insights
 type: plugin
-version: 3.1.3
+version: 3.1.4
 description: Enhanced page/user analytics for Grav, with Admin2 support. Independent fork of Page Stats by Nuno Costa.
 icon: plug
 author:
