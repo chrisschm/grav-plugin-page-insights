@@ -71,7 +71,7 @@ body:
       label: Relevant logs / error messages
       description: >-
         Grav log output, PHP errors, or browser console output. Please redact any private
-        feed URLs or credentials before pasting.
+        URLs, IP addresses, or credentials before pasting.
       render: shell
   - type: checkboxes
     id: checks
