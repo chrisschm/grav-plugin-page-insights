@@ -12,6 +12,19 @@ closed/redirected.
 - Report a bug or request a feature: https://codeberg.org/chschmidt/grav-plugin-page-insights/issues/new/choose
 - Submit code changes: open a pull request against Codeberg
 
+## Project history
+
+Page Insights is an independent continuation of [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats)
+by Nuno Costa. After Page Stats saw no direct code changes from its maintainer for several years, two pull requests
+were contributed upstream instead: [#54](https://github.com/francodacosta/grav-plugin-page-stats/pull/54) added
+Admin2/Grav 2.0 compatibility, and [#56](https://github.com/francodacosta/grav-plugin-page-stats/pull/56) added the
+Page/User Detail views, a reorganized config screen, and a number of bugfixes and UX improvements. Both were
+eventually merged upstream. Development continues independently here under a new name, so further changes aren't
+dependent on upstream review timing.
+
+Full credit and thanks to Nuno Costa for creating and open-sourcing the original plugin - this project wouldn't
+exist without it.
+
 ## Design goals (please keep these in mind for any change)
 
 - Must stay installable via GPM without any manual steps by the end user. The plugin has no
@@ -99,9 +112,9 @@ directly.
   filter - use the file's own `_t()`/`_tf()` helpers, not the key strings directly
 - `themes/admin/templates/` — Classic Admin (Grav 1.x) dashboard widgets and detail pages
 
-See the plugin's own `README.md` for the full list of configuration options, and
-`docs/ARCHITECTURE.md` (if present) for a deeper look at the Admin2 sub-routing approach and other
-non-obvious design decisions.
+See the wiki's [Configuration](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki/en.Configuration)
+page for the full list of configuration options, and `docs/ARCHITECTURE.md` for a deeper look at
+the Admin2 sub-routing approach and other non-obvious design decisions.
 
 ## Release process (for context, maintainer-only)
 
@@ -124,6 +137,16 @@ contribution is provided under the same license.
 **Dieses GitHub-Repository ist nur ein Lese-Mirror.** Die eigentliche Entwicklung findet auf
 [Codeberg](https://codeberg.org/chschmidt/grav-plugin-page-insights) statt. Bitte Bugs/Feature-Wünsche
 und Pull Requests dort einreichen.
+
+**Geschichte des Projekts:** Page Insights ist eine unabhängige Fortführung von [Page
+Stats](https://github.com/francodacosta/grav-plugin-page-stats) von Nuno Costa. Nachdem Page Stats
+mehrere Jahre lang keine direkten Code-Änderungen vom Maintainer mehr erhielt, wurden stattdessen
+zwei Pull Requests upstream beigetragen ([#54](https://github.com/francodacosta/grav-plugin-page-stats/pull/54):
+Admin2/Grav-2.0-Kompatibilität, [#56](https://github.com/francodacosta/grav-plugin-page-stats/pull/56):
+Page-/User-Detail-Ansichten, überarbeiteter Konfigurationsbildschirm, diverse Bugfixes/UX-Verbesserungen),
+beide wurden gemergt. Die Weiterentwicklung läuft seither unabhängig unter neuem Namen weiter, ohne
+von der Review-Geschwindigkeit des Upstreams abzuhängen. Voller Dank an Nuno Costa für das
+ursprüngliche, quelloffene Plugin - ohne das es dieses Projekt nicht gäbe.
 
 **Design-Ziele:** GPM-fähig ohne manuellen Eingriff (trotz einer echten Composer-Abhängigkeit,
 `vendor/` ist deshalb committet), Kompatibilität mit **beiden** Admin-Oberflächen (Classic Admin

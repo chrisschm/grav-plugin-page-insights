@@ -9,8 +9,10 @@
 The **Page Insights** Plugin is an extension for [Grav CMS](http://github.com/getgrav/grav).
 
 Enhanced page and user analytics for Grav, with full support for both the classic Admin (Grav 1.7) and Admin2 (Grav 2.0).
-
 This plugin adds an entry to the admin plugin sidebar showing detailed page and visitor statistics about your site.
+
+Page Insights is an independent continuation of [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats)
+by Nuno Costa - see [`CONTRIBUTING.md`](CONTRIBUTING.md#project-history) for the full history.
 
 ## Documentation
 
@@ -18,21 +20,8 @@ This README covers the essentials. The full user/admin handbook - installation, 
 configuration option, using the dashboards, storage & maintenance, geolocation, privacy &
 security, and a FAQ - lives in the [Codeberg
 wiki](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki), available in German and
-English. Contributors looking to work on the plugin's code itself should start with
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) instead.
-
-## History
-
-Page Insights is an independent continuation of [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats)
-by Nuno Costa. After Page Stats saw no direct code changes from its maintainer for several years, two pull requests
-were contributed upstream instead: [#54](https://github.com/francodacosta/grav-plugin-page-stats/pull/54) added
-Admin2/Grav 2.0 compatibility, and [#56](https://github.com/francodacosta/grav-plugin-page-stats/pull/56) added the
-Page/User Detail views, a reorganized config screen, and a number of bugfixes and UX improvements. Both were
-eventually merged upstream. Development continues independently here under a new name, so further changes aren't
-dependent on upstream review timing.
-
-Full credit and thanks to Nuno Costa for creating and open-sourcing the original plugin - this project wouldn't
-exist without it.
+English. Contributors looking to work on the plugin's code itself should start at
+[`docs/README.md`](docs/README.md) instead.
 
 ## Features
 
@@ -43,32 +32,45 @@ exist without it.
 * IP fallback for anonymous (non-logged-in) visitors, individually traceable via their IP
 * Works with both the classic Admin (Grav 1.7) and Admin2 (Grav 2.0) side by side
 
-## First Run
+## Installation
 
-When you first run this plugin it will create a new SQLite database to store the data; its location can be defined
-in the plugin config, and defaults to ```user/data/page-insights.sqlite```.
+**Requirements:** Grav 1.7 or newer, PHP >= 8.0. Admin2 additionally requires the official `api`
+plugin (Classic Admin works without it).
 
-> **Coming from Page Stats?** Page Insights uses a separate database file by default, so running both plugins in
-> parallel during a transition won't double-count hits. If you'd rather carry over your existing history than start
-> fresh, copy (not move, in case you want to keep Page Stats installed too) your existing
-> `user/data/page-data.sqlite` to the new `user/data/page-insights.sqlite` path before the first run.
+### Via GPM (recommended)
+
+* **Admin panel:** *Plugins → Add* → search for "Page Insights" → Install.
+* **CLI:**
+  ```
+  bin/gpm install page-insights
+  ```
+
+### Manual installation
+
+1. Download the latest release from [Codeberg](https://codeberg.org/chschmidt/grav-plugin-page-insights/releases)
+   and unzip it under `/your/site/grav/user/plugins`.
+2. Rename the extracted folder to `page-insights` (if it isn't already named that).
+3. Copy `user/plugins/page-insights/page-insights.yaml` to `user/config/plugins/page-insights.yaml`
+   and only edit that copy - the file inside the plugin folder itself is overwritten on every
+   update.
+
+### First run
+
+The first time a page is loaded after installation, the plugin automatically creates a new SQLite
+database; its location can be defined in the plugin config and defaults to
+`user/data/page-insights.sqlite`.
+
+> **Coming from Page Stats?** Page Insights uses a separate database file by default, so running
+> both plugins in parallel during a transition won't double-count hits. If you'd rather carry over
+> your existing history than start fresh, copy (not move, in case you want to keep Page Stats
+> installed too) your existing `user/data/page-data.sqlite` to the new
+> `user/data/page-insights.sqlite` path before the first run. Full details, including GPM update
+> behavior and database migrations, are in the wiki's
+> [Installation](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki/en.Installation) page.
 
 ## Configuration
 
-Before configuring this plugin, you should copy `user/plugins/page-insights/page-insights.yaml` to
-`user/config/plugins/page-insights.yaml` and only edit that copy.
-
-> Note:
-> If the DB file does not exist it will be created on first run
->
-> Bot detection is based on user agent, it is not perfect, but it does work well
-
-Note that if you use the Admin Plugin, a file with your configuration named `page-insights.yaml` will be saved in
-the `user/config/plugins/` folder once the configuration is saved in the Admin.
-
-### Front Matter
-
-You can exclude individual pages from analytics by disabling the plugin in the page front matter as follows:
+You can exclude individual pages from analytics via the page front matter:
 ```
 ---
 page-insights:
@@ -76,38 +78,17 @@ page-insights:
 ---
 ```
 
-## Database Migrations/Updates
-
-From time to time database changes are published to support new features. Migrations should happen automatically,
-but if you get errors like `Column XYZ not found` do the following:
-
-1. Create an empty file at `user/plugins/page-insights/data/migrations/MUST_MIGRATE`
-2. Navigate to a page on your website
-
-This will trigger the plugin to execute the database migration and will delete the `MUST_MIGRATE` file.
-
-## Installation
-
-Page Insights is not (yet) listed in the official GPM (Grav Package Manager) directory, so manual installation is
-currently the way to go. GPM installation will be documented here if/when that changes.
-
-### Manual Installation
-
-1. Download the latest release from [Codeberg](https://codeberg.org/chschmidt/grav-plugin-page-insights) and unzip
-   it under `/your/site/grav/user/plugins`.
-2. Rename the extracted folder to `page-insights`.
-3. Copy `user/plugins/page-insights/page-insights.yaml` to `user/config/plugins/page-insights.yaml` and only edit
-   that copy.
-
-### Admin Plugin
-
-Once GPM listing is available, installing via the Admin Plugin's `Plugins` menu will also be an option.
+See the wiki's [Configuration](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki/en.Configuration)
+page for every available setting (across the General, Classic Admin, and Admin2 tabs).
 
 ## Usage
 
-Just install and have fun! There is nothing else you need to do, the plugin works out of the box.
+Once installed and configured, Page Insights collects visits automatically - there's nothing else
+to do. All reporting happens inside the Admin panel; there's no publicly visible statistics page.
+Have a look at the Grav error log if nothing appears to be collected.
 
-Have a look at the Grav error log to make sure the plugin is running fine.
+See the wiki's [Usage](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki/en.Usage) page
+for a tour of the dashboards, page/user detail views, and search.
 
 ## Credits
 
@@ -120,25 +101,51 @@ database is bundled with or downloaded automatically by the plugin.
 
 Country flags from <a href="https://flagcdn.com">https://flagcdn.com</a>.
 
-Originally created by Nuno Costa as [Page Stats](https://github.com/francodacosta/grav-plugin-page-stats).
+## Links
 
-## To Do
+* Report a bug or request a feature: [issue tracker](https://codeberg.org/chschmidt/grav-plugin-page-insights/issues)
+* [Security policy](SECURITY.md)
+* [Contributing guide](CONTRIBUTING.md)
+* [Code of Conduct](CODE_OF_CONDUCT.md)
+* [Changelog](CHANGELOG.md)
 
-- [X] Browser / device stats (based on user agent)
-- [X] User behaviour (select a user and see their session history and page flows)
-- [X] Top country stats
-- [X] Page details (select a page and see detailed stats about it)
-- [X] User details (select a user and see detailed stats about them)
-- [X] Referer logging
-- [X] Time on page
-- [X] Admin2 (Grav 2.0) support
-- [ ] Referer analysis, to better understand where visitors are coming from
-- [ ] Overview limited to "real" content pages (`.md` files under `user/pages`, excluding assets/sitemap/robots.txt),
-      with a date-range filter
-- [X] i18n for Admin2 labels
-- [ ] Locale-aware date formatting on the Admin2 dashboard (chart x-axis labels are
-      still a fixed `DD.MM.` format regardless of admin language)
-- [ ] World map view
-- [ ] Show city-level stats on the country stats page
-- [ ] Enable/disable front-end event collection
-- [ ] Custom events triggered by JavaScript
+## License
+
+MIT - see [LICENSE](LICENSE).
+
+---
+
+## Auf Deutsch (Kurzfassung)
+
+**Page Insights** ist eine Erweiterung für [Grav CMS](http://github.com/getgrav/grav): erweiterte
+Seiten- und Besucherstatistiken, mit vollem Support für sowohl das klassische Admin-Panel
+(Grav 1.7) als auch Admin2 (Grav 2.0). Das Plugin fügt dem Admin-Menü einen eigenen Bereich mit
+detaillierten Seitenaufruf- und Besucherstatistiken hinzu.
+
+Page Insights ist eine unabhängige Fortführung von [Page
+Stats](https://github.com/francodacosta/grav-plugin-page-stats) von Nuno Costa - die vollständige
+Geschichte steht in [`CONTRIBUTING.md`](CONTRIBUTING.md#project-history).
+
+**Installation:** empfohlen per GPM (`bin/gpm install page-insights` oder über *Plugins → Add* im
+Admin-Panel), alternativ manuell per Zip-Download von
+[Codeberg](https://codeberg.org/chschmidt/grav-plugin-page-insights/releases). Nach der
+Installation `page-insights.yaml` nach `user/config/plugins/` kopieren und nur diese Kopie
+bearbeiten. Details (u. a. Umstieg von Page Stats, Datenbank-Migrationen) im Wiki unter
+[Installation](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki/de.Installation).
+
+**Konfiguration & Verwendung:** läuft nach der Installation automatisch im Hintergrund, alle
+Auswertungen erscheinen im Admin-Panel. Einzelne Seiten lassen sich per Front Matter
+(`page-insights: process: false`) ausschließen. Alle Einstellungen im Detail:
+[Konfiguration](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki/de.Konfiguration) im
+Wiki.
+
+**Dokumentation:** Diese README deckt das Wesentliche ab. Das vollständige Nutzer-/Admin-Handbuch
+liegt im [Codeberg-Wiki](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki) (Deutsch
+und Englisch), Entwickler-Dokumentation beginnt bei [`docs/README.md`](docs/README.md).
+
+**Weitere Links:** [Fehler
+melden](https://codeberg.org/chschmidt/grav-plugin-page-insights/issues),
+[Sicherheitsrichtlinie](SECURITY.md), [Mitwirken](CONTRIBUTING.md),
+[Verhaltenskodex](CODE_OF_CONDUCT.md), [Changelog](CHANGELOG.md).
+
+**Lizenz:** MIT.
