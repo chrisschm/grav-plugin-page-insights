@@ -1,5 +1,8 @@
+# v3.1.7
+## unreleased
+
 # v3.1.6
-## 08/20/2026
+## 08/20/2026 ([67713d5](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/67713d5528b64e91c7cfb8de0f046740913d9c65))
 
 1. [](#new)
     * feat: added an "HTTP Status Codes" breakdown next to Top Pages (both Admin UIs), showing the 200/404/other split of collected hits. Backed by the `data.http_code` column, which has existed unused in the schema since the very first migration - now actually populated (`Stats::collect()`) and exposed via a new `Stats::statusCodeSummary()`. Deliberately only distinguishes 200 (routable page) and 404 (`template() === 'notfound'`) - the two states reliably known at collection time - everything else (redirects, 403, etc.) folds into a fixed "other" placeholder bucket for now, kept comparable across periods/installs even when empty.
