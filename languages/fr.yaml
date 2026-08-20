@@ -290,3 +290,23 @@ PLUGIN_PAGE_INSIGHTS:
     ERROR_GEO_DB_UPDATE: "Impossible de mettre à jour la base de données
       géographique."
     GEO_DB_UPDATED_TOAST: Base de données géographique mise à jour.
+    DB_MAINTAIN_BUTTON: Maintenance de la base de données
+    DB_MAINTAIN_BUTTON_TITLE: "Libérer de l'espace disque ou supprimer
+      d'anciennes données statistiques"
+    DB_MAINTAIN_RUNNING: "Exécution…"
+    DB_MAINTAIN_TITLE: Maintenance de la base de données
+    DB_MAINTAIN_WARNING: "La suppression de données statistiques est
+      définitive et irréversible."
+    DB_MAINTAIN_ACTION_LABEL: Action
+    DB_MAINTAIN_ACTION_VACUUM: "Libérer de l'espace disque uniquement (aucune
+      donnée n'est supprimée)"
+    DB_MAINTAIN_ACTION_PRUNE_ORPHANS: Supprimer les événements orphelins
+    DB_MAINTAIN_ACTION_PRUNE_OLD: Supprimer les données de plus d'1 an
+    DB_MAINTAIN_SUBMIT: Exécuter
+    DB_MAINTAIN_TOAST_DELETED: "%s ligne(s) supprimée(s). Taille de la base de
+      données : %s Mo → %s Mo."
+    DB_MAINTAIN_TOAST_VACUUM: "Taille de la base de données : %s Mo → %s Mo."
+    ERROR_DB_MAINTAIN: "Impossible d'effectuer la maintenance de la base de
+      données."
+    ERROR_DB_MAINTAIN_UNAVAILABLE: "La maintenance de la base de données n'est
+      pas disponible dans cette version d'Admin2."

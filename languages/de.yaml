@@ -253,3 +253,22 @@ PLUGIN_PAGE_INSIGHTS:
     ERROR_GEO_DB_UPDATE: Die Geo-Länderdatenbank konnte nicht aktualisiert
       werden.
     GEO_DB_UPDATED_TOAST: Geo-Länderdatenbank aktualisiert.
+    DB_MAINTAIN_BUTTON: Datenbank pflegen
+    DB_MAINTAIN_BUTTON_TITLE: Speicherplatz freigeben oder alte Statistikdaten
+      löschen
+    DB_MAINTAIN_RUNNING: Wird ausgeführt…
+    DB_MAINTAIN_TITLE: Datenbank pflegen
+    DB_MAINTAIN_WARNING: Das Löschen von Statistikdaten ist endgültig und kann
+      nicht rückgängig gemacht werden.
+    DB_MAINTAIN_ACTION_LABEL: Aktion
+    DB_MAINTAIN_ACTION_VACUUM: Nur Speicherplatz freigeben (es werden keine
+      Daten gelöscht)
+    DB_MAINTAIN_ACTION_PRUNE_ORPHANS: Verwaiste Events löschen
+    DB_MAINTAIN_ACTION_PRUNE_OLD: Daten älter als 1 Jahr löschen
+    DB_MAINTAIN_SUBMIT: Ausführen
+    DB_MAINTAIN_TOAST_DELETED: '%s Eintrag/Einträge gelöscht. Datenbankgröße:
+      %s MB → %s MB.'
+    DB_MAINTAIN_TOAST_VACUUM: 'Datenbankgröße: %s MB → %s MB.'
+    ERROR_DB_MAINTAIN: Datenbankpflege konnte nicht durchgeführt werden.
+    ERROR_DB_MAINTAIN_UNAVAILABLE: Datenbankpflege ist in dieser Admin2-Version
+      nicht verfügbar.

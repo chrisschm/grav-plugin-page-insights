@@ -19,8 +19,14 @@ see `README.md` for the full history.
 
 These apply to any future change (see also `CONTRIBUTING.md`):
 
-- Dual-Admin compatibility: every user-facing feature must work under **both** Classic Admin and
-  Admin2, not just the currently more actively developed one.
+- Dual-Admin compatibility: a change to the Admin2/Grav 2.0 side must never break the Classic
+  Admin/Grav 1.x side, which is kept working (bugfixes, no regressions) until its Grav-side EOL.
+  Beyond that baseline, whether a genuinely *new* feature also gets built for Classic Admin is a
+  case-by-case call, not an automatic requirement: a new read-only display (e.g. the HTTP status
+  codes widget, added to both admin UIs) is fine and welcome there too. A new *actionable*
+  surface - anything that triggers a mutation and would need its own ongoing support/maintenance
+  in the old environment (e.g. the database maintenance dialog, deliberately Admin2-only) - isn't
+  something to open up there without a specific reason; active development targets Admin2 only.
 - No third-party runtime Composer dependency (the last one, `ip2location/ip2location-php`, was
   removed 2026-08-15 - see "Geolocation" below). `vendor/` is still deliberately committed to the
   repository (see "Composer & the compiled autoloader" below) so installation stays a plain file
@@ -344,6 +350,41 @@ vendor-bloat mistake `git` history already went through once, see "Notable past 
 - **`bin/plugin page-insights vacuum`** - runs `VACUUM` on its own, independent of `prune`. SQLite
   only frees deleted rows' pages for internal reuse by default; the file itself stays at its
   largest-ever size until `VACUUM` rewrites it. Needs a brief exclusive lock on the database.
+
+## Admin2 database maintenance dialog (`PageInsightsApiController::maintainDb()`)
+
+An on-demand "Maintain database" button sits next to the "Database size: X MB" badge in the
+Admin2 dashboard toolbar (`admin-next/pages/page-insights.js`,
+`_openDbMaintainDialog()`/`_runDbMaintenance()`). It calls the same `Stats` methods the CLI
+commands above already use - no new business logic, purely a UI on top of `vacuum()`/
+`pruneOrphanedEvents()`/`pruneData()` via a new endpoint, `POST /page-insights/db/maintain`
+(`api.system.write`, same pattern as `rebuildGeoDb()`). Admin2-only, deliberately - no Classic
+Admin equivalent. Per "Design goals" above: this is an *actionable* surface (it triggers
+irreversible deletes/a VACUUM), not a read-only display like the HTTP status codes widget - it
+would mean maintaining a second mutation-triggering surface in the old environment going
+forward, which isn't worth it for a feature this specific.
+
+**UI:** a single `window.__GRAV_DIALOGS.form()` modal - a warning that deletion is permanent,
+followed by one `select` field with exactly three presets (`vacuum` / `prune_orphans` /
+`prune_old`). Deliberately just the one dialog, with no separate `confirm()` safety step
+afterwards: the warning is already shown right above the choice, and the modal's own submit
+button *is* the confirmation - matching what was actually asked for rather than adding an extra
+click "to be safe". Deliberately no free-form "older than" input either (unlike the `prune` CLI
+command's `--older-than`) - three fixed presets keep the dialog simple, which was an explicit
+design goal for this feature.
+
+**Backend mapping** (`maintainDb()`):
+
+- `vacuum` → `Stats::vacuum()` only. No data deleted.
+- `prune_orphans` → `Stats::pruneOrphanedEvents()`, then `Stats::vacuum()`.
+- `prune_old` → `Stats::pruneData($cutoff)` with `$cutoff` fixed at "now minus 1 year" (not
+  configurable in this dialog - see above), then `Stats::vacuum()`. `pruneData()` already deletes
+  orphaned events as a side effect (see its doc comment), so this covers both in one preset.
+
+`VACUUM` always runs last regardless of which preset was chosen, mirroring the CLI's own
+`prune --vacuum` combination - the response therefore always reports a `size_before`/`size_after`
+pair, and `deleted` is `null` only for the pure-`vacuum` preset (used by the frontend to pick
+between the "N row(s) deleted, X MB → Y MB" and plain "X MB → Y MB" toast wording).
 
 ## Automatic scheduling (`PageInsightsPlugin::onSchedulerInitialized()`, `AutoSchedule`)
 

@@ -354,6 +354,70 @@ class PageInsightsApiController extends AbstractApiController
     }
 
     /**
+     * POST /page-insights/db/maintain
+     *
+     * Admin-triggered, on-demand database maintenance for the Admin2 dashboard's
+     * "Maintain database" button (next to the "Database size: X MB" badge) -
+     * same write-permission/synchronous/ValidationException-on-error pattern as
+     * rebuildGeoDb() above. No Classic Admin equivalent, matching this plugin's
+     * "new features are Admin2-only" convention (see docs/ARCHITECTURE.md).
+     *
+     * Deliberately a single fixed-choice `action` rather than a free "older
+     * than" input like the `prune` CLI command's --older-than option - keeping
+     * the dialog to three presets was a conscious simplicity choice. All three
+     * ultimately call the same Stats methods the CLI commands
+     * (cli/PruneCommand.php, cli/EventsPruneOrphansCommand.php,
+     * cli/VacuumCommand.php) and the optional automatic prune job already use:
+     *
+     * Body: {"action": "vacuum" | "prune_orphans" | "prune_old"}
+     *   - vacuum:        Stats::vacuum() only - no data is deleted.
+     *   - prune_orphans: Stats::pruneOrphanedEvents(), then Stats::vacuum().
+     *   - prune_old:     Stats::pruneData(cutoff = now - 1 year) - which
+     *                     already deletes orphaned events as a side effect,
+     *                     see its own doc comment - then Stats::vacuum().
+     *
+     * VACUUM always runs last regardless of the chosen action (mirroring
+     * `prune --vacuum`), so the response always reports a size_before/
+     * size_after pair; `deleted` is null only for the pure-vacuum action.
+     */
+    public function maintainDb(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->requirePermission($request, self::WRITE_PERMISSION);
+
+        $body = $this->getRequestBody($request);
+        $this->requireFields($body, ['action']);
+        $action = (string) $body['action'];
+
+        $stats = $this->getStats();
+        $deleted = null;
+
+        switch ($action) {
+            case 'vacuum':
+                break;
+            case 'prune_orphans':
+                $deleted = $stats->pruneOrphanedEvents();
+                break;
+            case 'prune_old':
+                $deleted = $stats->pruneData(new DateTimeImmutable('-1 year'));
+                break;
+            default:
+                throw new ValidationException("Unknown action '{$action}'.", [
+                    ['field' => 'action', 'message' => 'Must be one of: vacuum, prune_orphans, prune_old.'],
+                ]);
+        }
+
+        $sizes = $stats->vacuum();
+
+        return ApiResponse::create([
+            'action' => $action,
+            'deleted' => $deleted,
+            'db' => $stats->dbStats(),
+            'size_before' => $sizes['before'],
+            'size_after' => $sizes['after'],
+        ]);
+    }
+
+    /**
      * Builds the same style of equality-filter array Stats::query() expects
      * (['route' => ...] / ['user' => ...] / ['ip' => ...]) from whichever of
      * those query params is present. Returns [] (no filter) if none are -

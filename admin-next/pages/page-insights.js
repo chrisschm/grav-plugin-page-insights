@@ -206,11 +206,16 @@ class PageInsightsPage extends HTMLElement {
         return json.data !== undefined ? json.data : json;
     }
 
-    async _apiPost(path) {
-        const resp = await fetch(this._apiUrl(path), { method: 'POST', headers: this._apiHeaders() });
+    async _apiPost(path, body) {
+        const hasBody = body !== undefined;
+        const resp = await fetch(this._apiUrl(path), {
+            method: 'POST',
+            headers: hasBody ? { ...this._apiHeaders(), 'Content-Type': 'application/json' } : this._apiHeaders(),
+            body: hasBody ? JSON.stringify(body) : undefined,
+        });
         if (!resp.ok) {
-            const body = await resp.json().catch(() => ({}));
-            throw new Error(body.detail || body.title || this._tf('ADMIN2.REQUEST_FAILED', 'Request failed (%s)', resp.status));
+            const errorBody = await resp.json().catch(() => ({}));
+            throw new Error(errorBody.detail || errorBody.title || this._tf('ADMIN2.REQUEST_FAILED', 'Request failed (%s)', resp.status));
         }
         const json = await resp.json().catch(() => ({}));
         return json.data !== undefined ? json.data : json;
@@ -329,6 +334,95 @@ class PageInsightsPage extends HTMLElement {
         } finally {
             this.#geoBusy = false;
             this._renderBody();
+        }
+    }
+
+    /**
+     * Opens the "Maintain database" dialog (button next to the database-size
+     * badge, see _renderDashboardShell()) via window.__GRAV_DIALOGS.form() -
+     * a single modal with a warning description plus a three-option select,
+     * deliberately no separate confirm() step: the warning is already shown
+     * right above the choice, and the dialog's own submit button is the
+     * confirmation, keeping this to the one dialog that was asked for rather
+     * than an extra safety click. Calls POST /page-insights/db/maintain (see
+     * PageInsightsApiController::maintainDb()) with the chosen action, then
+     * refreshes the database-size badge and shows a toast with the result.
+     */
+    async _openDbMaintainDialog() {
+        const dialogs = window.__GRAV_DIALOGS;
+        if (!dialogs?.form) {
+            window.__GRAV_TOAST?.error(this._t('ADMIN2.ERROR_DB_MAINTAIN_UNAVAILABLE', 'Database maintenance is not available in this Admin2 version.'));
+            return;
+        }
+
+        const result = await dialogs.form({
+            title: this._t('ADMIN2.DB_MAINTAIN_TITLE', 'Maintain database'),
+            description: this._t('ADMIN2.DB_MAINTAIN_WARNING', 'Deleting statistics data is permanent and cannot be undone.'),
+            fields: [
+                {
+                    name: 'action',
+                    type: 'select',
+                    label: this._t('ADMIN2.DB_MAINTAIN_ACTION_LABEL', 'Action'),
+                    options: [
+                        { value: 'vacuum', label: this._t('ADMIN2.DB_MAINTAIN_ACTION_VACUUM', 'Free up disk space only (no data is deleted)') },
+                        { value: 'prune_orphans', label: this._t('ADMIN2.DB_MAINTAIN_ACTION_PRUNE_ORPHANS', 'Delete orphaned events') },
+                        { value: 'prune_old', label: this._t('ADMIN2.DB_MAINTAIN_ACTION_PRUNE_OLD', 'Delete data older than 1 year') },
+                    ],
+                },
+            ],
+            submitLabel: this._t('ADMIN2.DB_MAINTAIN_SUBMIT', 'Run'),
+        }).catch(() => null); // Admin2 version without __GRAV_DIALOGS.form() support, or the modal itself failed to mount.
+
+        const action = result?.action;
+        if (!action) return; // cancelled, or the dialog bridge rejected
+
+        await this._runDbMaintenance(action);
+    }
+
+    /**
+     * Runs the chosen database-maintenance action and reports the result.
+     * Disables the triggering button directly via the DOM (rather than a new
+     * private field + full _renderBody(), which only re-renders the dynamic
+     * `.body`/`.db-size` parts, not the static toolbar button) since this is
+     * the only place that needs the busy state.
+     */
+    async _runDbMaintenance(action) {
+        const btn = this.shadowRoot.querySelector('.db-maintain-btn');
+        const originalLabel = btn?.textContent;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = this._t('ADMIN2.DB_MAINTAIN_RUNNING', 'Running…');
+        }
+
+        try {
+            const data = await this._apiPost('/page-insights/db/maintain', { action });
+
+            if (this.#overview) this.#overview.db = data.db;
+            this._renderBody();
+
+            const beforeMb = Math.round((data.size_before / 1024 / 1024) * 10) / 10;
+            const afterMb = Math.round((data.size_after / 1024 / 1024) * 10) / 10;
+
+            if (data.deleted !== null && data.deleted !== undefined) {
+                window.__GRAV_TOAST?.success(this._tf(
+                    'ADMIN2.DB_MAINTAIN_TOAST_DELETED',
+                    '%s row(s) deleted. Database size: %s MB → %s MB.',
+                    data.deleted, beforeMb, afterMb
+                ));
+            } else {
+                window.__GRAV_TOAST?.success(this._tf(
+                    'ADMIN2.DB_MAINTAIN_TOAST_VACUUM',
+                    'Database size: %s MB → %s MB.',
+                    beforeMb, afterMb
+                ));
+            }
+        } catch (err) {
+            window.__GRAV_TOAST?.error(err?.message || this._t('ADMIN2.ERROR_DB_MAINTAIN', 'Could not perform database maintenance.'));
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalLabel;
+            }
         }
     }
 
@@ -476,6 +570,7 @@ class PageInsightsPage extends HTMLElement {
                     </div>
                     <div class="toolbar-end">
                         <span class="db-size" title="${this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'))}"></span>
+                        <button class="db-maintain-btn" title="${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON_TITLE', 'Free up disk space or delete old statistics data'))}">${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON', 'Maintain database'))}</button>
                         <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
                     </div>
                 </div>
@@ -511,6 +606,7 @@ class PageInsightsPage extends HTMLElement {
             });
         });
         root.querySelector('.refresh').addEventListener('click', () => this._load());
+        root.querySelector('.db-maintain-btn').addEventListener('click', () => this._openDbMaintainDialog());
         root.querySelector('.page-search').addEventListener('click', () => this._searchPage());
         root.querySelector('.user-search').addEventListener('click', () => this._searchUser());
         root.querySelector('.page-route').addEventListener('keydown', (e) => {
@@ -1116,7 +1212,7 @@ class PageInsightsPage extends HTMLElement {
             .body, .detail-body { display: flex; flex-direction: column; gap: 16px; }
             .toolbar { display: flex; justify-content: space-between; align-items: center; }
             .range { display: flex; gap: 4px; }
-            .range button, .refresh, .lookup-row button, .load-more-recent {
+            .range button, .refresh, .db-maintain-btn, .lookup-row button, .load-more-recent {
                 background: var(--background);
                 color: var(--foreground);
                 border: 1px solid var(--border);
@@ -1126,6 +1222,7 @@ class PageInsightsPage extends HTMLElement {
                 font-size: 13px;
             }
             .range button.active { background: var(--primary); color: var(--primary-foreground, #fff); border-color: var(--primary); }
+            .db-maintain-btn:disabled { cursor: default; opacity: 0.6; }
             .toolbar-end { display: flex; align-items: center; gap: 10px; }
             .db-size { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
             .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }

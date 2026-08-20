@@ -1,6 +1,9 @@
 # v3.1.7
 ## unreleased
 
+1. [](#new)
+    * feat: added a "Maintain database" button next to the database-size badge on the Admin2 dashboard, opening a dialog (`window.__GRAV_DIALOGS.form()`) with a warning that deletion is permanent plus a choice of three actions - free up disk space only (VACUUM), delete orphaned events, or delete data older than 1 year - all backed by the same `Stats` methods (`vacuum()`/`pruneOrphanedEvents()`/`pruneData()`) the `prune`/`events:prune-orphans`/`vacuum` CLI commands already use. New `POST /page-insights/db/maintain` endpoint (`api.system.write`), Admin2-only (no Classic Admin equivalent, matching this plugin's Admin-Next-first convention for new features).
+
 # v3.1.6
 ## 08/20/2026 ([67713d5](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/67713d5528b64e91c7cfb8de0f046740913d9c65))
 

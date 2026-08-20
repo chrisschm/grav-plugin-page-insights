@@ -695,6 +695,12 @@ class PageInsightsPlugin extends Plugin
             // (re)build action - see docs/ARCHITECTURE.md "Geolocation".
             $group->get('/geo-db/status', [$controller, 'geoDbStatus']);
             $group->post('/geo-db/rebuild', [$controller, 'rebuildGeoDb']);
+
+            // On-demand database maintenance (vacuum / prune orphaned events /
+            // prune data older than 1 year), triggered from the "Maintain
+            // database" button next to the Admin2 dashboard's database-size
+            // badge - see docs/ARCHITECTURE.md "Database maintenance".
+            $group->post('/db/maintain', [$controller, 'maintainDb']);
         });
     }
 
