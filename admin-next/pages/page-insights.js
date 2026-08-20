@@ -629,10 +629,10 @@ class PageInsightsPage extends HTMLElement {
                     <div class="card">
                         <h3>${this._esc(this._t('TOP_STATUS_CODES', 'HTTP status codes'))}</h3>
                         ${this._table(
-                            [this._t('TABLE_STATUS', 'Status'), this._t('TABLE_SHARE', '% share')],
+                            [this._t('TABLE_STATUS', 'Status'), this._t('TABLE_HITS', 'Hits')],
                             (o.status_codes || []).map((s) => [
                                 s.http_code === 'other' ? this._esc(this._t('STATUS_CODE_OTHER', 'Other')) : s.http_code,
-                                `<span title="${s.hits}">${s.share}%</span>`,
+                                `<span title="${s.share}%">${s.hits}</span>`,
                             ])
                         )}
                     </div>

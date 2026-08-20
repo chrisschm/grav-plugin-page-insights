@@ -8,7 +8,7 @@
                 {{ "PLUGIN_PAGE_INSIGHTS.TABLE_STATUS"|t }}
             </th>
             <th>
-                {{ "PLUGIN_PAGE_INSIGHTS.TABLE_SHARE"|t }}
+                {{ "PLUGIN_PAGE_INSIGHTS.TABLE_HITS"|t }}
             </th>
         </tr>
         {% for s in data %}
@@ -21,7 +21,7 @@
                     {% endif %}
                 </td>
                 <td>
-                    <span title="{{ s.hits }}">{{ s.share }}%</span>
+                    <span title="{{ s.share }}%">{{ s.hits }}</span>
                 </td>
             </tr>
         {% endfor %}
