@@ -9,9 +9,8 @@ PLUGIN_PAGE_INSIGHTS:
   TAB_CLASSIC_ADMIN_INFO: "Ces réglages n'affectent que les widgets et pages de détail
     du tableau de bord de l'admin classique (Grav 1.x). Ils n'ont aucun effet sur
     le tableau de bord Admin2 (Grav 2.0)."
-  TAB_ADMIN2_INFO: "Le tableau de bord Admin2 n'a actuellement pas de réglages supplémentaires
-    propres - sa mise en page est définie directement dans admin-next/pages/page-insights.js.
-    Cet onglet est réservé aux futures options spécifiques à Admin2."
+  TAB_ADMIN2_INFO: "Ces réglages n'affectent que le tableau de bord Admin2 (Grav 2.0).
+    Ils n'ont aucun effet sur le tableau de bord de l'admin classique (Grav 1.x)."
   TAB_INFO_TITLE: Information
 
   DEFAULT_PAGES_SCOPE_LABEL: "Pages récemment consultées : filtre par défaut"

@@ -6,6 +6,7 @@
 
 2. [](#bugfix)
     * bugfix: the Top Pages dashboard widget's column-width class was rendered as `col-{{ conf.cols_top_pages }}`, doubling the `col-` prefix already contained in every `cols_top_pages` config value (e.g. `col-col-12`) and silently dropping its Bootstrap sizing. Fixed as part of giving this widget a `col-12 col-md-9` default (paired with the new status-codes widget at `col-12 col-md-3`).
+    * bugfix: the Admin2 config tab's info banner (`TAB_ADMIN2_INFO`) claimed the tab "currently has no additional settings of its own" and was "reserved for future Admin2-specific options" - stale ever since the `default_pages_scope` setting was added right below it. Reworded to match the Classic Admin tab's banner, simply stating the settings on this tab only affect Admin2 and have no effect on the classic Admin dashboard. Corrected in en/de/fr.
 
 # v3.1.5
 ## 08/19/2026 ([4b02fda](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/4b02fdac03c228803571a3c7823fbed7d312c8f6))

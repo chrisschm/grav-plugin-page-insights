@@ -7,7 +7,7 @@ PLUGIN_PAGE_INSIGHTS:
     TAB_CLASSIC_ADMIN: "Grav 1.7 / Classic Admin"
     TAB_ADMIN2: "Grav 2.0 / Admin2"
     TAB_CLASSIC_ADMIN_INFO: "These settings only affect the classic Admin (Grav 1.x) dashboard widgets and detail pages. They have no effect on the Admin2 (Grav 2.0) dashboard."
-    TAB_ADMIN2_INFO: "The Admin2 dashboard currently has no additional settings of its own - its layout is defined directly in admin-next/pages/page-insights.js. This tab is reserved for future Admin2-specific options."
+    TAB_ADMIN2_INFO: "These settings only affect the Admin2 (Grav 2.0) dashboard. They have no effect on the classic Admin (Grav 1.x) dashboard."
     TAB_INFO_TITLE: Information
 
     DEFAULT_PAGES_SCOPE_LABEL: "Recently viewed pages: default filter"

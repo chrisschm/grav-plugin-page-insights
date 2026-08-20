@@ -8,10 +8,9 @@ PLUGIN_PAGE_INSIGHTS:
   TAB_CLASSIC_ADMIN_INFO: Diese Einstellungen betreffen nur die klassischen 
     Admin-Dashboard-Widgets und Detailseiten (Grav 1.x). Sie haben keinen 
     Einfluss auf das Admin2 (Grav 2.0) Dashboard.
-  TAB_ADMIN2_INFO: Das Admin2-Dashboard verfügt derzeit über keine eigenen 
-    zusätzlichen Einstellungen – sein Layout ist direkt in 
-    admin-next/pages/page-insights.js definiert. Dieser Tab ist für zukünftige, 
-    Admin2-spezifische Optionen vorgesehen.
+  TAB_ADMIN2_INFO: Diese Einstellungen betreffen nur das Admin2 (Grav 2.0)
+    Dashboard. Sie haben keinen Einfluss auf das klassische Admin-Dashboard
+    (Grav 1.x).
   TAB_INFO_TITLE: Information
   DEFAULT_PAGES_SCOPE_LABEL: "Recently viewed pages: Standard-Filter"
   DEFAULT_PAGES_SCOPE_HELP: Welche Seiten die Karte „Recently viewed pages“ im 
