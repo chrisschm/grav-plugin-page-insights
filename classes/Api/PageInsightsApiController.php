@@ -49,32 +49,36 @@ class PageInsightsApiController extends AbstractApiController
 
         [$dateFrom, $dateTo] = $this->getDateRange($request);
         $stats = $this->getStats();
+        $botFilter = $this->getBotFilter($request);
 
-        // Only "Recently viewed pages" supports the real-pages-only scope
-        // filter for now (see getScopeFilter() doc comment) - top_pages and
-        // everything else stay unfiltered.
-        $recentFilter = $this->getScopeFilter($request);
+        // Only "Recently viewed pages" additionally supports the
+        // real-pages-only scope filter for now (see getScopeFilter() doc
+        // comment) - the bot filter above, unlike that one, applies to
+        // every widget below, not just this one.
+        $recentFilter = array_merge($this->getScopeFilter($request), $botFilter);
 
-        $totalViews = $stats->totalPageViews($dateFrom, $dateTo);
-        $totalVisitors = $stats->totalUniqueVisitors($dateFrom, $dateTo);
-        $totalUsers = $stats->totalUniqueUsers($dateFrom, $dateTo);
+        $totalViews = $stats->totalPageViews($dateFrom, $dateTo, $botFilter);
+        $totalVisitors = $stats->totalUniqueVisitors($dateFrom, $dateTo, $botFilter);
+        $totalUsers = $stats->totalUniqueUsers($dateFrom, $dateTo, $botFilter);
 
         return ApiResponse::create([
             'db' => $stats->dbStats(),
             'total_page_views' => (int) ($totalViews[0]['hits'] ?? 0),
             'total_unique_visitors' => (int) ($totalVisitors[0]['visitors'] ?? 0),
             'total_unique_users' => (int) ($totalUsers[0]['users'] ?? 0),
-            'top_pages' => $stats->pagesSummary(5, $dateFrom, $dateTo),
-            'status_codes' => $stats->statusCodeSummary($dateFrom, $dateTo),
-            'top_countries' => $stats->topCountries(5, $dateFrom, $dateTo),
-            'top_browsers' => $stats->topBrowsers(5, $dateFrom, $dateTo),
-            'top_platforms' => $stats->topPlatforms(5, $dateFrom, $dateTo),
-            'top_users' => $stats->topUsers(5, $dateFrom, $dateTo),
+            'top_pages' => $stats->pagesSummary(5, $dateFrom, $dateTo, $botFilter),
+            'status_codes' => $stats->statusCodeSummary($dateFrom, $dateTo, $botFilter),
+            'top_countries' => $stats->topCountries(5, $dateFrom, $dateTo, $botFilter),
+            'top_browsers' => $stats->topBrowsers(5, $dateFrom, $dateTo, $botFilter),
+            'top_platforms' => $stats->topPlatforms(5, $dateFrom, $dateTo, $botFilter),
+            'top_users' => $stats->topUsers(5, $dateFrom, $dateTo, $botFilter),
             'recent_pages' => $stats->recentPages(10, $dateFrom, $dateTo, $recentFilter),
-            // Lets the dashboard adopt the admin-configured default scope
-            // ('all'|'real') on first load without a separate request - see
-            // admin-next/pages/page-insights.js, _loadDashboard().
+            // Lets the dashboard adopt the admin-configured defaults (scope
+            // 'all'|'real', hide-bots on/off) on first load without a
+            // separate request - see admin-next/pages/page-insights.js,
+            // _loadDashboard().
             'default_pages_scope' => $this->getDefaultPagesScope(),
+            'default_hide_bots' => $this->getDefaultHideBots(),
         ]);
     }
 
@@ -89,7 +93,7 @@ class PageInsightsApiController extends AbstractApiController
         $limit = $this->getLimit($request, 50);
 
         return ApiResponse::create([
-            'pages' => $this->getStats()->pagesSummary($limit, $dateFrom, $dateTo),
+            'pages' => $this->getStats()->pagesSummary($limit, $dateFrom, $dateTo, $this->getBotFilter($request)),
         ]);
     }
 
@@ -110,7 +114,7 @@ class PageInsightsApiController extends AbstractApiController
         [$dateFrom, $dateTo] = $this->getDateRange($request);
         $limit = $this->getLimit($request, 100);
         $stats = $this->getStats();
-        $filter = ['route' => $route];
+        $filter = array_merge(['route' => $route], $this->getBotFilter($request));
 
         $views = $stats->recentPages($limit, $dateFrom, $dateTo, $filter);
 
@@ -136,7 +140,7 @@ class PageInsightsApiController extends AbstractApiController
         $limit = $this->getLimit($request, 50);
 
         return ApiResponse::create([
-            'countries' => $this->getStats()->topCountries($limit, $dateFrom, $dateTo),
+            'countries' => $this->getStats()->topCountries($limit, $dateFrom, $dateTo, $this->getBotFilter($request)),
         ]);
     }
 
@@ -151,7 +155,7 @@ class PageInsightsApiController extends AbstractApiController
         $limit = $this->getLimit($request, 50);
 
         return ApiResponse::create([
-            'browsers' => $this->getStats()->topBrowsers($limit, $dateFrom, $dateTo),
+            'browsers' => $this->getStats()->topBrowsers($limit, $dateFrom, $dateTo, $this->getBotFilter($request)),
         ]);
     }
 
@@ -166,7 +170,7 @@ class PageInsightsApiController extends AbstractApiController
         $limit = $this->getLimit($request, 50);
 
         return ApiResponse::create([
-            'platforms' => $this->getStats()->topPlatforms($limit, $dateFrom, $dateTo),
+            'platforms' => $this->getStats()->topPlatforms($limit, $dateFrom, $dateTo, $this->getBotFilter($request)),
         ]);
     }
 
@@ -181,7 +185,7 @@ class PageInsightsApiController extends AbstractApiController
         $limit = $this->getLimit($request, 50);
 
         return ApiResponse::create([
-            'users' => $this->getStats()->topUsers($limit, $dateFrom, $dateTo),
+            'users' => $this->getStats()->topUsers($limit, $dateFrom, $dateTo, $this->getBotFilter($request)),
         ]);
     }
 
@@ -212,7 +216,7 @@ class PageInsightsApiController extends AbstractApiController
         $limit = $this->getLimit($request, 100);
         $stats = $this->getStats();
 
-        $filter = $user ? ['user' => $user] : ['ip' => $ip];
+        $filter = array_merge($user ? ['user' => $user] : ['ip' => $ip], $this->getBotFilter($request));
         $views = $stats->recentPages($limit, $dateFrom, $dateTo, $filter);
 
         return ApiResponse::create([
@@ -240,7 +244,7 @@ class PageInsightsApiController extends AbstractApiController
 
         [$dateFrom, $dateTo] = $this->getDateRange($request);
         $limit = $this->getLimit($request, 50);
-        $filter = $this->getScopeFilter($request);
+        $filter = array_merge($this->getScopeFilter($request), $this->getBotFilter($request));
         $stats = $this->getStats();
 
         return ApiResponse::create([
@@ -262,7 +266,7 @@ class PageInsightsApiController extends AbstractApiController
         $this->requirePermission($request, self::READ_PERMISSION);
 
         [$dateFrom, $dateTo] = $this->getDateRange($request);
-        $filter = $this->getEntityFilter($request);
+        $filter = array_merge($this->getEntityFilter($request), $this->getBotFilter($request));
 
         return ApiResponse::create($this->getStats()->siteSummary($dateFrom, $dateTo, $filter));
     }
@@ -477,6 +481,44 @@ class PageInsightsApiController extends AbstractApiController
         $default = (string) $grav['config']->get('plugins.page-insights.default_pages_scope', 'all');
 
         return $default === 'real' ? 'real' : 'all';
+    }
+
+    /**
+     * Builds the Stats::query() filter for the "Hide bots" toggle
+     * (?hide_bots=1 -> ['is_bot' => 0]). Returns [] (no filter, today's
+     * unfiltered behaviour) unless explicitly requested.
+     *
+     * Unlike getScopeFilter() above, which only ever feeds "Recently viewed
+     * pages", every endpoint in this controller merges this into its own
+     * filter - the point of "hide bots" is an answer to "how many of my
+     * visits are actually human", which only makes sense applied
+     * consistently across every KPI/list/chart, not one card. Relies
+     * entirely on the `data.is_bot` column already written by
+     * Stats::collect() (via the `bot_regexp` config / Stats::isBot()) - a
+     * best-effort, user-agent-based classification, not a guarantee; see
+     * the LOG_BOT_HELP language string and docs/DATABASES.md.
+     */
+    private function getBotFilter(ServerRequestInterface $request): array
+    {
+        if ($this->getQueryParam($request, 'hide_bots') !== '1') {
+            return [];
+        }
+
+        return ['is_bot' => 0];
+    }
+
+    /**
+     * The admin-configured default for the "Hide bots" toggle, sent along
+     * with /overview so the dashboard can adopt it on first load - see
+     * getBotFilter() and admin-next/pages/page-insights.js. Defaults to
+     * false (today's unfiltered behaviour) so upgrading installs don't see
+     * their dashboard numbers silently change.
+     */
+    private function getDefaultHideBots(): bool
+    {
+        $grav = Grav::instance();
+
+        return (bool) $grav['config']->get('plugins.page-insights.default_hide_bots', false);
     }
 
     /**

@@ -1,6 +1,15 @@
 # v3.1.8
 ## unreleased
 
+1. [](#new)
+    * feat: added a "Hide bots" filter to the Admin2 dashboard (toolbar toggle, applies dashboard-wide - every KPI, chart and "top" list, plus the Page/User Detail views, not just one card) - backed entirely by the existing `data.is_bot` column via `Stats::query()`'s generic filter mechanism (`is_bot => 0`), no schema change needed. New `default_hide_bots` config field (default off, so existing dashboards' numbers don't change on upgrade) lets the admin make it the default on load, same pattern as the existing `default_pages_scope` setting. New `?hide_bots=1` query parameter accepted by every read endpoint in `PageInsightsApiController`. Prompted by two upstream Page Stats issues asking for bot/crawler filtering.
+
+2. [](#improved)
+    * improved: modernized the default `bot_regexp` list, unchanged since the original Page Stats fork, with commonly seen AI/training crawlers not already covered by the existing generic `bot`/`crawler`/`spider` substrings (`Google-Extended`, `GoogleOther`, `meta-externalagent`, `meta-externalfetcher`, `meta-webindexer`, `anthropic-ai`, `cohere-ai`, `Webzio-Extended`, `omgili`, `Scrapy`) - most current AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Bytespider, Amazonbot, ...) were already caught by those generic substrings. Deliberately does not include on-demand/user-triggered AI browsing agents (`ChatGPT-User`, `Claude-User`, `Perplexity-User`, etc.) - those requests are initiated by a real person's action, not an autonomous crawler; admins can add them to `bot_regexp` themselves if they'd rather treat them as bots too.
+
+3. [](#bugfix)
+    * bugfix: `log_bot`'s blueprint default (`0`/disabled) and its help text ("by default we do not log bot activity") both contradicted the actual shipped default (`log_bot: true` in `page-insights.yaml`) - bot hits have always been logged by default. Corrected the blueprint default and reworded the help text in en/de/fr to describe the actual behavior and why it matters (bot hits are tagged via `is_bot`, not skipped, which is what makes the new "Hide bots" filter possible).
+
 # v3.1.7
 ## 08/20/2026 ([6b63878](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/6b638789f7e93f188e92be0cd78b1cf2a9a78b92))
 

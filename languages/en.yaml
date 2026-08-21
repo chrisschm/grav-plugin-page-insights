@@ -15,6 +15,9 @@ PLUGIN_PAGE_INSIGHTS:
     DEFAULT_PAGES_SCOPE_ALL: "All pages"
     DEFAULT_PAGES_SCOPE_REAL: "Real pages only"
 
+    DEFAULT_HIDE_BOTS_LABEL: "Hide bots: default filter"
+    DEFAULT_HIDE_BOTS_HELP: "Whether the Admin2 dashboard's \"Hide bots\" toggle is on by default, filtering every KPI, chart and list to hits not recognized as bot traffic. Admins can still switch this on the dashboard itself - this only sets what they see on first load. Based on the \"Bot User Agents\" list below, so it's a best-effort filter (recognized bots only), not a guarantee of purely human traffic."
+
     WIDGET:
         ENABLED:
             TEXT: Enabled
@@ -238,3 +241,5 @@ PLUGIN_PAGE_INSIGHTS:
         DB_MAINTAIN_TOAST_VACUUM: "Database size: %s MB → %s MB."
         ERROR_DB_MAINTAIN: Could not perform database maintenance.
         ERROR_DB_MAINTAIN_UNAVAILABLE: Database maintenance is not available in this Admin2 version.
+        HIDE_BOTS_BUTTON: Hide bots
+        HIDE_BOTS_BUTTON_TITLE: "Filter every KPI, chart and list on this dashboard to hits not recognized as bot traffic (based on the \"Bot User Agents\" list in the config tab) - best-effort, not a guarantee."

@@ -20,6 +20,16 @@ PLUGIN_PAGE_INSIGHTS:
   DEFAULT_PAGES_SCOPE_ALL: Toutes les pages
   DEFAULT_PAGES_SCOPE_REAL: Pages réelles uniquement
 
+  DEFAULT_HIDE_BOTS_LABEL: "Masquer les robots : filtre par défaut"
+  DEFAULT_HIDE_BOTS_HELP: "Indique si le bouton « Masquer les robots » du tableau
+    de bord Admin2 est activé par défaut, filtrant chaque indicateur, graphique
+    et liste pour ne garder que les visites non reconnues comme provenant de
+    robots. Les administrateurs peuvent toujours basculer ce réglage directement
+    dans le tableau de bord - ceci ne définit que ce qu'ils voient au premier
+    chargement. Basé sur la liste « Agents utilisateurs des robots » ci-dessous :
+    il s'agit donc d'un filtre au mieux (robots reconnus uniquement), pas d'une
+    garantie de trafic purement humain."
+
   WIDGET:
     ENABLED:
       TEXT: Activé
@@ -313,3 +323,8 @@ PLUGIN_PAGE_INSIGHTS:
       données."
     ERROR_DB_MAINTAIN_UNAVAILABLE: "La maintenance de la base de données n'est
       pas disponible dans cette version d'Admin2."
+    HIDE_BOTS_BUTTON: Masquer les robots
+    HIDE_BOTS_BUTTON_TITLE: "Filtre chaque indicateur, graphique et liste de ce
+      tableau de bord pour ne garder que les visites non reconnues comme provenant
+      de robots (basé sur la liste « Agents utilisateurs des robots » de l'onglet
+      de configuration) - au mieux, sans garantie."

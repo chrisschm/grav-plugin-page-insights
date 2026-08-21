@@ -428,4 +428,15 @@ form:
                             options:
                                 all: PLUGIN_PAGE_INSIGHTS.DEFAULT_PAGES_SCOPE_ALL
                                 real: PLUGIN_PAGE_INSIGHTS.DEFAULT_PAGES_SCOPE_REAL
+                        default_hide_bots:
+                            type: toggle
+                            label: PLUGIN_PAGE_INSIGHTS.DEFAULT_HIDE_BOTS_LABEL
+                            help: PLUGIN_PAGE_INSIGHTS.DEFAULT_HIDE_BOTS_HELP
+                            highlight: 1
+                            default: 0
+                            options:
+                                1: PLUGIN_ADMIN.ENABLED
+                                0: PLUGIN_ADMIN.DISABLED
+                            validate:
+                                type: bool
 

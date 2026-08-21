@@ -17,6 +17,7 @@ log_time_on_page: true
 datetime_offset: 'localtime'
 
 default_pages_scope: all
+default_hide_bots: false
 
 # Path to the built geo country index, relative to the Grav root - same
 # convention as `db` above. Deliberately outside the plugin's own directory

@@ -63,11 +63,35 @@ see "Known schema quirks" below).
 | `http_code` | `INTEGER(3)` | 1 | Unused (always `NULL`) from migration 1 until 2026-08-19. Now populated on every write: `200` or `404` only (`collect()` can't reliably determine anything else at that hook), `NULL` for rows written before this was wired up. `Stats::statusCodeSummary()` bins anything that isn't exactly `200`/`404` - including `NULL` - into a forward-compatible "other" bucket. |
 | `user_agent` | `STRING(255)` | 1 | Raw `User-Agent` header. Read back and displayed in the User Detail page's page-history table. |
 | `refer` | `STRING(255)` | 1 | **Dead column.** Not part of `collect()`'s `INSERT` column list at all (that binds `referer`, added in migration 3 - see next row) - a leftover from the original Page Stats schema, never removed since migrations here are additive-only. Do not use; if referrer tracking is ever built out, it belongs on `referer`, not this column. |
-| `is_bot` | `BOOLEAN` | 1 | Written from `Stats::isBot()` on every hit, but never read back anywhere (no query filters or displays it) - bot *exclusion* is decided separately at write time via the `log_bot` config option, before the row is even inserted. |
+| `is_bot` | `BOOLEAN` | 1 | Written from `Stats::isBot()` on every hit. Read back since 2026-08 by the Admin2 dashboard's "Hide bots" filter, which turns `?hide_bots=1` into `Stats::query()`'s generic equality filter `['is_bot' => 0]` (see "Hide bots filter" in `ARCHITECTURE.md`) - unrelated to the `log_bot` config option, which decides at write time whether a recognized bot hit gets inserted at all in the first place; `is_bot` only classifies hits that *were* inserted. See "Bot detection reliability" below before treating this column as authoritative. |
 | `browser` | `STRING(100)` | 2 | From `Grav\Common\Browser`. Feeds `topBrowsers()`. |
 | `browser_version` | `STRING(20)` | 2 | Ditto. |
 | `platform` | `STRING(255)` | 2 | Feeds `topPlatforms()`. |
 | `referer` | `STRING(500)` | 3 | `$_SERVER['HTTP_REFERER']` or empty string. Written on every hit but currently never read back anywhere (no referrer-analysis feature exists yet - see the project's ToDo history). |
+
+### Bot detection reliability (`is_bot`, `bot_regexp`)
+
+`Stats::isBot()` classifies a hit by a single case-insensitive `preg_match()` of the request's
+`User-Agent` header against the `bot_regexp` config array (a flat OR of substrings/patterns,
+`page-insights.yaml`'s shipped default has ~270 entries plus a small dated block of common AI/
+training crawlers added 2026-08-21 - see that file's own comments). Two things worth knowing
+before relying on `is_bot` for anything beyond "a reasonable best guess":
+
+- **False negatives are structural, not a bug.** Any traffic that doesn't self-identify via its
+  `User-Agent` - a scraper spoofing a real browser's UA being the most common case in practice -
+  is invisible to this method by construction; no UA-substring list can catch it. Upstream Page
+  Stats issue reports back this up directly: one reporter had `log_bot` *disabled* and still saw
+  large volumes of unrecognized automated-looking traffic, meaning it was never classified as a
+  bot in the first place, let alone excluded.
+- **No retroactive re-classification.** `is_bot` is computed once, at `INSERT` time, from whatever
+  `bot_regexp` happened to be configured that moment. Editing `bot_regexp` later (an explicitly
+  supported, admin-editable config field) only changes classification for *future* hits - existing
+  rows keep whatever value they got when they were written. There is no migration or CLI command
+  that re-evaluates historical rows against a changed list.
+
+None of this makes the column unreliable for its actual purpose (a coarse, best-effort filter) -
+it just means "hidden by the bots filter" should be read as "recognized as a bot by the UA list in
+effect when the hit was collected", not "confirmed non-human".
 
 ### Table `events` (added in migration 4)
 
@@ -229,8 +253,11 @@ diese Datei wird von dort aus verlinkt statt Inhalte zu duplizieren.
 OFF` (die `events.session_id REFERENCES data(id)`-Referenz ist bewusst nur Dokumentation, nie
 erzwungen - `pruneData()`/`pruneOrphanedEvents()` verlassen sich darauf). Migrationen
 (`data/migrations/*.sql`) sind rein additiv, nummeriert, in der `migrations`-Tabelle protokolliert.
-Tabellen `data` (ein Datensatz pro Seitenaufruf, u. a. mit zwei toten/kaum genutzten Spalten:
-`refer` komplett unbenutzt seit jeher, `is_bot`/`referer` geschrieben aber nirgends gelesen), `events`
+Tabellen `data` (ein Datensatz pro Seitenaufruf, u. a. mit einer toten/einer kaum genutzten Spalte:
+`refer` komplett unbenutzt seit jeher, `referer` geschrieben aber bislang nirgends gelesen; `is_bot`
+wird seit 2026-08 vom „Bots ausblenden"-Filter im Admin2-Dashboard gelesen - als reine
+User-Agent-Klassifikation ohne rückwirkende Neubewertung bei geänderter `bot_regexp`-Liste ein
+Best-Effort-Filter, keine Garantie), `events`
 (Session-gebundene Zusatzereignisse, mit serverseitigen Limits gegen den unauthentifizierten
 Collector-Endpunkt) und `migrations`. Zwei einzelne Indizes (`route`, `date`) statt eines
 zusammengesetzten, weil der generische Filter-Mechanismus (`Stats::query()`) meist nur eine der

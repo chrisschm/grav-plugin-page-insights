@@ -19,6 +19,14 @@ PLUGIN_PAGE_INSIGHTS:
     Laden zu sehen ist.
   DEFAULT_PAGES_SCOPE_ALL: Alle Seiten
   DEFAULT_PAGES_SCOPE_REAL: Nur echte Seiten
+  DEFAULT_HIDE_BOTS_LABEL: "Bots ausblenden: Standard-Filter"
+  DEFAULT_HIDE_BOTS_HELP: Ob der „Bots ausblenden"-Schalter im Admin2-Dashboard
+    standardmäßig aktiv ist und dabei jede Kennzahl, jedes Diagramm und jede
+    Liste auf nicht als Bot erkannte Zugriffe filtert. Admins können das direkt
+    im Dashboard umschalten – diese Einstellung legt nur fest, was beim ersten
+    Laden zu sehen ist. Basiert auf der Liste „Bot User Agents" weiter unten,
+    ist also ein Best-Effort-Filter (nur erkannte Bots), keine Garantie für
+    rein menschlichen Traffic.
   WIDGET:
     ENABLED:
       TEXT: Aktiviert
@@ -275,3 +283,8 @@ PLUGIN_PAGE_INSIGHTS:
     ERROR_DB_MAINTAIN: Datenbankpflege konnte nicht durchgeführt werden.
     ERROR_DB_MAINTAIN_UNAVAILABLE: Datenbankpflege ist in dieser Admin2-Version
       nicht verfügbar.
+    HIDE_BOTS_BUTTON: Bots ausblenden
+    HIDE_BOTS_BUTTON_TITLE: Filtert jede Kennzahl, jedes Diagramm und jede Liste
+      auf diesem Dashboard auf nicht als Bot erkannte Zugriffe (basierend auf
+      der Liste „Bot User Agents" im Konfigurations-Tab) – Best-Effort, keine
+      Garantie.

@@ -396,6 +396,47 @@ design goal for this feature.
 pair, and `deleted` is `null` only for the pure-`vacuum` preset (used by the frontend to pick
 between the "N row(s) deleted, X MB → Y MB" and plain "X MB → Y MB" toast wording).
 
+## "Hide bots" filter (`PageInsightsApiController::getBotFilter()`)
+
+A toolbar toggle in the Admin2 dashboard (and Page/User Detail views) that filters every KPI,
+chart and list to hits not recognized as bot traffic - added after two upstream Page Stats issues
+asked for exactly this (`filter/recognise bots or crawlers`, `Iranian bots not filtered out?`).
+Admin2-only, like `default_pages_scope` (see "Config blueprint" above) - no Classic Admin
+equivalent; this is a read-only display filter, not a mutating action, so per "Design goals" above
+it could go there too, but there's no live per-view toggle mechanism on that side to hang it off of
+(Classic Admin's own "real pages" scope precedent never got one either).
+
+**Data model:** no schema change. Backed entirely by the existing `data.is_bot` column, populated
+since the very first migration by `Stats::collect()`/`Stats::isBot()` from the `bot_regexp` config
+list, but never read back by any query until now - see `docs/DATABASES.md` for the column's exact
+history and caveats (in short: a best-effort, user-agent-substring classification, not a guarantee;
+a bot that doesn't self-identify in its UA, or that spoofs a real browser's UA, is invisible to it).
+`getBotFilter()` turns `?hide_bots=1` into the `Stats::query()` equality filter `['is_bot' => 0]` -
+no new query method needed, the existing generic filter mechanism (see "Backend: generic query
+filter" above) already covers it.
+
+**Scope - deliberately dashboard-wide, unlike `getScopeFilter()`:** the existing "real pages only"
+scope filter only ever applies to "Recently viewed pages" (see its own doc comment) - a narrower,
+single-card filter was the right call there, since it answers a different question ("which routes
+count as real content"). "Hide bots" answers "how many of my visits are actually human", which only
+makes sense applied consistently everywhere - `getBotFilter()`'s result is merged into every
+endpoint in `PageInsightsApiController` (`overview()`'s KPI totals and every "top" list,
+`pages()`/`countries()`/`browsers()`/`platforms()`/`users()`, `pageDetail()`/`userDetail()`,
+`recent()`, `summary()`), and the Admin2 dashboard's toggle click handler calls the same full
+`_load()` a date-range change would, not the narrower single-card reload `_setRecentScope()` uses
+for the pages scope toggle.
+
+**Admin-configurable default** (`default_hide_bots` config field, default `false`/off): same
+first-load-adoption pattern as `default_pages_scope` (`PageInsightsApiController::
+getDefaultHideBots()`, echoed in the `/overview` response) - defaulting to off so upgrading
+installs' dashboard numbers don't silently change. Adopting a default of `true` is more expensive
+here than for the pages scope, though: since the filter is dashboard-wide rather than one card, the
+dashboard's very first `/overview` request (sent before any config default is known) can't yet
+include `hide_bots=1`, so a site with the default turned on pays for a second, full dashboard
+reload on first load once the true default arrives - accepted as a rare, self-selected cost (only
+sites that opted into the non-default choice hit it), mirroring the same trade-off the pages-scope
+default already makes structurally, just paid across the whole dashboard instead of one card.
+
 ## Automatic scheduling (`PageInsightsPlugin::onSchedulerInitialized()`, `AutoSchedule`)
 
 Rather than asking the admin to add a plugin-specific crontab line for `geo-db:update`/`prune`,

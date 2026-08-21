@@ -38,6 +38,8 @@ class PageInsightsPage extends HTMLElement {
     #recentHasMore = true;
     #recentScope = 'all'; // 'all' | 'real' - which pages "Recently viewed pages" shows
     #recentScopeInitialized = false; // becomes true once the server-configured default has been adopted (see _loadDashboard)
+    #hideBots = false; // dashboard-wide "Hide bots" toggle - unlike #recentScope, applies to every widget, not just one card
+    #hideBotsInitialized = false; // becomes true once the server-configured default has been adopted (see _loadDashboard), or as soon as the user clicks the toggle themselves
     #geoStatus = null; // GET /page-insights/geo-db/status response, or null while unknown/failed
     #geoBusy = false; // true while a rebuild (POST /page-insights/geo-db/rebuild) is in flight
     #geoError = null; // last rebuild error message, cleared on the next successful load/rebuild
@@ -244,6 +246,17 @@ class PageInsightsPage extends HTMLElement {
         };
     }
 
+    /**
+     * Query params for the "Hide bots" toggle (see #hideBots) - merged into
+     * every request this component makes (dashboard overview/summary, Page
+     * Detail, User Detail, "Load more") since, unlike the "Recently viewed
+     * pages" scope filter, this is meant to affect the whole view, not one
+     * card. Server side: PageInsightsApiController::getBotFilter().
+     */
+    _botFilterParams() {
+        return this.#hideBots ? { hide_bots: '1' } : {};
+    }
+
     async _load() {
         if (this.#view === 'page-detail') return this._loadPageDetail();
         if (this.#view === 'user-detail') return this._loadUserDetail();
@@ -256,18 +269,21 @@ class PageInsightsPage extends HTMLElement {
         this._renderBody();
 
         const dateParams = this._dateRangeParams();
-        // Only sent once we know the scope to request - on the very first
-        // load (before the server-configured default is known, see below)
-        // this is omitted so /overview's recent_pages comes back unfiltered,
+        // Scope and bot-filter params are only sent once we know the actual
+        // value to request - on the very first load (before the
+        // server-configured defaults are known, see below) both are
+        // omitted so this first /overview call comes back unfiltered,
         // matching today's default behaviour for every install that hasn't
-        // touched the new "default_pages_scope" setting.
+        // touched "default_pages_scope"/"default_hide_bots".
+        const botParams = this.#hideBotsInitialized ? this._botFilterParams() : {};
         const overviewParams = {
             ...dateParams,
+            ...botParams,
             ...(this.#recentScopeInitialized && this.#recentScope === 'real' ? { scope: 'real' } : {}),
         };
         const [overviewResult, summaryResult, geoStatusResult] = await Promise.allSettled([
             this._apiGet('/page-insights/overview', overviewParams),
-            this._apiGet('/page-insights/summary', dateParams),
+            this._apiGet('/page-insights/summary', { ...dateParams, ...botParams }),
             this._apiGet('/page-insights/geo-db/status'),
         ]);
 
@@ -282,15 +298,35 @@ class PageInsightsPage extends HTMLElement {
         // update control (see _renderBody()).
         this.#geoStatus = geoStatusResult.status === 'fulfilled' ? geoStatusResult.value : null;
 
-        // First load only: adopt the admin-configured default scope. If it
-        // turns out to be 'real' (the uncommon case - default is 'all'),
-        // the /overview call above already ran without a scope param, so
-        // re-fetch just "Recently viewed pages" with the correct filter
-        // instead of the whole dashboard.
-        if (!this.#recentScopeInitialized) {
+        // First load only: adopt the admin-configured defaults for scope
+        // and hide-bots. The /overview call above already ran without
+        // either param, so if either default turns out to be the
+        // non-default choice, something needs re-fetching:
+        //  - hide-bots default 'on' affects every widget on the dashboard
+        //    (KPIs, every top list, the trend chart), not just one card -
+        //    re-run the whole load, which supersedes the narrower
+        //    recent-only reload below (both defaults are already applied
+        //    by the time that re-run builds its params).
+        //  - scope default 'real' (and hide-bots still 'off') only affects
+        //    "Recently viewed pages" - re-fetch just that card, as before.
+        if (!this.#recentScopeInitialized || !this.#hideBotsInitialized) {
+            const newScope = this.#overview?.default_pages_scope === 'real' ? 'real' : 'all';
+            const newHideBots = this.#overview?.default_hide_bots === true;
+            const scopeChanged = !this.#recentScopeInitialized && newScope === 'real';
+            const botsChanged = !this.#hideBotsInitialized && newHideBots === true;
+
             this.#recentScopeInitialized = true;
-            this.#recentScope = this.#overview?.default_pages_scope === 'real' ? 'real' : 'all';
-            if (this.#recentScope === 'real') {
+            this.#hideBotsInitialized = true;
+            this.#recentScope = newScope;
+            this.#hideBots = newHideBots;
+            this._highlightHideBots();
+
+            if (botsChanged) {
+                this.#loading = true;
+                this._renderBody();
+                return this._loadDashboard();
+            }
+            if (scopeChanged) {
                 await this._reloadRecent();
             }
         }
@@ -443,7 +479,7 @@ class PageInsightsPage extends HTMLElement {
         body.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.LOADING', 'Loading…'))}</div>`;
 
         const route = this.#viewParams.route;
-        const params = { ...this._dateRangeParams(), route, limit: 100 };
+        const params = { ...this._dateRangeParams(), ...this._botFilterParams(), route, limit: 100 };
         const [detailResult, summaryResult] = await Promise.allSettled([
             this._apiGet('/page-insights/pages/detail', params),
             this._apiGet('/page-insights/summary', params),
@@ -504,7 +540,7 @@ class PageInsightsPage extends HTMLElement {
         body.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.LOADING', 'Loading…'))}</div>`;
 
         const identity = this.#viewParams.user ? { user: this.#viewParams.user } : { ip: this.#viewParams.ip };
-        const params = { ...this._dateRangeParams(), ...identity, limit: 100 };
+        const params = { ...this._dateRangeParams(), ...this._botFilterParams(), ...identity, limit: 100 };
         const [detailResult, summaryResult] = await Promise.allSettled([
             this._apiGet('/page-insights/users/detail', params),
             this._apiGet('/page-insights/summary', params),
@@ -569,6 +605,7 @@ class PageInsightsPage extends HTMLElement {
                         <button data-range="all">${this._esc(this._t('ADMIN2.RANGE_ALL_TIME', 'All time'))}</button>
                     </div>
                     <div class="toolbar-end">
+                        <button class="hide-bots-btn ${this.#hideBots ? 'active' : ''}" title="${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON_TITLE', 'Filter every KPI, chart and list on this dashboard to hits not recognized as bot traffic (based on the "Bot User Agents" list in the config tab) - best-effort, not a guarantee.'))}">${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON', 'Hide bots'))}</button>
                         <span class="db-size" title="${this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'))}"></span>
                         <button class="db-maintain-btn" title="${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON_TITLE', 'Free up disk space or delete old statistics data'))}">${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON', 'Maintain database'))}</button>
                         <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
@@ -606,6 +643,7 @@ class PageInsightsPage extends HTMLElement {
             });
         });
         root.querySelector('.refresh').addEventListener('click', () => this._load());
+        root.querySelector('.hide-bots-btn').addEventListener('click', () => this._toggleHideBots());
         root.querySelector('.db-maintain-btn').addEventListener('click', () => this._openDbMaintainDialog());
         root.querySelector('.page-search').addEventListener('click', () => this._searchPage());
         root.querySelector('.user-search').addEventListener('click', () => this._searchUser());
@@ -617,6 +655,7 @@ class PageInsightsPage extends HTMLElement {
         });
 
         this._highlightRange();
+        this._highlightHideBots();
     }
 
     /**
@@ -641,6 +680,7 @@ class PageInsightsPage extends HTMLElement {
                         <button data-range="all">${this._esc(this._t('ADMIN2.RANGE_ALL_TIME', 'All time'))}</button>
                     </div>
                     <div class="toolbar-end">
+                        <button class="hide-bots-btn ${this.#hideBots ? 'active' : ''}" title="${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON_TITLE', 'Filter every KPI, chart and list on this dashboard to hits not recognized as bot traffic (based on the "Bot User Agents" list in the config tab) - best-effort, not a guarantee.'))}">${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON', 'Hide bots'))}</button>
                         <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
                     </div>
                 </div>
@@ -657,8 +697,10 @@ class PageInsightsPage extends HTMLElement {
             });
         });
         root.querySelector('.refresh').addEventListener('click', () => this._load());
+        root.querySelector('.hide-bots-btn').addEventListener('click', () => this._toggleHideBots());
         this._bindNavLinks(root);
         this._highlightRange();
+        this._highlightHideBots();
     }
 
     _detailTitle() {
@@ -675,6 +717,26 @@ class PageInsightsPage extends HTMLElement {
     _highlightRange() {
         this.shadowRoot.querySelectorAll('.range button').forEach((btn) => {
             btn.classList.toggle('active', btn.dataset.range === this.#range);
+        });
+    }
+
+    /**
+     * Flips the "Hide bots" toggle and reloads. Unlike _setRecentScope()
+     * (which only re-fetches "Recently viewed pages"), this affects every
+     * widget on the current view, so a full _load() - same as changing the
+     * date range - is the correct amount of work here, not a narrower
+     * partial reload.
+     */
+    _toggleHideBots() {
+        this.#hideBots = !this.#hideBots;
+        this.#hideBotsInitialized = true;
+        this._highlightHideBots();
+        this._load();
+    }
+
+    _highlightHideBots() {
+        this.shadowRoot.querySelectorAll('.hide-bots-btn').forEach((btn) => {
+            btn.classList.toggle('active', this.#hideBots);
         });
     }
 
@@ -857,6 +919,7 @@ class PageInsightsPage extends HTMLElement {
         try {
             const data = await this._apiGet('/page-insights/recent', {
                 ...this._dateRangeParams(),
+                ...this._botFilterParams(),
                 ...(this.#recentScope === 'real' ? { scope: 'real' } : {}),
                 limit: nextLimit,
             });
@@ -882,6 +945,7 @@ class PageInsightsPage extends HTMLElement {
         try {
             const data = await this._apiGet('/page-insights/recent', {
                 ...this._dateRangeParams(),
+                ...this._botFilterParams(),
                 ...(this.#recentScope === 'real' ? { scope: 'real' } : {}),
                 limit: this.#recentLimit,
             });
@@ -1155,7 +1219,7 @@ class PageInsightsPage extends HTMLElement {
         if (!route) return;
         resultEl.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.SEARCHING', 'Searching…'))}</div>`;
         try {
-            const data = await this._apiGet('/page-insights/pages/detail', { route, limit: 50 });
+            const data = await this._apiGet('/page-insights/pages/detail', { ...this._botFilterParams(), route, limit: 50 });
             resultEl.innerHTML = `
                 <p>${this._esc(this._tf('ADMIN2.HITS_VISITORS_SUMMARY', '%s hits, %s unique visitors', data.hits, data.visitors))}</p>
                 ${this._table(
@@ -1178,7 +1242,7 @@ class PageInsightsPage extends HTMLElement {
         if (!user) return;
         resultEl.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.SEARCHING', 'Searching…'))}</div>`;
         try {
-            const data = await this._apiGet('/page-insights/users/detail', { user, limit: 50 });
+            const data = await this._apiGet('/page-insights/users/detail', { ...this._botFilterParams(), user, limit: 50 });
             resultEl.innerHTML = `
                 <p>${this._esc(this._tf('ADMIN2.HITS_SUMMARY', '%s hits', data.hits))}</p>
                 ${this._table(
@@ -1212,7 +1276,7 @@ class PageInsightsPage extends HTMLElement {
             .body, .detail-body { display: flex; flex-direction: column; gap: 16px; }
             .toolbar { display: flex; justify-content: space-between; align-items: center; }
             .range { display: flex; gap: 4px; }
-            .range button, .refresh, .db-maintain-btn, .lookup-row button, .load-more-recent {
+            .range button, .refresh, .db-maintain-btn, .hide-bots-btn, .lookup-row button, .load-more-recent {
                 background: var(--background);
                 color: var(--foreground);
                 border: 1px solid var(--border);
@@ -1221,7 +1285,7 @@ class PageInsightsPage extends HTMLElement {
                 cursor: pointer;
                 font-size: 13px;
             }
-            .range button.active { background: var(--primary); color: var(--primary-foreground, #fff); border-color: var(--primary); }
+            .range button.active, .hide-bots-btn.active { background: var(--primary); color: var(--primary-foreground, #fff); border-color: var(--primary); }
             .db-maintain-btn:disabled { cursor: default; opacity: 0.6; }
             .toolbar-end { display: flex; align-items: center; gap: 10px; }
             .db-size { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
