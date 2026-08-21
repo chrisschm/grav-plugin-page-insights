@@ -280,6 +280,15 @@ carries real data.
   Both paths call `GeoDbUpdater::update()` - there is no third, separate implementation of the
   rebuild itself.
 
+  Both a successful rebuild and a failure write a `grav.log` line (`addInfo()`/`addError()`
+  respectively, including the triggering admin's username) - visible via Admin2's Tools -> Logs
+  ("Grav System Log") without needing DB/API access, so an admin can ask a bug reporter to check
+  the log rather than reproduce the issue themselves. Deliberately just `grav.log`, not the `api`
+  plugin's separate Audit Trail (`classes/Api/Audit/` there, off by default) - that system only
+  captures HTTP requests through its own router, so it can't see the scheduled/CLI-triggered path
+  anyway, and would add a dependency on that plugin's internal (undocumented) classes for a need
+  `addInfo()` already covers.
+
 ### Two update modes: prebuilt (default) vs. raw RIR build (`GeoDbUpdater`)
 
 As of 2026-08, rebuilding the index has two modes, selected via the `geo_db_source_mode` config
@@ -395,6 +404,10 @@ design goal for this feature.
 `prune --vacuum` combination - the response therefore always reports a `size_before`/`size_after`
 pair, and `deleted` is `null` only for the pure-`vacuum` preset (used by the frontend to pick
 between the "N row(s) deleted, X MB → Y MB" and plain "X MB → Y MB" toast wording).
+
+A successful run also writes a `grav.log` info line (chosen action, triggering username, rows
+deleted, size before/after) - same reasoning and same log destination as the geo-db rebuild's
+above, not the `api` plugin's Audit Trail.
 
 ## "Hide bots" filter (`PageInsightsApiController::getBotFilter()`)
 

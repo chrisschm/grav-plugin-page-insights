@@ -533,11 +533,29 @@ class PageInsightsPlugin extends Plugin
         $prebuiltUrl = (string) $this->config->get('plugins.page-insights.geo_db_prebuilt_url', '');
         $rawSourceUrl = (string) $this->config->get('plugins.page-insights.geo_db_source_url', '');
 
+        // Best-effort actor name for the log lines below - $this->grav['user']
+        // is the currently logged-in admin at this point (past the nonce
+        // check above), but fall back gracefully rather than let a log call
+        // itself break the actual rebuild if that assumption ever doesn't hold.
+        $username = $this->grav['user']->username ?? 'unknown';
+
         try {
-            (new GeoDbUpdater())->update($indexPath, $mode, $prebuiltUrl ?: null, $rawSourceUrl ?: null);
+            $result = (new GeoDbUpdater())->update($indexPath, $mode, $prebuiltUrl ?: null, $rawSourceUrl ?: null);
             $admin?->setMessage('Geo country database updated.', 'info');
+
+            // Info-level, deliberately - not an error, but worth having in
+            // the log an admin is already asked to attach to a bug report
+            // (see docs/ARCHITECTURE.md "Geolocation"), e.g. to confirm a
+            // rebuild actually ran and when, without needing DB access.
+            $this->grav['log']->addInfo(sprintf(
+                'PageInsights plugin: geo country index rebuilt manually via Classic Admin by %s - %d IPv4 + %d IPv6 entries (source date %s).',
+                $username,
+                $result['ipv4Entries'],
+                $result['ipv6Entries'],
+                $result['sourceDate'] ?? 'unknown'
+            ));
         } catch (\Throwable $e) {
-            $this->grav['log']->addError('PageInsights plugin: geo-db rebuild failed - ' . $e->getMessage());
+            $this->grav['log']->addError('PageInsights plugin: geo-db rebuild failed (triggered by ' . $username . ') - ' . $e->getMessage());
             $admin?->setMessage('Could not update the geo country database: ' . $e->getMessage(), 'error');
         }
 
