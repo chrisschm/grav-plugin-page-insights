@@ -179,6 +179,14 @@ PLUGIN_PAGE_INSIGHTS:
     AUTO_SCHEDULE_WEEKLY: Weekly
     AUTO_SCHEDULE_MONTHLY: Monthly
 
+    # Shown next to the database size in both admin UIs' "Using: ..." area
+    # (Classic Admin's stats.html.twig titlebar, Admin2's dashboard toolbar)
+    # - reused as-is by the Admin2 JS too (not ADMIN2.*-namespaced), same
+    # convention as GEO_DB_BUILT_STATUS above. Omitted entirely (both UIs)
+    # when the corresponding job is "disabled" - see Stats::dbStats().
+    NEXT_GEO_DB_UPDATE: "Next geo-DB update: %s"
+    NEXT_AUTO_PRUNE: "Next automatic pruning: %s"
+
     # Admin2 dashboard (admin-next/pages/page-insights.js) only - UI chrome
     # for the consolidated Web Component dashboard that has no equivalent in
     # Classic Admin's per-widget Twig templates. Reached via window.__GRAV_I18N

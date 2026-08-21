@@ -216,6 +216,8 @@ PLUGIN_PAGE_INSIGHTS:
   AUTO_SCHEDULE_DISABLED: Deaktiviert
   AUTO_SCHEDULE_WEEKLY: Wöchentlich
   AUTO_SCHEDULE_MONTHLY: Monatlich
+  NEXT_GEO_DB_UPDATE: "Nächste Geo-DB-Aktualisierung: %s"
+  NEXT_AUTO_PRUNE: "Nächste automatische Bereinigung: %s"
   LOG_ADMIN_LABEL: Aktivitäten von Administratoren protokollieren
   USING: Nutzt
 

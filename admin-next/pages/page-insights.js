@@ -607,6 +607,7 @@ class PageInsightsPage extends HTMLElement {
                     <div class="toolbar-end">
                         <button class="hide-bots-btn ${this.#hideBots ? 'active' : ''}" title="${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON_TITLE', 'Filter every KPI, chart and list on this dashboard to hits not recognized as bot traffic (based on the "Bot User Agents" list in the config tab) - best-effort, not a guarantee.'))}">${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON', 'Hide bots'))}</button>
                         <span class="db-size" title="${this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'))}"></span>
+                        <span class="next-run"></span>
                         <button class="db-maintain-btn" title="${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON_TITLE', 'Free up disk space or delete old statistics data'))}">${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON', 'Maintain database'))}</button>
                         <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
                     </div>
@@ -757,6 +758,24 @@ class PageInsightsPage extends HTMLElement {
         const o = this.#overview;
         const dbBadge = this.shadowRoot.querySelector('.db-size');
         if (dbBadge) dbBadge.textContent = o.db?.mb !== undefined ? this._tf('ADMIN2.DB_SIZE', 'Database size: %s MB', o.db.mb) : '';
+
+        // Next scheduled run of the two optional automatic maintenance jobs
+        // (see AutoSchedule/Stats::dbStats()) - null/absent when a job is
+        // "disabled", same as the db-size badge this sits next to, both
+        // fed by the same `overview()` `db` field so no extra request is
+        // needed. Same root-level (not ADMIN2.*) translation keys as the
+        // equivalent Classic Admin titlebar text (stats.html.twig).
+        const nextRunEl = this.shadowRoot.querySelector('.next-run');
+        if (nextRunEl) {
+            const parts = [];
+            if (o.db?.next_geo_db_update) {
+                parts.push(this._tf('NEXT_GEO_DB_UPDATE', 'Next geo-DB update: %s', new Date(o.db.next_geo_db_update * 1000).toLocaleString()));
+            }
+            if (o.db?.next_auto_prune) {
+                parts.push(this._tf('NEXT_AUTO_PRUNE', 'Next automatic pruning: %s', new Date(o.db.next_auto_prune * 1000).toLocaleString()));
+            }
+            nextRunEl.textContent = parts.join(' · ');
+        }
 
         const { from, to } = this._currentDateRange();
         const hitsSeries = this._buildDailySeries(this.#summary?.hits, from, to);
@@ -1287,8 +1306,9 @@ class PageInsightsPage extends HTMLElement {
             }
             .range button.active, .hide-bots-btn.active { background: var(--primary); color: var(--primary-foreground, #fff); border-color: var(--primary); }
             .db-maintain-btn:disabled { cursor: default; opacity: 0.6; }
-            .toolbar-end { display: flex; align-items: center; gap: 10px; }
+            .toolbar-end { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; row-gap: 6px; }
             .db-size { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
+            .next-run { font-size: 12px; color: var(--muted-foreground); }
             .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
             .chart-card { display: flex; flex-direction: column; }
             .chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }

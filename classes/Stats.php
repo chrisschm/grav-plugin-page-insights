@@ -127,14 +127,27 @@ class Stats
     }
 
     /**
-     * Database statistics
-     * currently file path and size
+     * Database statistics: file path/size, plus (see AutoSchedule) when the
+     * two optional automatic maintenance jobs (geo-db update, data prune -
+     * see PageInsightsPlugin::onSchedulerInitialized()) will next run, or
+     * null for a job that's currently "disabled". Deliberately computed
+     * here rather than in a dedicated method/endpoint: this one method
+     * already backs both admin UIs' "database size" display (Classic
+     * Admin's stats.html.twig titlebar via pageStats.db.dbStats, Admin2's
+     * dashboard toolbar via PageInsightsApiController::overview()'s `db`
+     * field) - piggy-backing on it means both get the schedule info for
+     * free, with no new route/twig variable to keep in sync.
      */
     public function dbStats()
     {
+        $nextGeoDbUpdate = AutoSchedule::nextRun(GRAV_ROOT, 'geo-db-update', (string) ($this->config['geo_db_auto_update'] ?? 'disabled'));
+        $nextAutoPrune = AutoSchedule::nextRun(GRAV_ROOT, 'data-auto-prune', (string) ($this->config['data_auto_prune'] ?? 'disabled'));
+
         return [
             'mb' => round($this->dbPath->getSize() / 1024 / 1024, 1),
             'path' => (string) $this->dbPath,
+            'next_geo_db_update' => $nextGeoDbUpdate?->getTimestamp(),
+            'next_auto_prune' => $nextAutoPrune?->getTimestamp(),
         ];
     }
 

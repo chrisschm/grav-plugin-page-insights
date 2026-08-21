@@ -257,6 +257,8 @@ PLUGIN_PAGE_INSIGHTS:
   AUTO_SCHEDULE_DISABLED: Désactivée
   AUTO_SCHEDULE_WEEKLY: Hebdomadaire
   AUTO_SCHEDULE_MONTHLY: Mensuelle
+  NEXT_GEO_DB_UPDATE: "Prochaine mise à jour de la base géo : %s"
+  NEXT_AUTO_PRUNE: "Prochain nettoyage automatique : %s"
 
   ADMIN2:
     LOADING: "Chargement…"

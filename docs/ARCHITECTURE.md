@@ -475,6 +475,16 @@ the trade-off is that moving a whole site to a different path/server shifts its 
 accepted as a rare, harmless side effect. `$jobKey` (`"geo-db-update"` vs. `"data-auto-prune"`)
 keeps the two jobs on one site from landing on the exact same second.
 
+`AutoSchedule::nextRun()` computes, from the same seed/jobKey/mode, the next actual occurrence as
+a plain `DateTimeImmutable` - deliberately separate from `cronExpression()` (which only the
+Scheduler registration needs) so a read-only "next run" display doesn't need a cron-expression
+parser, just the same handful of lines of date arithmetic already used to derive the cron fields.
+Surfaced in both admin UIs next to the database size (`Stats::dbStats()`'s `next_geo_db_update`/
+`next_auto_prune`, `null` when the respective job is "disabled") - Classic Admin's
+`stats.html.twig` titlebar and Admin2's dashboard toolbar both already render `Stats::dbStats()`'s
+other fields there, so piggy-backing on that one method gets both UIs the schedule info without a
+new route or twig variable.
+
 ## Composer & the compiled autoloader (important operational gotcha)
 
 Grav does **not** run `composer install` for plugins on any installation path (GPM or Admin ZIP
@@ -719,4 +729,6 @@ ein bewusstes Opt-in bleiben sollte). Beide hängen sich an Gravs eigenes `onSch
 Event (`bin/grav scheduler`) statt einen eigenen Crontab-Eintrag zu verlangen. Wochentag/Tag im
 Monat und Uhrzeit sind dabei nicht einstellbar, sondern werden deterministisch aus einem Hash von
 `GRAV_ROOT` abgeleitet (`AutoSchedule`) - verhindert, dass viele unabhängige Installationen sich
-alle zum selben naheliegenden Zeitpunkt (z. B. "Sonntag 0:05") häufen.
+alle zum selben naheliegenden Zeitpunkt (z. B. "Sonntag 0:05") häufen. Beide Admin-Oberflächen
+zeigen inzwischen zusätzlich neben der Datenbankgröße an, wann der jeweilige Job als Nächstes
+läuft (`AutoSchedule::nextRun()`, über `Stats::dbStats()` mitgeliefert, entfällt bei "deaktiviert").
