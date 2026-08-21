@@ -1,5 +1,5 @@
 # v3.1.8
-## unreleased
+## 08/21/2026
 
 1. [](#new)
     * feat: added a "Hide bots" filter to the Admin2 dashboard (toolbar toggle, applies dashboard-wide - every KPI, chart and "top" list, plus the Page/User Detail views, not just one card) - backed entirely by the existing `data.is_bot` column via `Stats::query()`'s generic filter mechanism (`is_bot => 0`), no schema change needed. New `default_hide_bots` config field (default off, so existing dashboards' numbers don't change on upgrade) lets the admin make it the default on load, same pattern as the existing `default_pages_scope` setting. New `?hide_bots=1` query parameter accepted by every read endpoint in `PageInsightsApiController`. Prompted by two upstream Page Stats issues asking for bot/crawler filtering.
