@@ -1,5 +1,5 @@
 # v3.1.9
-## unreleased
+## 08/21/2026
 
 1. [](#improved)
     * improved: fixed a dashboard-wide performance bottleneck traced to the date-range filter used by nearly every dashboard query - `datetime(date) BETWEEN datetime(:from) AND datetime(:to)`, needed for correctness across differing UTC offsets (see `docs/DATABASES.md`) - silently defeating the existing `idx_data_date` index, so every date-filtered query (by now nearly all of them, including everything the "Hide bots" filter touches) ran a full table scan of `data` regardless of table size, confirmed via `EXPLAIN QUERY PLAN` against a realistic row count. Fixed with a new expression index matching the actual comparison SQLite runs (`idx_data_date_normalized`, migration 6). Also removed four redundant, separate `totalPageViews()` queries (`topCountries()`/`topBrowsers()`/`topPlatforms()`/`statusCodeSummary()` each used to run a whole extra query purely to compute a percentage's denominator, now derived from their own already-fetched result) and added a missing index on `events.session_id` (migration 6) - Classic Admin's "Recently viewed pages" widget calls `Stats::timeOnPage()` once per displayed row (up to 1000 times on the dedicated "view last 1000 pages" page), each previously a full table scan of `events`.
