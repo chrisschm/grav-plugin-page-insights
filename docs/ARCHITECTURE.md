@@ -192,9 +192,49 @@ buckets that Grav core never merges on its own.
 for a key that's clearly present in `languages/de.yaml`, check there before assuming the key itself
 is missing.
 
-Not yet covered: chart x-axis date labels (`_formatDayLabel()`) are still a fixed `DD.MM.` format
-regardless of admin language - locale-aware date formatting remains a separate, still-open README
-To Do item.
+Chart x-axis date labels (`_formatDayLabel()`) are locale-aware too, via the same `locale` this
+bridge reports - see "Localized date formatting" below; this used to be the one still-open item
+here.
+
+## Localized date formatting
+
+The two admin UIs each render at least one calendar date outside of `|t`-translated UI chrome -
+Admin2's trend-chart x-axis (`_formatDayLabel()`) and Classic Admin's "Recently viewed pages"
+day-group headers (`widgets/recently-viewed-pages.html.twig`) - and until 2026-08 both were a fixed
+format regardless of the admin's configured language (`DD.MM.` and the English-only `F jS`
+respectively - the latter not previously documented as a bug, found while fixing the former). Each
+side is fixed independently, in whatever way is natural for that side, rather than through one
+shared mechanism - there's no PHP involved in the Admin2 Web Component's rendering, and no
+JavaScript involved in Classic Admin's server-rendered Twig output, so a single shared
+implementation would mean introducing a dependency neither side actually needs.
+
+- **Admin2** (`_formatDayLabel()`): the browser-native `Intl.DateTimeFormat`, given the same
+  `locale` `window.__GRAV_I18N` already reports (see "Admin2 i18n" above) - no new dependency, every
+  browser Admin2 itself supports has had `Intl` for years. Falls back to the previous fixed `DD.MM.`
+  rendering if the bridge/locale is unavailable or `Intl` throws (e.g. an unrecognized locale
+  string), the same fail-safe spirit as `_t()`'s own fallback. Deliberately constructs a local-time
+  `Date` from the parsed `YYYY-MM-DD` components rather than `new Date(iso)` - the latter parses a
+  bare date-only ISO string as UTC midnight, which a negative-UTC-offset browser timezone would then
+  render as the *previous* day once formatted back in local time.
+- **Classic Admin** (`day|page_insights_localized_day` Twig filter, registered by
+  `PageInsightsPlugin::onTwigExtensions()`, implemented in `classes/LocalizedDate.php`): PHP's
+  `IntlDateFormatter`, given the current admin language via `$grav['language']->getLanguage()` -
+  "active if set, else default", the same resolution `Language::translate()` itself falls back to,
+  so this always tracks whatever language the rest of the same page's `|t`-translated strings are
+  already rendering in. Mapped through the same short-code -> locale convention already established
+  by `mergeAdmin2TranslationAliases()` above (`de`/`en`/`fr`, this plugin's shipped languages), just
+  aimed at an ICU locale (`de_DE`) instead of a BCP47 code (`de-DE`).
+
+  `ext-intl` is deliberately **not** a new hard requirement (`composer.json` still only lists
+  `ext-sqlite3`/`ext-pdo`) - confirmed against Grav core itself
+  (`Pages::orderCollection()`/`PageCollection::order()`) that it treats `intl` the same way, guarding
+  every use behind `extension_loaded('intl')` rather than assuming it's present. `LocalizedDate`
+  mirrors that: when the extension is missing (or formatting fails for any other reason), it falls
+  back to a neutral, unambiguous `Y-m-d` rendering rather than silently keeping the old hardcoded
+  English `F jS` - "wrong language" was the bug being fixed here, so falling back to "no language"
+  rather than "always English again" is the safer floor, same fail-safe principle already used for
+  the geo country lookup (a missing optional capability degrades gracefully, never breaks rendering
+  or silently keeps showing the wrong thing).
 
 ## Config blueprint: 3 tabs
 
@@ -723,6 +763,17 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     through all three callers of this shared widget (`stats.html.twig`, `page-details.html.twig`,
     `user-details.html.twig`) for a benefit an in-process SQLite index lookup no longer meaningfully
     adds to.
+17. **Classic Admin's "Recently viewed pages" day-group headers always rendered in English,
+    regardless of the admin's configured language** - not previously documented as a bug, found
+    while fixing the same underlying problem for Admin2's chart x-axis labels (see "Localized date
+    formatting" above). `recently-viewed-pages.html.twig` used Twig's built-in `|date('F jS')`
+    filter, which wraps plain PHP `date()`/`DateTime::format()` - never locale-aware for named
+    month/day formats, regardless of the site's or admin's language. Replaced with a new
+    `page_insights_localized_day` filter (`classes/LocalizedDate.php`,
+    `PageInsightsPlugin::onTwigExtensions()`) using `IntlDateFormatter` when available. A reminder
+    that Twig's/PHP's own `date()`-style formatting functions are never a shortcut to a localized
+    date, no matter how innocuous a change nearby (or, as in this case, on an entirely different
+    admin UI) makes it look.
 
 ## Known cleanup items
 

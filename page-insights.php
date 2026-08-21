@@ -14,6 +14,7 @@ use Grav\Plugin\PageInsights\AutoSchedule;
 use Grav\Plugin\PageInsights\Geolocation\GeoDbUpdater;
 use Grav\Plugin\PageInsights\Geolocation\Geolocation;
 use Grav\Plugin\PageInsights\Geolocation\CountryLookup;
+use Grav\Plugin\PageInsights\LocalizedDate;
 use Grav\Plugin\PageInsights\RelativeDate;
 use Grav\Plugin\PageInsights\Stats;
 use Grav\Plugin\PageInsights\Api\PageInsightsApiController;
@@ -92,6 +93,16 @@ class PageInsightsPlugin extends Plugin
             // classic Admin plugin isn't installed.
             'onAdminTwigTemplatePaths' => ['onAdminTwigTemplatePaths', 0],
 
+            // Registers the locale-aware date filter used by Classic
+            // Admin's "Recently viewed pages" widget - see
+            // onTwigExtensions(). Registered unconditionally like any
+            // Grav plugin's Twig filters conventionally are (this is the
+            // event Grav's own Twig service fires while building its one
+            // shared Twig environment, not an Admin-only hook) - harmless
+            // on the frontend, since no frontend template in this plugin
+            // uses the filter.
+            'onTwigExtensions' => ['onTwigExtensions', 0],
+
             // Admin2 / grav-plugin-api (Grav 2.0+). No-op when the API
             // plugin isn't installed - Grav simply never fires these events.
             'onApiRegisterRoutes' => ['onApiRegisterRoutes', 0],
@@ -150,6 +161,31 @@ class PageInsightsPlugin extends Plugin
         $paths = $event['paths'];
         $paths[] = __DIR__ . '/themes/admin/templates';
         $event['paths'] = $paths;
+    }
+
+    /**
+     * Adds a `page_insights_localized_day` Twig filter - locale-aware
+     * replacement for the previous hardcoded `day|date('F jS')` in
+     * widgets/recently-viewed-pages.html.twig (see LocalizedDate's doc
+     * comment and docs/ARCHITECTURE.md, "Notable past bugs", for why that
+     * always rendered English regardless of the admin's configured
+     * language). Uses `$grav['language']->getLanguage()` - "active if set,
+     * else default" - the same resolution `Language::translate()` itself
+     * falls back to, so this filter always tracks whatever language the
+     * rest of this plugin's `|t`-translated strings on the same page are
+     * already rendering in.
+     */
+    public function onTwigExtensions(): void
+    {
+        $twig = $this->grav['twig']->twig();
+        $language = $this->grav['language'];
+
+        $twig->addFilter(new \Twig\TwigFilter(
+            'page_insights_localized_day',
+            static function (string $isoDay) use ($language): string {
+                return LocalizedDate::longDay($isoDay, (string) $language->getLanguage());
+            }
+        ));
     }
 
     function getUserIP(): ?string

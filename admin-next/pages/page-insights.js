@@ -988,11 +988,38 @@ class PageInsightsPage extends HTMLElement {
     }
 
     /**
-     * 'YYYY-MM-DD' -> 'DD.MM.' for compact axis labels.
+     * 'YYYY-MM-DD' -> a short, locale-aware day/month label for the trend
+     * chart's x-axis (e.g. '21.08.' for 'de-DE', '8/21' for 'en-US') -
+     * replaces the previous fixed 'DD.MM.' format, which rendered the same
+     * regardless of the admin's configured language (see
+     * docs/ARCHITECTURE.md, "Admin2 i18n" - this was the one still-open
+     * item there). Uses the browser-native Intl.DateTimeFormat with the
+     * same locale window.__GRAV_I18N already reports (see _t()'s doc
+     * comment) - no new dependency, Intl has been available in every
+     * browser Admin2 itself supports for years. Falls back to the
+     * previous fixed 'DD.MM.' rendering if the bridge/locale is
+     * unavailable or Intl throws for any reason (e.g. an unrecognized
+     * locale string) - same fail-safe spirit as _t()'s own fallback: a
+     * missing optional capability should degrade the chart, not break it.
      */
     _formatDayLabel(iso) {
         const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
-        return m ? `${m[3]}.${m[2]}.` : iso || '';
+        if (!m) return iso || '';
+
+        const locale = window.__GRAV_I18N?.locale;
+        if (locale) {
+            try {
+                // Local-time midnight, not UTC: `new Date(iso)` parses a bare
+                // 'YYYY-MM-DD' as UTC midnight, which a negative-UTC-offset
+                // browser timezone would then display as the *previous* day.
+                const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+                return new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit' }).format(date);
+            } catch (e) {
+                // fall through to the fixed format below
+            }
+        }
+
+        return `${m[3]}.${m[2]}.`;
     }
 
     /**

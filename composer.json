@@ -25,7 +25,8 @@
         "ext-pdo": "*"
     },
     "suggest": {
-        "ext-curl": "Used to download the RIR delegated-stats snapshot when (re)building the geo country index; falls back to file_get_contents() if unavailable."
+        "ext-curl": "Used to download the RIR delegated-stats snapshot when (re)building the geo country index; falls back to file_get_contents() if unavailable.",
+        "ext-intl": "Used for locale-aware date formatting in Classic Admin (e.g. localized month names in 'Recently viewed pages'); falls back to a neutral Y-m-d format if unavailable."
     },
     "autoload": {
         "psr-4": {
