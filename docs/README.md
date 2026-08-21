@@ -17,6 +17,10 @@ duplicates that.
   (`Stats::query()`), Admin2 sub-routing and i18n, the config blueprint, the geolocation subsystem
   (self-built RIR-based country lookup), CLI commands and automatic scheduling, the
   Composer/compiled-autoloader gotcha, and notable past bugs.
+- [`DATABASES.md`](DATABASES.md) - schema and storage-level design decisions for both on-disk
+  stores: the SQLite stats/events database (tables, indexes, connection pragmas) and the self-built
+  geo country index binary format. Kept separate from `ARCHITECTURE.md` so there's one place to
+  update when a schema changes.
 
 ## Policies
 
@@ -53,6 +57,10 @@ Ausgangspunkt für alle, die am Code arbeiten wollen (Contributor/Maintainer). A
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) - Aufbau und Design-Entscheidungen: Dateilayout, die beiden
   Admin-Oberflächen auf gemeinsamer Datenschicht, generischer Filter-Mechanismus, Admin2-Routing
   und i18n, Geolocation-Subsystem, CLI-Kommandos/Scheduler, bekannte Altlasten.
+- [`DATABASES.md`](DATABASES.md) - Schema und Design-Entscheidungen beider Datenspeicher: die
+  SQLite-Statistik-/Events-Datenbank (Tabellen, Indizes, Connection-Pragmas) und das selbstgebaute
+  Binärformat des Geo-Country-Index. Bewusst getrennt von `ARCHITECTURE.md` gehalten, damit es genau
+  eine Stelle für Schemaänderungen gibt.
 - [`../SECURITY.md`](../SECURITY.md), [`../CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md) -
   Richtlinien.
 - [`../CHANGELOG.md`](../CHANGELOG.md) - veröffentlichte Versionen.

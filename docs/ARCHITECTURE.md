@@ -4,6 +4,13 @@ This document explains how the plugin is built and *why* certain decisions were 
 at contributors who want to change code, not at end users configuring the plugin (see `README.md`
 for that). *(Eine deutsche Kurzfassung findest du am Ende dieser Datei.)*
 
+**Database schemas live in a separate file.** Table/column layout, indexes, connection pragmas,
+and the geo country index's binary format - including the design decisions behind them where they
+matter for correctness or performance - are documented in
+[`DATABASES.md`](DATABASES.md), not here, so there's exactly one place to update when a schema
+changes. This file links to it wherever relevant; general programming conventions (the query
+filter mechanism, i18n, Composer/autoloader, CI, etc.) stay here as before.
+
 ## Purpose
 
 Collects and visualizes page-view statistics for a Grav site (page views, unique visitors/users,
@@ -57,6 +64,7 @@ user/plugins/page-insights/
 ├── data/
 │   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see below
 │   └── migrations/{1..5}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
+│                                           # (schema/format details: DATABASES.md)
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
 │   └── widgets/geo-db-status.html.twig    # geo index status + "Update now" (see "Geolocation")
@@ -76,6 +84,7 @@ because Grav requests always run with the Grav root as the working directory. Th
 outside `user/plugins/page-insights/`: GPM replaces the *entire* plugin directory on every update
 (see "Notable past bugs" #8) - anything written inside it, e.g. the geo index before this move, is
 silently lost on the next update. `user/data/` isn't touched by a plugin update, so it survives.
+See [`DATABASES.md`](DATABASES.md) for what's actually inside each of these two files.
 
 ## Two Admin UIs, one data layer
 
@@ -239,8 +248,9 @@ carries real data.
   `UNKNOWN_CC` ("ZZ", ISO 3166-1's reserved "unknown country" code) entry rather than being left
   out - that's what lets `CountryLookup` always do a plain "greatest start <= address" binary
   search with no separate end-of-range check. Adjacent same-country entries are merged. Writes its
-  own small, fully self-documented binary format (see the class doc comment for the exact byte
-  layout) - deliberately not IP2Location's BIN format, nothing left to reverse-engineer.
+  own small, fully self-documented binary format (see `DATABASES.md` for the exact byte layout and
+  the design decisions behind it, also mirrored in the class doc comment) - deliberately not
+  IP2Location's BIN format, nothing left to reverse-engineer.
 - **`CountryLookup`** - the read side, instantiated fresh on every single page hit
   (`PageInsightsPlugin::collectPageData()`). Binary search directly against the file via
   `fseek`/`fread` per probe (nothing loaded into memory up front, same approach the old
@@ -343,10 +353,10 @@ vendor-bloat mistake `git` history already went through once, see "Notable past 
 - **`bin/plugin page-insights events:prune-orphans`** - just the orphaned-`events` cleanup, without
   any age cutoff. `events.session_id` is declared `REFERENCES data (id)` in the schema but without
   `ON DELETE CASCADE`, and `Stats`'s own connection explicitly runs `PRAGMA foreign_keys = OFF` (see
-  "Notable past bugs" below) - so deleting a `data` row, by any means, never automatically removes
-  its `events`. `prune` already covers rows it deletes itself; this command is for cleaning up
-  drift that predates `pruneData()`/`pruneOrphanedEvents()` existing at all, without touching any
-  otherwise-current `data`.
+  "Notable past bugs" below and `DATABASES.md` for the full schema/pragma reasoning) - so deleting a
+  `data` row, by any means, never automatically removes its `events`. `prune` already covers rows it
+  deletes itself; this command is for cleaning up drift that predates `pruneData()`/
+  `pruneOrphanedEvents()` existing at all, without touching any otherwise-current `data`.
 - **`bin/plugin page-insights vacuum`** - runs `VACUUM` on its own, independent of `prune`. SQLite
   only frees deleted rows' pages for internal reuse by default; the file itself stays at its
   largest-ever size until `VACUUM` rewrites it. Needs a brief exclusive lock on the database.
@@ -481,7 +491,8 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
    during the initial Admin2 migration, kept here as a reminder that the date-filter path had a
    history of subtle bugs.
 5. **SQLite under load without `PRAGMA busy_timeout`/WAL** - suspected cause of a server outage.
-   Fixed with `busy_timeout = 5000`, `journal_mode = WAL`, `synchronous = NORMAL`.
+   Fixed with `busy_timeout = 5000`, `journal_mode = WAL`, `synchronous = NORMAL` (current pragma
+   set and the reasoning behind each one: `DATABASES.md`).
 6. **Admin2 custom field silently rendered as a plain text input.** The first geo-db rebuild UI
    was a custom Admin2 blueprint field (`admin-next/fields/geodbupdate.js`, since removed). The
    discovery mechanism itself (`{plugin}/admin-next/fields/*.js` auto-registered by
@@ -588,7 +599,8 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     explicitly run `PRAGMA foreign_keys = OFF` right after migration, so the connection's behavior
     never depends on whether `migrate()` just ran. Reproduced and verified fixed against a scratch
     SQLite database (pre-existing + newly-orphaned `events` rows, verified gone after `pruneData()`;
-    a second `pruneOrphanedEvents()` call afterwards correctly deletes nothing).
+    a second `pruneOrphanedEvents()` call afterwards correctly deletes nothing). Current pragma
+    ordering and the `events.session_id` non-enforcement it protects: `DATABASES.md`.
 13. **`VACUUM` on a `journal_mode = WAL` connection (`Stats` always runs in WAL, see `__construct()`)
     doesn't immediately shrink the main database file's on-disk size** - `VACUUM`'s rewritten pages
     land in the WAL file first, like any other write, and only get folded back into the main file on
@@ -599,6 +611,7 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     suggested it hadn't. Fixed by running `PRAGMA wal_checkpoint(TRUNCATE)` explicitly, both right
     before measuring "before" and right after `VACUUM` before measuring "after", so the CLI/scheduler
     output reflects the true, immediate result rather than whatever happens to be checkpointed yet.
+    Current behavior, documented as such rather than as a bug report: `DATABASES.md`.
 
 ## Known cleanup items
 
@@ -619,7 +632,10 @@ changes, but don't duplicate version numbers here.
 ## Auf Deutsch (Kurzfassung)
 
 Diese Datei richtet sich an Contributor, die am Code arbeiten wollen (Endnutzer-Doku steht in
-`README.md`). Kernpunkte: zwei Admin-Oberflächen (Classic Admin, neun Twig-Unterseiten; Admin2,
+`README.md`). Datenbankschemata (Tabellen/Spalten, Indizes, Pragmas, das Binärformat des
+Geo-Country-Index) samt der dahinterstehenden Design-Entscheidungen stehen bewusst separat in
+[`DATABASES.md`](DATABASES.md) - diese Datei verlinkt dort hin statt sie zu duplizieren. Kernpunkte
+hier: zwei Admin-Oberflächen (Classic Admin, neun Twig-Unterseiten; Admin2,
 eine Web-Component) teilen sich dieselbe Datenschicht (`classes/Stats.php`) - Unterschiede
 betreffen ausschließlich die Präsentation, nicht Erfassung/Speicherung. Der generische
 Spalten-Filter-Mechanismus (`Stats::query()`, `$params`-Array) deckt die meisten neuen
