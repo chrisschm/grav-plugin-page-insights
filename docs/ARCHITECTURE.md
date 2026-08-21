@@ -677,6 +677,20 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     output reflects the true, immediate result rather than whatever happens to be checkpointed yet.
     Current behavior, documented as such rather than as a bug report: `DATABASES.md`.
 
+14. **`$grav['log']->addInfo()`/`addError()`/`addDebug()` throw `Call to undefined method` on
+    Grav 2.0** (`Monolog\Logger::addInfo()` in the actual crash, live-verified against a Grav 2.0
+    test environment - `PageInsightsApiController::rebuildGeoDb()`, freshly introduced that
+    session). Cause: those `add<Level>()` names are Monolog 1.x-only convenience aliases for the
+    real PSR-3 `LoggerInterface` methods (`debug()`/`info()`/`error()`/etc.) - present in Monolog
+    1.x alongside the PSR-3 names, removed entirely by Monolog 2.0. Grav 1.7 bundles Monolog 1.x
+    (so `addError()` etc. happened to work there, which is how this went unnoticed for years - see
+    the pre-existing `addDebug()`/`addError()` calls in `collectPageData()`'s catch block and
+    `registerAutoPruneJob()`'s validation, both from well before this plugin's Grav 2.0 support),
+    Grav 2.0 bundles a newer Monolog major without them. Fix: use the plain PSR-3 method names
+    everywhere (`->info(...)`, `->error(...)`, `->debug(...)`) - confirmed present, with the same
+    single-string-message signature, on both Monolog 1.0.0 and 3.10.0, so this is a straight
+    rename with no Grav-version branching needed, not a compatibility shim.
+
 ## Known cleanup items
 
 - `classes/Api/PageStatsApiController.php` and `admin-next/pages/page-stats.js` are leftover,

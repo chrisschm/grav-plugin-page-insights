@@ -332,7 +332,7 @@ class PageInsightsApiController extends AbstractApiController
                 $rawSourceUrl ?: null
             );
         } catch (\Throwable $e) {
-            $grav['log']->addError('PageInsights plugin: geo-db rebuild failed (triggered by ' . $username . ') - ' . $e->getMessage());
+            $grav['log']->error('PageInsights plugin: geo-db rebuild failed (triggered by ' . $username . ') - ' . $e->getMessage());
 
             // Reusing ValidationException here rather than introducing a new
             // exception type: it's the only AbstractApiController-aware
@@ -350,7 +350,7 @@ class PageInsightsApiController extends AbstractApiController
         // log an admin is already asked to attach to a bug report (see
         // docs/ARCHITECTURE.md "Geolocation"), e.g. to confirm a rebuild
         // actually ran and when, without needing DB/API access.
-        $grav['log']->addInfo(sprintf(
+        $grav['log']->info(sprintf(
             'PageInsights plugin: geo country index rebuilt manually via Admin2 by %s - %d IPv4 + %d IPv6 entries (source date %s).',
             $username,
             $result['ipv4Entries'],
@@ -431,7 +431,7 @@ class PageInsightsApiController extends AbstractApiController
         // to confirm which action actually ran and when, without needing DB
         // access - this deletes data for two of the three actions, unlike
         // the read-only geo-db rebuild above.
-        Grav::instance()['log']->addInfo(sprintf(
+        Grav::instance()['log']->info(sprintf(
             'PageInsights plugin: database maintenance "%s" triggered manually via Admin2 by %s - %s row(s) deleted, %s MB -> %s MB.',
             $action,
             (string) ($this->getUser($request)->get('username') ?: 'unknown'),

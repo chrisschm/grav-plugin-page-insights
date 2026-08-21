@@ -321,11 +321,11 @@ class PageInsightsPlugin extends Plugin
             }
         } catch (\Throwable $e) {
             error_log($e->getmessage());
-            $this->grav['log']->addDebug('IP : ' . $ip);
+            $this->grav['log']->debug('IP : ' . $ip);
 
-            $this->grav['log']->addError('PageInsights plugin : ' . $e->getMessage() . ' - File: ' . $e->getFile() . ' - Line: ' . $e->getLine() . ' - Trace: ' . $e->getTraceAsString());
-            // $this->grav['log']->addDebug('GEO DB : ' . self::GEO_DB);
-            // $this->grav['log']->addDebug('STATS DB : ' . $dbPath);
+            $this->grav['log']->error('PageInsights plugin : ' . $e->getMessage() . ' - File: ' . $e->getFile() . ' - Line: ' . $e->getLine() . ' - Trace: ' . $e->getTraceAsString());
+            // $this->grav['log']->debug('GEO DB : ' . self::GEO_DB);
+            // $this->grav['log']->debug('STATS DB : ' . $dbPath);
 
             if (false === $config['ignore_errors']) {
                 throw $e;
@@ -547,7 +547,7 @@ class PageInsightsPlugin extends Plugin
             // the log an admin is already asked to attach to a bug report
             // (see docs/ARCHITECTURE.md "Geolocation"), e.g. to confirm a
             // rebuild actually ran and when, without needing DB access.
-            $this->grav['log']->addInfo(sprintf(
+            $this->grav['log']->info(sprintf(
                 'PageInsights plugin: geo country index rebuilt manually via Classic Admin by %s - %d IPv4 + %d IPv6 entries (source date %s).',
                 $username,
                 $result['ipv4Entries'],
@@ -555,7 +555,7 @@ class PageInsightsPlugin extends Plugin
                 $result['sourceDate'] ?? 'unknown'
             ));
         } catch (\Throwable $e) {
-            $this->grav['log']->addError('PageInsights plugin: geo-db rebuild failed (triggered by ' . $username . ') - ' . $e->getMessage());
+            $this->grav['log']->error('PageInsights plugin: geo-db rebuild failed (triggered by ' . $username . ') - ' . $e->getMessage());
             $admin?->setMessage('Could not update the geo country database: ' . $e->getMessage(), 'error');
         }
 
@@ -906,7 +906,7 @@ class PageInsightsPlugin extends Plugin
         // whatever moment happened to register it.
         $cutoff = RelativeDate::resolve($olderThanRaw);
         if ($cutoff === null) {
-            $this->grav['log']->addError(
+            $this->grav['log']->error(
                 "PageInsights plugin: ungueltiger Wert fuer data_auto_prune_older_than ('{$olderThanRaw}') - automatisches Prune wird uebersprungen."
             );
             return;
