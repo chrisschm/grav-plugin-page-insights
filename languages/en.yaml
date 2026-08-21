@@ -49,7 +49,7 @@ PLUGIN_PAGE_INSIGHTS:
     LOG_ADMIN_LABEL: Log Admin users Activity
     LOG_ADMIN_HELP: Log admin user activity on site, they will never be logged while using admin panel
     LOG_BOT_LABEL: Log Bot Activity
-    LOG_BOT_HELP: By default we do not log activity of known BOTS, enable to log
+    LOG_BOT_HELP: Enabled by default - hits recognized as bot traffic (see "Bot User Agents" below) are still logged like any other visit, just tagged internally (this is what the Admin2 dashboard's "Hide bots" filter relies on). Disable to skip logging recognized bot hits entirely instead.
 
     TOP_USERS_WIDGET: Top Users
 

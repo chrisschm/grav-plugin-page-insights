@@ -181,7 +181,7 @@ form:
                                     label: PLUGIN_PAGE_INSIGHTS.LOG_BOT_LABEL
                                     help: PLUGIN_PAGE_INSIGHTS.LOG_BOT_HELP
                                     highlight: 0
-                                    default: 0
+                                    default: 1
                                     options:
                                         1: PLUGIN_ADMIN.ENABLED
                                         0: PLUGIN_ADMIN.DISABLED

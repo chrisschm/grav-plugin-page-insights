@@ -62,8 +62,11 @@ PLUGIN_PAGE_INSIGHTS:
     Website. Sie werden niemals protokolliert, während Sie das Admin-Panel 
     verwenden
   LOG_BOT_LABEL: Bot-Aktivität protokollieren
-  LOG_BOT_HELP: Standardmäßig protokollieren wir die Aktivitäten bekannter Bots 
-    nicht; aktivieren Sie die Protokollierung, falls gewünscht
+  LOG_BOT_HELP: Standardmäßig aktiviert - als Bot erkannte Zugriffe (siehe „Bot
+    User Agents" weiter unten) werden weiterhin wie jeder andere Besuch protokolliert,
+    nur intern markiert (darauf baut der „Bots ausblenden"-Filter im Admin2-Dashboard
+    auf). Deaktivieren, um als Bot erkannte Zugriffe komplett von der Protokollierung
+    auszuschließen.
   TOP_USERS_WIDGET: Top Users
   UNIQUE_USERS_WIDGET: Eindeutige Nutzer
   UNIQUE_VISITORS_WIDGET: Eindeutige Besucher

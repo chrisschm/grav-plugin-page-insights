@@ -343,3 +343,24 @@ bot_regexp:
     - yandex
     - yeti
     - Zeus
+    # 2026-08-21 additions: the list above was carried over unchanged from
+    # the original Page Stats fork (see docs/ARCHITECTURE.md) and predates
+    # the current wave of AI/training crawlers - most self-identify with
+    # "bot"/"crawler"/"spider" already covered generically above (GPTBot,
+    # ClaudeBot, PerplexityBot, Bytespider, Amazonbot, ...), these don't.
+    # Deliberately NOT included here: on-demand/user-triggered AI browsing
+    # agents (ChatGPT-User, Claude-User, Perplexity-User, etc.) - those
+    # requests are initiated by a real person's action, not an autonomous
+    # crawler; add them yourself below if you'd rather treat them as bots
+    # too. Source for current crawler user agents:
+    # https://github.com/ai-robots-txt/ai.robots.txt
+    - Google-Extended
+    - GoogleOther
+    - meta-externalagent
+    - meta-externalfetcher
+    - meta-webindexer
+    - anthropic-ai
+    - cohere-ai
+    - Webzio-Extended
+    - omgili
+    - Scrapy

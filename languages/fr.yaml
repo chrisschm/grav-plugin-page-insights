@@ -68,8 +68,11 @@ PLUGIN_PAGE_INSIGHTS:
   LOG_ADMIN_HELP: "Enregistre l'activité des utilisateurs administrateurs sur le site,
     mais jamais lorsqu'ils utilisent le panneau d'administration"
   LOG_BOT_LABEL: "Enregistrer l'activité des robots"
-  LOG_BOT_HELP: "Par défaut, l'activité des robots connus n'est pas enregistrée. Activez
-    cette option pour les enregistrer"
+  LOG_BOT_HELP: "Activé par défaut - les visites reconnues comme provenant de robots
+    (voir « Agents utilisateurs des robots » ci-dessous) sont tout de même enregistrées
+    comme n'importe quelle visite, simplement marquées en interne (c'est ce sur quoi
+    repose le filtre « Masquer les robots » du tableau de bord Admin2). Désactivez
+    cette option pour ne plus du tout enregistrer les visites reconnues comme robots."
 
   TOP_USERS_WIDGET: Utilisateurs les plus actifs
 
