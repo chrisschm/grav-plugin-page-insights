@@ -30,7 +30,7 @@
                     label: '{{ "PLUGIN_PAGE_INSIGHTS.TABLE_PAGE_VIEWS"|t }}',
                     data: [{% for s in data %}
                             {
-                                x: "{{ s.date }}",
+                                x: "{{ s.date|page_insights_short_day }}",
                                 y: {{ s.hits }}
                             },{% endfor %}]
                 }

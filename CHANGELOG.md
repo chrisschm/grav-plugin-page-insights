@@ -7,6 +7,7 @@
 
 2. [](#bugfix)
     * bugfix: Classic Admin's "Recently viewed pages" widget rendered its day-group headers in English regardless of the configured admin language (`day|date('F jS')`, Twig's/PHP's built-in date formatting, is never locale-aware for named months - found while localizing the Admin2 chart labels above). Now uses a new `page_insights_localized_day` Twig filter (`classes/LocalizedDate.php`), backed by PHP's `IntlDateFormatter` where available, with a neutral `Y-m-d` fallback (not a new hard requirement - `ext-intl` added to `composer.json`'s `suggest`, not `require`, matching how Grav core itself treats that extension).
+    * bugfix: found while live-testing the two fixes above against real Grav 1.7/2.0 test instances - two more date displays had no formatting at all, not just the wrong one: Classic Admin's three dashboard charts (page views/unique visitors/unique users) fed a raw `YYYY-MM-DD` string straight into Chart.js as an x-axis label, and every "recently viewed"-style table in Admin2 (dashboard, Page/User Detail, Page/User search) showed an unformatted `day`/`time` concatenation. Both now go through the same locale-aware formatting as the other two fixes (`page_insights_short_day` Twig filter / a new `_formatRecentDate()` helper) - the Classic Admin chart axes deliberately matching Admin2's chart-axis format byte-for-byte per locale, so both dashboards' charts look the same.
 
 # v3.1.8
 ## 08/21/2026 ([5d14b91](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/5d14b919070a734761c2e3c441c2ea79764a7511))

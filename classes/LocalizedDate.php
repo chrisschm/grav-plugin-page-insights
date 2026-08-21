@@ -77,4 +77,70 @@ class LocalizedDate
 
         return $date->format('Y-m-d');
     }
+
+    /**
+     * Locale-appropriate day/month order and separator, no year - e.g.
+     * "21.08." for 'de', "08/21" for 'en', "21/08" for 'fr'. No standard
+     * ICU length constant produces "day+month, no year" directly (LONG/
+     * MEDIUM/SHORT all include a year), so this uses a fixed custom
+     * pattern per shipped locale instead - chosen to match, byte-for-byte,
+     * what Admin2's own `Intl.DateTimeFormat(locale, {day: '2-digit',
+     * month: '2-digit'})` already produces (admin-next/pages/
+     * page-insights.js, `_formatDayLabel()`), so a chart axis looks the
+     * same regardless of which admin UI is open. Same intl-availability
+     * and fallback behaviour as longDay() above - falls back to the
+     * previous fixed 'd.m.' rendering (this plugin's original, pre-
+     * localization chart-axis format) rather than a neutral ISO one,
+     * since axis labels need to stay short and this is what every
+     * dashboard already showed before today.
+     *
+     * Deliberately omits the year, same as the Admin2 axis label it
+     * mirrors - both only ever chart a single, currently-selected date
+     * range shown elsewhere on the page, not an arbitrary multi-year
+     * history, so the day+month is unambiguous in context.
+     */
+    public static function shortDay(string $isoDay, string $languageCode): string
+    {
+        if ($isoDay === '') {
+            return $isoDay;
+        }
+
+        try {
+            $date = new \DateTimeImmutable($isoDay);
+        } catch (\Throwable $e) {
+            return $isoDay;
+        }
+
+        if (extension_loaded('intl')) {
+            $locale = self::ICU_LOCALES[$languageCode] ?? self::ICU_LOCALES['en'];
+            $pattern = self::SHORT_DAY_PATTERNS[$languageCode] ?? self::SHORT_DAY_PATTERNS['en'];
+            $formatter = new \IntlDateFormatter(
+                $locale,
+                \IntlDateFormatter::NONE,
+                \IntlDateFormatter::NONE,
+                null,
+                null,
+                $pattern
+            );
+            $formatted = $formatter->format($date);
+            if ($formatted !== false) {
+                return $formatted;
+            }
+        }
+
+        return $date->format('d.m.');
+    }
+
+    /**
+     * Custom ICU patterns behind shortDay() - see its doc comment. Verified
+     * to produce the exact same output as Admin2's
+     * Intl.DateTimeFormat(locale, {day: '2-digit', month: '2-digit'}) for
+     * each shipped locale: 'de' -> "21.08.", 'en' -> "08/21", 'fr' ->
+     * "21/08".
+     */
+    private const SHORT_DAY_PATTERNS = [
+        'de' => 'dd.MM.',
+        'en' => 'MM/dd',
+        'fr' => 'dd/MM',
+    ];
 }

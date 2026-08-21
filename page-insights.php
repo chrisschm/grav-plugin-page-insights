@@ -164,16 +164,23 @@ class PageInsightsPlugin extends Plugin
     }
 
     /**
-     * Adds a `page_insights_localized_day` Twig filter - locale-aware
-     * replacement for the previous hardcoded `day|date('F jS')` in
-     * widgets/recently-viewed-pages.html.twig (see LocalizedDate's doc
-     * comment and docs/ARCHITECTURE.md, "Notable past bugs", for why that
-     * always rendered English regardless of the admin's configured
-     * language). Uses `$grav['language']->getLanguage()` - "active if set,
-     * else default" - the same resolution `Language::translate()` itself
-     * falls back to, so this filter always tracks whatever language the
-     * rest of this plugin's `|t`-translated strings on the same page are
-     * already rendering in.
+     * Adds two locale-aware date Twig filters (see LocalizedDate's doc
+     * comment and docs/ARCHITECTURE.md, "Localized date formatting"/
+     * "Notable past bugs" for the full history). Both use
+     * `$grav['language']->getLanguage()` - "active if set, else default" -
+     * the same resolution `Language::translate()` itself falls back to, so
+     * they always track whatever language the rest of this plugin's
+     * `|t`-translated strings on the same page are already rendering in.
+     *
+     * - `page_insights_localized_day`: replaces the previous hardcoded
+     *   `day|date('F jS')` in widgets/recently-viewed-pages.html.twig
+     *   (always rendered English month names regardless of admin
+     *   language).
+     * - `page_insights_short_day`: replaces the previous completely
+     *   unformatted raw `{{ s.date }}` (a bare 'YYYY-MM-DD' string) fed
+     *   straight into Chart.js as an x-axis label in
+     *   widgets/page-views.html.twig, unique-visitors.html.twig and
+     *   unique-users.html.twig.
      */
     public function onTwigExtensions(): void
     {
@@ -184,6 +191,13 @@ class PageInsightsPlugin extends Plugin
             'page_insights_localized_day',
             static function (string $isoDay) use ($language): string {
                 return LocalizedDate::longDay($isoDay, (string) $language->getLanguage());
+            }
+        ));
+
+        $twig->addFilter(new \Twig\TwigFilter(
+            'page_insights_short_day',
+            static function (string $isoDay) use ($language): string {
+                return LocalizedDate::shortDay($isoDay, (string) $language->getLanguage());
             }
         ));
     }

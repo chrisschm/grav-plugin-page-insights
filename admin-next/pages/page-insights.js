@@ -520,7 +520,7 @@ class PageInsightsPage extends HTMLElement {
                             this._userCellHtml({ user: v.user, ip: v.ip }),
                             this._esc(v.browser || this._t('GEO_DB_UNKNOWN', 'unknown')),
                             this._esc(v.platform || this._t('GEO_DB_UNKNOWN', 'unknown')),
-                            `${this._esc(v.day || '')} ${this._esc(v.time || '')}`,
+                            this._esc(this._formatRecentDate(v.day, v.time)),
                         ])
                     )}
                 </div>
@@ -576,7 +576,7 @@ class PageInsightsPage extends HTMLElement {
                             this._pageCellHtml(v.route),
                             this._esc(v.browser || this._t('GEO_DB_UNKNOWN', 'unknown')),
                             this._esc(v.platform || this._t('GEO_DB_UNKNOWN', 'unknown')),
-                            `${this._esc(v.day || '')} ${this._esc(v.time || '')}`,
+                            this._esc(this._formatRecentDate(v.day, v.time)),
                         ])
                     )}
                 </div>
@@ -857,7 +857,7 @@ class PageInsightsPage extends HTMLElement {
                             this._userCellHtml({ user: r.user, ip: r.ip }),
                             this._esc(r.browser || this._t('GEO_DB_UNKNOWN', 'unknown')),
                             this._esc(r.platform || this._t('GEO_DB_UNKNOWN', 'unknown')),
-                            `${this._esc(r.day || '')} ${this._esc(r.time || '')}`,
+                            this._esc(this._formatRecentDate(r.day, r.time)),
                         ])
                     )}
                     ${this.#recentPages.length && this.#recentHasMore ? `<button class="load-more-recent">${this._esc(this._t('ADMIN2.LOAD_MORE', 'Load more'))}</button>` : ''}
@@ -1020,6 +1020,45 @@ class PageInsightsPage extends HTMLElement {
         }
 
         return `${m[3]}.${m[2]}.`;
+    }
+
+    /**
+     * Formats a "recently viewed"-style table row's raw 'YYYY-MM-DD' day +
+     * 'HH:MM:SS' time (as returned by every /recent, /pages/detail,
+     * /users/detail response - see Stats::recentPages()) into one
+     * locale-aware string, e.g. '21.08.2026 14:23:10' for 'de-DE',
+     * '8/21/2026 14:23:10' for 'en-US'. Every such table (dashboard
+     * "Recently viewed pages", Page/User Detail's own recent-views table,
+     * the Page/User search results) used to render the date half of this
+     * completely unformatted - a bare 'YYYY-MM-DD' string straight from
+     * the API response, not even the old fixed 'DD.MM.' format
+     * _formatDayLabel() had - found while localizing that chart-axis
+     * format above. Time-of-day is left exactly as returned: a plain 24h
+     * 'HH:MM:SS' reads the same regardless of locale, so it doesn't need
+     * Intl involvement. Includes the year, unlike _formatDayLabel()'s
+     * chart-axis format - these tables can span far more than one
+     * currently-selected date range (e.g. the unbounded "Load more" list,
+     * or a user/page's entire history on the Detail views), so day+month
+     * alone would be ambiguous here in a way it isn't for a single chart.
+     * Same locale/fallback/local-midnight reasoning as _formatDayLabel().
+     */
+    _formatRecentDate(day, time) {
+        const raw = `${day || ''} ${time || ''}`.trim();
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+        if (!m) return raw;
+
+        const locale = window.__GRAV_I18N?.locale;
+        if (locale) {
+            try {
+                const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+                const formattedDay = new Intl.DateTimeFormat(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+                return `${formattedDay} ${time || ''}`.trim();
+            } catch (e) {
+                // fall through to the raw rendering below
+            }
+        }
+
+        return raw;
     }
 
     /**
@@ -1272,7 +1311,7 @@ class PageInsightsPage extends HTMLElement {
                     [this._t('TABLE_USER', 'User'), this._t('TABLE_DATE', 'Date'), this._t('TABLE_BROWSER', 'Browser')],
                     (data.views || []).map((v) => [
                         this._userCellHtml({ user: v.user, ip: v.ip }),
-                        `${this._esc(v.day || '')} ${this._esc(v.time || '')}`,
+                        this._esc(this._formatRecentDate(v.day, v.time)),
                         this._esc(v.browser || ''),
                     ])
                 )}`;
@@ -1296,7 +1335,7 @@ class PageInsightsPage extends HTMLElement {
                     // meaning, and every other table in this file already uses TABLE_PAGE
                     // for this column (see _renderBody()/_loadPageDetail()).
                     [this._t('TABLE_PAGE', 'Page'), this._t('TABLE_DATE', 'Date')],
-                    (data.views || []).map((v) => [this._pageCellHtml(v.route), `${this._esc(v.day || '')} ${this._esc(v.time || '')}`])
+                    (data.views || []).map((v) => [this._pageCellHtml(v.route), this._esc(this._formatRecentDate(v.day, v.time))])
                 )}`;
             this._bindNavLinks(resultEl);
         } catch (err) {
