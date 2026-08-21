@@ -606,8 +606,8 @@ class PageInsightsPage extends HTMLElement {
                     </div>
                     <div class="toolbar-end">
                         <button class="hide-bots-btn ${this.#hideBots ? 'active' : ''}" title="${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON_TITLE', 'Filter every KPI, chart and list on this dashboard to hits not recognized as bot traffic (based on the "Bot User Agents" list in the config tab) - best-effort, not a guarantee.'))}">${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON', 'Hide bots'))}</button>
-                        <span class="db-size" title="${this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'))}"></span>
                         <span class="next-run"></span>
+                        <span class="db-size" title="${this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'))}"></span>
                         <button class="db-maintain-btn" title="${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON_TITLE', 'Free up disk space or delete old statistics data'))}">${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON', 'Maintain database'))}</button>
                         <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
                     </div>
