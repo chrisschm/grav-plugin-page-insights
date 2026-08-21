@@ -1,5 +1,8 @@
+# v3.1.9
+## unreleased
+
 # v3.1.8
-## 08/21/2026
+## 08/21/2026 ([5d14b91](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/5d14b919070a734761c2e3c441c2ea79764a7511))
 
 1. [](#new)
     * feat: added a "Hide bots" filter to the Admin2 dashboard (toolbar toggle, applies dashboard-wide - every KPI, chart and "top" list, plus the Page/User Detail views, not just one card) - backed entirely by the existing `data.is_bot` column via `Stats::query()`'s generic filter mechanism (`is_bot => 0`), no schema change needed. New `default_hide_bots` config field (default off, so existing dashboards' numbers don't change on upgrade) lets the admin make it the default on load, same pattern as the existing `default_pages_scope` setting. New `?hide_bots=1` query parameter accepted by every read endpoint in `PageInsightsApiController`. Prompted by two upstream Page Stats issues asking for bot/crawler filtering.
