@@ -691,6 +691,39 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     single-string-message signature, on both Monolog 1.0.0 and 3.10.0, so this is a straight
     rename with no Grav-version branching needed, not a compatibility shim.
 
+15. **Dashboard rendering got noticeably slower as the "data" table grew, traced to the date-range
+    filter defeating its own index.** `Stats::query()`'s date-range filter has always compared
+    `datetime(date) BETWEEN datetime(:from) AND datetime(:to)` (see "Notable past bugs" #4/#5's
+    history and `DATABASES.md`, "Date storage and comparison") - correct for correctness, but
+    `idx_data_date` (migration 5) is built on the raw `date` column, and SQLite's planner won't match
+    a plain-column index against a query that wraps the column in a function call. Confirmed via
+    `EXPLAIN QUERY PLAN` against a realistically sized test database: every date-range-filtered query
+    - by 2026-08 nearly every dashboard widget, and now also every widget the dashboard-wide "Hide
+    bots" filter touches - was doing a full table `SCAN` regardless of the index, on every request.
+    Fixed with a second, *expression* index on the exact same expression the WHERE clause uses
+    (`idx_data_date_normalized ON data (datetime(date))`, migration 6 - see `DATABASES.md`), which
+    SQLite can match; `idx_data_date` stays for `recentPages()`'s unfiltered `ORDER BY date DESC
+    LIMIT n`, a query shape the expression index doesn't help. Same investigation also found
+    `topCountries()`/`topBrowsers()`/`topPlatforms()`/`statusCodeSummary()` each firing a second,
+    entirely redundant `totalPageViews()` query - with the identical `%where`/date-range filter -
+    purely to compute the "share" percentage's denominator, even though each method's own (now
+    unlimited instead of `LIMIT`-ed) `GROUP BY` result already contains every group needed to sum
+    that same total in PHP. A reminder that a documented, deliberate correctness fix (the
+    `datetime()` wrapping) can quietly defeat an otherwise-correct index years later, and that
+    "verify with `EXPLAIN QUERY PLAN` against a realistic row count," not just re-reading the SQL, is
+    what actually catches it.
+16. **`events` had no index at all, and Classic Admin's "Recently viewed pages" widget queries it
+    once per displayed row.** `recently-viewed-pages.html.twig` calls `pageStats.db.timeOnPage(s.id)`
+    inside its per-row loop - each call filters `events` by `session_id` with no supporting index, so
+    every displayed row triggered its own full table `SCAN` of `events`; the dedicated "view last
+    1000 pages" page could mean up to 1000 of those on a single request. Fixed with
+    `idx_events_session_id` (migration 6). Left as a per-row indexed lookup rather than rewritten
+    into one batched query across the whole widget - the index alone turns each call into a cheap
+    indexed `SEARCH`, and batching would mean threading a precomputed session-id -> seconds map
+    through all three callers of this shared widget (`stats.html.twig`, `page-details.html.twig`,
+    `user-details.html.twig`) for a benefit an in-process SQLite index lookup no longer meaningfully
+    adds to.
+
 ## Known cleanup items
 
 - `classes/Api/PageStatsApiController.php` and `admin-next/pages/page-stats.js` are leftover,

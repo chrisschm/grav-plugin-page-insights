@@ -119,20 +119,45 @@ indefinitely until disk fills up.
 | `version` | `INTEGER` | The numeric filename (`N.sql`) that was applied. |
 | `date` | `DATE DEFAULT (CURRENT_TIMESTAMP)` | When it was applied. |
 
-### Indexes (migration 5)
+### Indexes (migrations 5 and 6)
 
 ```sql
+-- migration 5
 CREATE INDEX IF NOT EXISTS idx_data_route ON data (route);
 CREATE INDEX IF NOT EXISTS idx_data_date ON data (date);
+
+-- migration 6
+CREATE INDEX IF NOT EXISTS idx_data_date_normalized ON data (datetime(date));
+CREATE INDEX IF NOT EXISTS idx_events_session_id ON events (session_id);
 ```
 
-Two independent single-column indexes rather than one composite `(route, date)` index. A composite
-index only helps a query that also filters on its leading column - but `Stats::query()`'s generic
-`$params` filter mechanism (see "Backend: generic query filter" in `ARCHITECTURE.md`) means most
-call sites filter on `route` *or* the date range, not reliably both together in a way that would
-line up with a fixed composite column order. Two single-column indexes let SQLite's query planner
-use whichever one (or both, via a bitmap intersection) actually matches a given call's filters,
-without betting on one particular combination.
+Two independent single-column indexes (`route`, `date`) rather than one composite `(route, date)`
+index. A composite index only helps a query that also filters on its leading column - but
+`Stats::query()`'s generic `$params` filter mechanism (see "Backend: generic query filter" in
+`ARCHITECTURE.md`) means most call sites filter on `route` *or* the date range, not reliably both
+together in a way that would line up with a fixed composite column order. Two single-column indexes
+let SQLite's query planner use whichever one (or both, via a bitmap intersection) actually matches a
+given call's filters, without betting on one particular combination.
+
+**`idx_data_date_normalized` (migration 6) - an expression index, not on `date` itself.** Every
+date-range filter compares `datetime(date) BETWEEN datetime(:from) AND datetime(:to)` (see "Date
+storage and comparison" below) - `idx_data_date` is built on the raw `date` column, and SQLite's
+query planner will not match a plain-column index against a query that wraps the column in a
+function call. Confirmed via `EXPLAIN QUERY PLAN` against a realistically sized test database: every
+date-range-filtered query - which by 2026-08 is nearly every dashboard widget, including the ones
+the "Hide bots" filter now touches dashboard-wide - was doing a full table `SCAN` of `data` despite
+`idx_data_date` existing, on every single request, getting slower as the table grows. This is what
+the previous session's dashboard-slowdown reports traced back to. Adding an index on the *exact same
+expression* the WHERE clause already uses (`datetime(date)`, not `date`) lets SQLite match it and
+turns that `SCAN` into a `SEARCH`. Both indexes are kept - `idx_data_date_normalized` for filtered
+queries, `idx_data_date` for `recentPages()`'s unfiltered `ORDER BY date DESC LIMIT n`, still a
+different query shape an expression index doesn't help with.
+
+**`idx_events_session_id` (migration 6).** `events` had no index at all before this. Classic Admin's
+"Recently viewed pages" widget calls `Stats::timeOnPage()` once per displayed row (up to 1000 times
+on the dedicated "view last 1000 pages" page) to look up that row's session by `session_id` - each
+call was its own full table `SCAN` of `events`. Also benefits `collectEvent()`'s own per-hit session
+lookup on the unauthenticated `/event-collection` endpoint.
 
 ### Date storage and comparison
 

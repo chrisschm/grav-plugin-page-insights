@@ -470,13 +470,22 @@ class Stats
      */
     public function topCountries(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
-
-        $totalPages = $this->totalPageViews($dateFrom, $dateTo, $params)[0]['hits'];
-
+        // No SQL-level LIMIT here on purpose: this used to run a completely
+        // separate totalPageViews() query, with the exact same %where/date-
+        // range filter, purely to get the denominator for "share" below -
+        // an entire second full pass over "data" just to recompute a total
+        // this query's own GROUP BY already has all the ingredients for.
+        // Fetching every group and summing "hits" in PHP gives the same
+        // total for free. This is not more expensive than before: SQLite
+        // has to aggregate and sort every matching row before it can even
+        // know which ones rank in the top $limit, LIMIT only trims what
+        // crosses back over into PHP afterwards - see docs/DATABASES.md.
         $q = 'select country, count(country) as hits from data %where group by country order by hits desc';
 
-        $countries = $this->query($q, $params, $limit, $dateFrom, $dateTo);
+        $countries = $this->query($q, $params, null, $dateFrom, $dateTo);
 
+        $totalPages = array_sum(array_column($countries, 'hits'));
+        $countries = array_slice($countries, 0, $limit);
 
         $result = [];
         foreach ($countries as  $country) {
@@ -529,12 +538,15 @@ class Stats
      */
     public function topBrowsers(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
-        $totalPages = $this->totalPageViews($dateFrom, $dateTo, $params)[0]['hits'];
-
+        // See the comment on topCountries() above - same fix, same reason:
+        // sum this query's own (unlimited) result instead of a second,
+        // redundant totalPageViews() query.
         $q = 'select browser, count(ip) as hits from data %where group by browser order by hits desc';
 
-        $browsers = $this->query($q, $params, $limit, $dateFrom, $dateTo);
+        $browsers = $this->query($q, $params, null, $dateFrom, $dateTo);
 
+        $totalPages = array_sum(array_column($browsers, 'hits'));
+        $browsers = array_slice($browsers, 0, $limit);
 
         $result = [];
         foreach ($browsers as  $browser) {
@@ -556,12 +568,15 @@ class Stats
      */
     public function topPlatforms(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
-        $totalPages = $this->totalPageViews($dateFrom, $dateTo, $params)[0]['hits'];
-
+        // See the comment on topCountries() above - same fix, same reason:
+        // sum this query's own (unlimited) result instead of a second,
+        // redundant totalPageViews() query.
         $q = 'select platform, count(ip) as hits from data %where group by platform order by hits desc';
 
-        $platforms = $this->query($q, $params, $limit, $dateFrom, $dateTo);
+        $platforms = $this->query($q, $params, null, $dateFrom, $dateTo);
 
+        $totalPages = array_sum(array_column($platforms, 'hits'));
+        $platforms = array_slice($platforms, 0, $limit);
 
         $result = [];
         foreach ($platforms as  $platform) {
@@ -588,11 +603,16 @@ class Stats
      */
     public function statusCodeSummary(?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
-        $totalPages = $this->totalPageViews($dateFrom, $dateTo, $params)[0]['hits'];
-
         $q = 'select http_code, count(route) as hits from data %where group by http_code';
 
         $rows = $this->query($q, $params, null, $dateFrom, $dateTo);
+
+        // This GROUP BY already had no LIMIT (every http_code bucket is
+        // fetched), so - same fix as topCountries()/topBrowsers()/
+        // topPlatforms() above - summing its own "hits" column replaces a
+        // second, redundant totalPageViews() query that used to compute
+        // the exact same number via its own separate full pass over "data".
+        $totalPages = array_sum(array_column($rows, 'hits'));
 
         $buckets = [200 => 0, 404 => 0, 'other' => 0];
         foreach ($rows as $row) {
