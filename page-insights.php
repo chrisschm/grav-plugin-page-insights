@@ -342,6 +342,22 @@ class PageInsightsPlugin extends Plugin
 
 
     /**
+     * The current request's Grav "environment" (Grav\Common\Config\Setup -
+     * defaults to the request's hostname, with an admin-configurable alias
+     * mechanism; 'cli' outside a web request) - see Stats::__construct()'s
+     * docblock and docs/DATABASES.md, "Multisite (environment) scoping".
+     * Used to scope a Stats instance's reads/writes to the site currently
+     * being served, in a Grav multisite install sharing this plugin
+     * installation across several sites (Codeberg Issue #3).
+     */
+    private function currentEnvironment(): ?string
+    {
+        $environment = (string) $this->grav['config']->get('environment');
+
+        return $environment !== '' ? $environment : null;
+    }
+
+    /**
      * collecs stats about page data
      */
     private function collectPageData()
@@ -369,7 +385,7 @@ class PageInsightsPlugin extends Plugin
                 }
             }
 
-            $stats = new Stats($dbPath, $this->config());
+            $stats = new Stats($dbPath, $this->config(), $this->currentEnvironment());
 
             $sessionId = $stats->collect($ip, $geo, $page, $uri, $user, $now, $browser);
 
@@ -434,6 +450,10 @@ class PageInsightsPlugin extends Plugin
         $dbPath = $config['db'];
 
 
+        // No environment needed here: "events" has no "environment" column
+        // at all (see Stats::query()'s docblock) - it's keyed to a "data"
+        // row via session_id, which was already correctly scoped when that
+        // row was written.
         $stats = new Stats($dbPath, $this->config());
         $stats->collectEvent((string) $data['session_id'], (string) $data['event'], (string) $data['value']);
 
@@ -530,7 +550,7 @@ class PageInsightsPlugin extends Plugin
             $lookup = new CountryLookup($config['geo_db_index_path']);
 
             $this->grav['twig']->twig_vars['pageStats'] = [
-                'db' =>  new Stats($dbPath, $this->config()),
+                'db' =>  new Stats($dbPath, $this->config(), $this->currentEnvironment()),
                 'urls' => $this->getPluginRoutes(),
                 'geoDb' => [
                     'built' => $lookup->isAvailable(),
@@ -938,6 +958,11 @@ class PageInsightsPlugin extends Plugin
 
         $job = $scheduler->addFunction(
             function () use ($dbPath, $config) {
+                // No environment passed: rollupDay() always (re)computes
+                // every site's rows for a given day in one pass (grouped by
+                // "environment" internally - see its own docblock), never
+                // "the current site" - there is no such thing in a
+                // scheduler/CLI context anyway.
                 $stats = new Stats($dbPath, $config);
                 $today = new DateTimeImmutable('today');
                 $lastDone = $stats->rollupStatus();
@@ -1036,6 +1061,9 @@ class PageInsightsPlugin extends Plugin
         // (optionally its own cron/scheduler entry) if that's wanted too.
         $job = $scheduler->addFunction(
             function () use ($dbPath, $config, $cutoff) {
+                // No environment passed: pruneData() operates across every
+                // site's data at once (age-based maintenance, not "the
+                // current site" - see currentEnvironment()'s docblock).
                 $stats = new Stats($dbPath, $config);
                 $deleted = $stats->pruneData($cutoff);
 

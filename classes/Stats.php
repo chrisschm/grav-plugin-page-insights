@@ -18,12 +18,27 @@ class Stats
     private $dbPath;
     private $config;
     private $botRegExp = '';
+    private $environment;
 
     const FORCE_MIGRATION_FLAG = '/../data/migrations/MUST_MIGRATE';
 
-    public function __construct($dbPath, $config)
+    /**
+     * $environment is Grav's own config('environment') value (see
+     * Grav\Common\Config\Setup - defaults to the current request's
+     * hostname, 'cli' outside a web request), passed in by the caller
+     * rather than resolved here so this class never has to know how to
+     * reach Grav's DI container. Used to scope every read to the current
+     * site in a Grav multisite install (see query()'s "Multisite
+     * (environment) scoping" and docs/DATABASES.md) - null (the CLI/
+     * scheduler call sites' choice, see page-insights.php) disables that
+     * scoping entirely, since a maintenance job (prune, vacuum,
+     * rollup:build) always operates across every site's data at once, not
+     * "the current site".
+     */
+    public function __construct($dbPath, $config, ?string $environment = null)
     {
         $this->config = $config;
+        $this->environment = $environment;
         $this->botRegExp = implode('|', $this->config['bot_regexp']);
         $this->dt_offset = $this->config['datetime_offset'];
 
@@ -434,9 +449,9 @@ class Stats
 
         $s = $this->db->prepare('
             INSERT INTO data
-                ("ip", "country", "city", "region", "route", "page_title", "user", "date", "user_agent", "is_bot", "browser", "browser_version", "platform", "referer", "http_code")
+                ("ip", "country", "city", "region", "route", "page_title", "user", "date", "user_agent", "is_bot", "browser", "browser_version", "platform", "referer", "http_code", "environment")
              VALUES
-                (:ip, :country, :city, :region, :route, :title, :user, :date, :user_agent, :is_bot, :browser, :browser_version, :platform, :referer, :http_code)
+                (:ip, :country, :city, :region, :route, :title, :user, :date, :user_agent, :is_bot, :browser, :browser_version, :platform, :referer, :http_code, :environment)
         ');
 
 
@@ -466,16 +481,37 @@ class Stats
         // existed - into a forward-compatible "other" bucket, rather than
         // this method guessing at a code it can't actually verify.
         $s->bindValue(':http_code', $isNotFound ? 404 : 200, \PDO::PARAM_INT);
+        $s->bindValue(':environment', $this->environment);
 
         $s->execute();
 
         return $this->db->lastInsertId();
     }
 
-    private function query(string $q, array $params = [], ?int $limit = null, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null)
+    /**
+     * $scopeByEnvironment defaults to true (every current call site queries
+     * "data", which has the column) - the one exception is timeOnPage()'s
+     * "events" query, which passes false explicitly since "events" has no
+     * "environment" column at all (see docs/DATABASES.md, "Multisite
+     * (environment) scoping" for why that table doesn't need one).
+     */
+    private function query(string $q, array $params = [], ?int $limit = null, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, bool $scopeByEnvironment = true)
     {
         $where = [];
         $bindings = [];
+
+        // Multisite (environment) scoping - see the docblock above and
+        // docs/DATABASES.md. A NULL "environment" (rows collected before
+        // this column existed) is deliberately treated as visible to
+        // *every* site, not hidden from all of them - see migration 9's
+        // own comment for the reasoning. $this->environment being null
+        // (the CLI/scheduler call sites, see page-insights.php) disables
+        // this filter entirely - those jobs operate across every site's
+        // data at once, never "the current site".
+        if ($scopeByEnvironment && $this->environment !== null) {
+            $where[] = '(environment = :environment OR environment IS NULL)';
+            $bindings['environment'] = $this->environment;
+        }
 
         // Filters passed in by the caller. A scalar value (e.g.
         // ['route' => $route]) becomes an equality check; an array value
@@ -685,6 +721,8 @@ class Stats
             $bindings[':is_bot'] = $params['is_bot'];
         }
 
+        $this->appendEnvironmentFilter($where, $bindings);
+
         if (array_key_exists('route', $params)) {
             $routes = $params['route'];
             if (empty($routes)) {
@@ -755,10 +793,11 @@ class Stats
             $del5->execute([':day' => $dayStr]);
 
             $dailyStmt = $this->db->prepare('
-                INSERT INTO rollup_daily (day, is_bot, hits, visitors, users, http_200, http_404, http_other)
+                INSERT INTO rollup_daily (day, is_bot, environment, hits, visitors, users, http_200, http_404, http_other)
                 SELECT
                     :day AS day,
                     is_bot,
+                    environment,
                     COUNT(*) AS hits,
                     COUNT(DISTINCT ip) AS visitors,
                     COUNT(DISTINCT user) AS users,
@@ -768,7 +807,7 @@ class Stats
                 FROM data
                 WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
                   AND date(datetime(date), :offset) = :day2
-                GROUP BY is_bot
+                GROUP BY is_bot, environment
             ');
             $dailyStmt->execute([
                 ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
@@ -777,10 +816,11 @@ class Stats
             $dailyRows = $dailyStmt->rowCount();
 
             $routeStmt = $this->db->prepare('
-                INSERT INTO rollup_route (day, is_bot, page_title, route, hits, visitors, users)
+                INSERT INTO rollup_route (day, is_bot, environment, page_title, route, hits, visitors, users)
                 SELECT
                     :day AS day,
                     is_bot,
+                    environment,
                     page_title,
                     MIN(route) AS route,
                     COUNT(*) AS hits,
@@ -789,7 +829,7 @@ class Stats
                 FROM data
                 WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
                   AND date(datetime(date), :offset) = :day2
-                GROUP BY is_bot, page_title
+                GROUP BY is_bot, environment, page_title
             ');
             $routeStmt->execute([
                 ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
@@ -801,16 +841,17 @@ class Stats
             // separate narrow tables rather than one, and why "hits" only -
             // no visitors/users, unlike rollup_route above).
             $countryStmt = $this->db->prepare('
-                INSERT INTO rollup_country (day, is_bot, country, hits)
+                INSERT INTO rollup_country (day, is_bot, environment, country, hits)
                 SELECT
                     :day AS day,
                     is_bot,
+                    environment,
                     country,
                     COUNT(*) AS hits
                 FROM data
                 WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
                   AND date(datetime(date), :offset) = :day2
-                GROUP BY is_bot, country
+                GROUP BY is_bot, environment, country
             ');
             $countryStmt->execute([
                 ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
@@ -819,16 +860,17 @@ class Stats
             $countryRows = $countryStmt->rowCount();
 
             $browserStmt = $this->db->prepare('
-                INSERT INTO rollup_browser (day, is_bot, browser, hits)
+                INSERT INTO rollup_browser (day, is_bot, environment, browser, hits)
                 SELECT
                     :day AS day,
                     is_bot,
+                    environment,
                     browser,
                     COUNT(*) AS hits
                 FROM data
                 WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
                   AND date(datetime(date), :offset) = :day2
-                GROUP BY is_bot, browser
+                GROUP BY is_bot, environment, browser
             ');
             $browserStmt->execute([
                 ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
@@ -837,16 +879,17 @@ class Stats
             $browserRows = $browserStmt->rowCount();
 
             $platformStmt = $this->db->prepare('
-                INSERT INTO rollup_platform (day, is_bot, platform, hits)
+                INSERT INTO rollup_platform (day, is_bot, environment, platform, hits)
                 SELECT
                     :day AS day,
                     is_bot,
+                    environment,
                     platform,
                     COUNT(*) AS hits
                 FROM data
                 WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
                   AND date(datetime(date), :offset) = :day2
-                GROUP BY is_bot, platform
+                GROUP BY is_bot, environment, platform
             ');
             $platformStmt->execute([
                 ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
@@ -925,6 +968,25 @@ class Stats
         }
 
         return [$interiorFromDay, min($rolledUpTo, $interiorToDay)];
+    }
+
+    /**
+     * Shared multisite (environment) scoping for every *RollupPart()/
+     * *ViaRollup() raw-SQL query below - same rule and same "NULL is
+     * visible everywhere" reasoning as query()'s own environment
+     * condition (see that method's docblock and docs/DATABASES.md), just
+     * appended by hand to a $where/$bindings pair instead of going
+     * through query()'s generic %where mechanism, since these queries
+     * target the rollup_* tables directly rather than "data". Extracted
+     * once it needed repeating identically across five methods, same
+     * reasoning as rollupInteriorCoverage() above.
+     */
+    private function appendEnvironmentFilter(array &$where, array &$bindings): void
+    {
+        if ($this->environment !== null) {
+            $where[] = '(environment = :environment OR environment IS NULL)';
+            $bindings[':environment'] = $this->environment;
+        }
     }
 
     /**
@@ -1020,6 +1082,8 @@ class Stats
             $where[] = 'is_bot = :is_bot';
             $bindings[':is_bot'] = $params['is_bot'];
         }
+
+        $this->appendEnvironmentFilter($where, $bindings);
 
         $sql = "
             SELECT {$dimensionColumn}, SUM(hits) as hits
@@ -1146,6 +1210,7 @@ class Stats
             $where[] = 'is_bot = :is_bot';
             $bindings[':is_bot'] = $params['is_bot'];
         }
+        $this->appendEnvironmentFilter($where, $bindings);
         $s = $this->db->prepare("SELECT SUM({$rollupColumn}) as n FROM rollup_daily WHERE " . implode(' AND ', $where));
         $s->execute($bindings);
         $sum = (int) ($s->fetch(PDO::FETCH_ASSOC)['n'] ?? 0);
@@ -1318,6 +1383,7 @@ class Stats
             $where[] = 'is_bot = :is_bot';
             $bindings[':is_bot'] = $params['is_bot'];
         }
+        $this->appendEnvironmentFilter($where, $bindings);
         $s = $this->db->prepare('SELECT SUM(http_200) as http_200, SUM(http_404) as http_404, SUM(http_other) as http_other FROM rollup_daily WHERE ' . implode(' AND ', $where));
         $s->execute($bindings);
         $sums = $s->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -1437,6 +1503,7 @@ class Stats
             $where[] = 'is_bot = :is_bot';
             $bindings[':is_bot'] = $params['is_bot'];
         }
+        $this->appendEnvironmentFilter($where, $bindings);
         $s = $this->db->prepare('
             SELECT day, SUM(hits) as hits, SUM(visitors) as visitors, SUM(users) as users
             FROM rollup_daily
@@ -1485,6 +1552,9 @@ class Stats
             'event' => 'ping',
         ];
 
-        return $this->query('select min(date) as start, max(date) as end, ROUND((JULIANDAY(max(date)) - JULIANDAY(min(date))) * 86400) AS seconds from events %where', $params)[0];
+        // $scopeByEnvironment=false: "events" has no "environment" column
+        // (see query()'s docblock) - it's keyed to a "data" row via
+        // session_id, which is already correctly scoped at collection time.
+        return $this->query('select min(date) as start, max(date) as end, ROUND((JULIANDAY(max(date)) - JULIANDAY(min(date))) * 86400) AS seconds from events %where', $params, null, null, null, false)[0];
     }
 }

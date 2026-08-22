@@ -75,6 +75,7 @@ are additive only (e.g. `referer` was added as a new column in migration 3 rathe
 | `browser_version` | `STRING(20)` | 2 | Ditto. |
 | `platform` | `STRING(255)` | 2 | Feeds `topPlatforms()`. |
 | `referer` | `STRING(500)` | 3 | `$_SERVER['HTTP_REFERER']` or empty string. Written on every hit but currently never read back anywhere (no referrer-analysis feature exists yet - see the project's ToDo history). |
+| `environment` | `VARCHAR(255)` | 9 | Grav's `config('environment')` value at collection time - which site a hit belongs to, in a Grav multisite install sharing this plugin installation across several sites. `NULL` for every row written before migration 9. See "Multisite (environment) scoping" below. |
 
 ### Bot detection reliability (`is_bot`, `bot_regexp`)
 
@@ -310,6 +311,91 @@ request path this plugin has previously had to specifically harden against lock 
 untouched. A first-time backfill of existing history is never automatic (see `rollup:build`'s own
 docblock) - a potentially long-running, resource-intensive operation over months of history
 shouldn't run unexpectedly on a bare command invocation or a newly-enabled scheduled job.
+
+### Multisite (environment) scoping (`environment` column - migration 9)
+
+Codeberg Issue #3: a Grav installation serving several sites from one shared installation (Grav's
+own multi-site mechanism - see [learn.getgrav.org/17/advanced/multisite-setup](https://learn.getgrav.org/17/advanced/multisite-setup))
+previously had every site's hits/aggregates mixed together, since neither `data` nor any rollup
+table had a column identifying which site a row belonged to - `db`'s path is a plain path relative
+to the (shared) Grav installation root, identical for every site.
+
+**Reuses Grav's own `environment` concept rather than inventing a new one.** `config('environment')`
+(`Grav\Common\Config\Setup`) defaults to the current request's hostname, with an admin-configurable
+alias mechanism already built into Grav core for merging e.g. `www.` and the bare domain into one
+environment - this plugin doesn't need its own site-identification logic or config option at all.
+`PageInsightsPlugin::currentEnvironment()` reads it for the request-scoped `Stats` instances
+(page hit collection, both admin UIs' dashboard reads); every CLI command and scheduled job
+(`prune`, `vacuum`, `events:prune-orphans`, `prune:bots`, `prune:notfound`, `rollup:build`) passes
+none at all (`Stats`'s third constructor argument defaults to `null`) - those operate across every
+site's data at once by design, never "the current site". A single-site install has exactly one
+`environment` value across every row it ever writes, so every query change below is a provable
+no-op for the overwhelmingly common case: an added `WHERE`/`GROUP BY` column that never actually
+narrows or splits anything when there's only ever one distinct value to compare against.
+
+**Legacy rows (`environment IS NULL`) stay visible to every site, not hidden from all of them.**
+Migration 9 adds the column nullable, with no default and no backfill - there is no reliable way to
+attribute already-collected, already-mixed historical hits to one particular site after the fact.
+Every read path (`Stats::query()`'s generic mechanism, and each `*ViaRollup()`/`*RollupPart()`
+method's own hand-built `$where`, via the shared `appendEnvironmentFilter()` helper) treats this as
+`(environment = :environment OR environment IS NULL)`, never a plain equality - an upgraded
+install keeps its pre-upgrade history visible on every site's dashboard exactly as before, while
+every *new* hit from this point on is correctly split by site. (User-confirmed trade-off,
+2026-08-2x - the alternative, hiding all pre-upgrade history from every site, was rejected as a
+worse first-upgrade experience for no accuracy gain: that history is already mixed either way.)
+
+`Stats::query()`'s environment condition is skipped entirely for one call site - `timeOnPage()`'s
+query against `events` (`$scopeByEnvironment = false`) - since that table has no `environment`
+column at all (see below).
+
+**`events` needs no `environment` column.** Every row is tied to a `data` row via `session_id`,
+which was already correctly scoped by `environment` when it was written - there is nothing to
+duplicate or additionally filter by.
+
+**Every one of the five rollup tables (migrations 7/8) also needed `environment` added to its
+`PRIMARY KEY`** (`rollupDay()`'s `INSERT ... SELECT ... GROUP BY` extended to include it, one more
+`GROUP BY` column each) - without it, the rollup fast path would keep merging every site's hits
+into one row per `(day, is_bot[, dimension])`, correctly scoped live-query fallback or not: two
+sites both getting occasional traffic on a page titled "Home" would merge into one `rollup_route`
+row regardless of which site a dashboard request asked for. SQLite has no `ALTER TABLE` support for
+changing a primary key in place, so migration 9 recreates all five tables empty rather than altering
+them - existing rollup rows aren't preserved (same reasoning as the "data" rows above: they already
+aggregate every site's hits together, with nothing to split them back apart by). This is safe under
+the same idempotent-rebuild guarantee `rollupDay()` already relies on elsewhere: migration 9 also
+clears `rollup_state`, so `rollupStatus()` returns `null` immediately after upgrading and every
+rollup-backed method transparently falls back to its live query - exactly like a fresh install that
+has never run `rollup:build` yet - until the next `rollup:build` run (manual, or the scheduled
+`rollup_auto_build` job) repopulates all five tables from `data`, correctly split by environment
+this time. **Admins should (re-)run `rollup:build` after upgrading to this version** - see
+`CHANGELOG.md`.
+
+**Deliberately no index on `environment`.** A first attempt added `idx_data_environment` alongside
+the column, on the reasonable-looking assumption that any new filter column deserves an index (the
+same reasoning behind `idx_data_route`/`idx_data_date` in migration 5). Measured against the same
+synthetic 3M-row/90-day database as the rollup benchmark above, this made things dramatically
+*worse*, not better: `EXPLAIN QUERY PLAN` showed SQLite choosing a `MULTI-INDEX OR` plan driven by
+`idx_data_environment` (one index seek per side of the `OR`) *instead of* `idx_data_date_normalized`
+- including for queries that also carry a narrow date-range condition, such as the single-boundary-
+day live queries every rollup-backed method falls back to (see "Read path" above). Since
+`environment` has low cardinality (a handful of distinct values even on a large multisite install),
+each `OR` branch's index seek matches a large fraction of the whole table, and the date range then
+has to be re-checked row-by-row across all of them - the exact opposite of what
+`idx_data_date_normalized` was added for in migration 6. A single boundary-day query went from
+~34ms (`idx_data_date_normalized`, no environment index) to ~830ms (`MULTI-INDEX OR` via
+`idx_data_environment`) - roughly 24x worse, multiplied by however many such boundary queries one
+dashboard load makes (two per rollup-backed widget, more for `siteSummary()`'s three-query shape) -
+an ~18s full dashboard load in the benchmark, against ~115s before rollups existed at all and
+well under a second after this migration's actual (index-free) version. Without any index on
+`environment`, there is nothing to lure the planner away from `idx_data_date_normalized` - confirmed
+via `EXPLAIN QUERY PLAN` to fall back to exactly the same plan as before this column existed, with
+`environment` applied as a plain filter over the already date-narrowed rows. Re-verified end to end
+against the same 3M-row/90-day database, now split across four `environment` values plus a legacy
+(no-environment) chunk: full 8-widget single-site dashboard load ~416ms (same order of magnitude as
+the original rollup benchmark, not a regression), every `hits`-based figure exactly matched a
+direct live-query reference scoped the same way (including legacy rows correctly folded in), the
+`visitors`/`users` approximation stayed in the same documented direction (≥ the exact reference,
+never under), and two different sites' figures were confirmed to differ from each other and each
+match their own reference - the isolation this whole migration exists for.
 
 ## Geo country index (`geo_db_index_path` config key, default `user/data/page-insights/geo-country-index.bin`)
 

@@ -576,7 +576,14 @@ class PageInsightsApiController extends AbstractApiController
         $grav = Grav::instance();
         $config = (array) $grav['config']->get('plugins.page-insights');
 
-        return new Stats($config['db'], $config);
+        // Scopes every read this Stats instance does to the site currently
+        // being served, in a Grav multisite install sharing this plugin
+        // installation across several sites (Codeberg Issue #3) - see
+        // Stats::__construct()'s docblock and docs/DATABASES.md,
+        // "Multisite (environment) scoping".
+        $environment = (string) $grav['config']->get('environment');
+
+        return new Stats($config['db'], $config, $environment !== '' ? $environment : null);
     }
 
     private function getLimit(ServerRequestInterface $request, int $default): int
