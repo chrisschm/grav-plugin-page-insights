@@ -178,6 +178,12 @@ PLUGIN_PAGE_INSIGHTS:
     AUTO_SCHEDULE_DISABLED: Disabled
     AUTO_SCHEDULE_WEEKLY: Weekly
     AUTO_SCHEDULE_MONTHLY: Monthly
+    AUTO_SCHEDULE_DAILY: Daily
+
+    SECTION_ROLLUP: Dashboard rollups
+    SECTION_ROLLUP_LABEL: "Precomputes daily summaries so dashboard widgets stay fast on sites with a lot of accumulated traffic, instead of re-aggregating every matching row on every load. Off by default - only worth enabling once a site's traffic/history makes the dashboard noticeably slow; small/new sites don't need it. See also the `rollup:build` CLI command, which this setting merely automates."
+    ROLLUP_AUTO_BUILD_LABEL: Automatic rollups
+    ROLLUP_AUTO_BUILD_HELP: "Automatically roll up each completed day (see `rollup:build --help`). Off by default. Only \"Daily\" is offered here, unlike the weekly/monthly options above - a rollup that falls a week behind defeats its own purpose, since the dashboard simply falls back to the original, unaccelerated query for whatever isn't rolled up yet. Enabling this does not backfill existing history - run `bin/plugin page-insights rollup:build --from=<period>` once yourself for that; this setting only keeps it current going forward."
 
     # Shown next to the database size in both admin UIs' "Using: ..." area
     # (Classic Admin's stats.html.twig titlebar, Admin2's dashboard toolbar)

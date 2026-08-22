@@ -11,9 +11,10 @@ use DateTimeImmutable;
  * automatic maintenance jobs (geo-db update, data prune - see
  * PageInsightsPlugin::onSchedulerInitialized()).
  *
- * The admin only ever picks "disabled"/"weekly"/"monthly" (see
- * blueprints.yaml, geo_db_auto_update / data_auto_prune) - never a concrete
- * weekday or time. Left to the admin, that choice tends to cluster on a
+ * The admin only ever picks "disabled"/"daily"/"weekly"/"monthly" (see
+ * blueprints.yaml - "daily" added for rollup_auto_build, see
+ * PageInsightsPlugin::registerRollupBuildJob()) - never a concrete weekday
+ * or time. Left to the admin, that choice tends to cluster on a
  * handful of "obvious" round times (Sunday nights, 00:00/00:05, the top of
  * an hour) - harmless for one site, but if Page Insights is running on many
  * independent installations, all of them defaulting to the same instinctive
@@ -34,11 +35,12 @@ use DateTimeImmutable;
  */
 final class AutoSchedule
 {
-    private const MODES = ['weekly', 'monthly'];
+    private const MODES = ['daily', 'weekly', 'monthly'];
 
     /**
      * @return string|null A 5-field cron expression, or null if $mode isn't
-     *   "weekly"/"monthly" (i.e. auto-scheduling is disabled for this job).
+     *   "daily"/"weekly"/"monthly" (i.e. auto-scheduling is disabled for
+     *   this job).
      */
     public static function cronExpression(string $seed, string $jobKey, string $mode): ?string
     {
@@ -67,6 +69,16 @@ final class AutoSchedule
         }
         [$minute, $hour, $dayOfMonth, $weekday] = $point;
         $from ??= new DateTimeImmutable();
+
+        if ($dayOfMonth === null && $weekday === null) {
+            // "daily" mode: neither field set (see point() below).
+            $candidate = $from->setTime($hour, $minute);
+            if ($candidate <= $from) {
+                $candidate = $candidate->modify('+1 day');
+            }
+
+            return $candidate;
+        }
 
         if ($weekday !== null) {
             $currentWeekday = (int) $from->format('w'); // 0 (Sun) - 6 (Sat), matches cron's day-of-week field
@@ -108,6 +120,10 @@ final class AutoSchedule
         $minuteOfDay = ($hash >> 3) % (24 * 60);
         $hour = intdiv($minuteOfDay, 60);
         $minute = $minuteOfDay % 60;
+
+        if ($mode === 'daily') {
+            return [$minute, $hour, null, null];
+        }
 
         if ($mode === 'weekly') {
             return [$minute, $hour, null, $hash % 7];

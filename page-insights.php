@@ -895,6 +895,53 @@ class PageInsightsPlugin extends Plugin
 
         $this->registerGeoDbAutoUpdateJob($scheduler, $config);
         $this->registerAutoPruneJob($scheduler, $config);
+        $this->registerRollupBuildJob($scheduler, $config);
+    }
+
+    /**
+     * Optional daily job that catches up rollup_daily/rollup_route (see
+     * docs/DATABASES.md, "Rollups") to yesterday - same underlying
+     * Stats::rollupDay() as `bin/plugin page-insights rollup:build`, run
+     * automatically once enabled (rollup_auto_build: daily) instead of
+     * requiring a cron entry an admin has to set up themselves. Only
+     * "daily"/"disabled" are offered (see blueprints.yaml) - unlike the
+     * geo-db-update/data-auto-prune jobs above, a rollup that's a week or a
+     * month behind defeats its own purpose (the dashboard would fall straight
+     * back to the original, un-rolled-up live query for that whole gap), so
+     * there's no weekly/monthly option to offer here.
+     */
+    private function registerRollupBuildJob(Scheduler $scheduler, array $config): void
+    {
+        $mode = (string) ($config['rollup_auto_build'] ?? 'disabled');
+        $cron = AutoSchedule::cronExpression(GRAV_ROOT, 'rollup-build', $mode);
+        if ($cron === null) {
+            return;
+        }
+
+        $dbPath = (string) $config['db'];
+
+        $job = $scheduler->addFunction(
+            function () use ($dbPath, $config) {
+                $stats = new Stats($dbPath, $config);
+                $today = new DateTimeImmutable('today');
+                $lastDone = $stats->rollupStatus();
+                $from = $lastDone !== null ? (new DateTimeImmutable($lastDone))->modify('+1 day') : $today->modify('-1 day');
+
+                $days = 0;
+                $day = $from;
+                while ($day < $today) {
+                    $stats->rollupDay($day);
+                    $days++;
+                    $day = $day->modify('+1 day');
+                }
+
+                return "Rollup: {$days} Tag(e) aktualisiert (bis " . $today->modify('-1 day')->format('Y-m-d') . ").\n";
+            },
+            [],
+            'page-insights-rollup-build'
+        );
+        $job->at($cron);
+        $job->output('logs/page-insights-rollup-build.out');
     }
 
     private function registerGeoDbAutoUpdateJob(Scheduler $scheduler, array $config): void

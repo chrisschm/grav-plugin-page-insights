@@ -449,9 +449,250 @@ class Stats
      */
     public function pagesSummary(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
+        // Fast path: query rollup_route (see docs/DATABASES.md, "Rollups")
+        // instead of aggregating "data" live, when possible. Only safe when
+        // $params is something rollup_route can actually answer on its own
+        // - just 'is_bot' (hide_bots) and/or 'route' (the "real pages"
+        // scope) - and when a date range was given at all (an unbounded
+        // "all time" call has no day range to look up rollup coverage
+        // against). Anything else - notably 'user'/'ip', used by the
+        // Page/User Detail per-visitor drilldowns - asks a per-visitor
+        // question the rollup was never built to answer, so those callers
+        // transparently keep using the original live query below.
+        if ($dateFrom && $dateTo && empty(array_diff(array_keys($params), ['is_bot', 'route']))) {
+            return $this->pagesSummaryViaRollup($limit, $dateFrom, $dateTo, $params);
+        }
+
         $q = 'SELECT route, page_title, count(route) as hits, count(distinct ip) as visitors, count(distinct user) as users FROM data %where GROUP BY page_title ORDER BY hits DESC';
 
         return $this->query($q, $params, $limit, $dateFrom, $dateTo);
+    }
+
+    /**
+     * pagesSummary()'s rollup-backed fast path. Combines whatever the
+     * rollup_route table already covers (SUM() over the pre-aggregated
+     * per-day rows - cheap regardless of how much traffic those days saw)
+     * with a live query against "data" for whatever it doesn't cover yet -
+     * normally just the still-accumulating current day, but transparently
+     * the *entire* requested range if rollupDay() has never run at all
+     * (rollupStatus() === null), which is what makes this degrade safely
+     * to today's original behaviour on a fresh/not-yet-rolled-up install.
+     *
+     * Summing "visitors"/"users" across more than one day is a deliberate,
+     * documented approximation (see the comment on rollup_daily in
+     * data/migrations/7.sql) - it can overcount a visitor who came back on
+     * more than one of the summed days. "hits" has no such issue: a
+     * straight count is always exact regardless of how many days it's
+     * summed over.
+     *
+     * The first and last calendar day touched by [$dateFrom, $dateTo] are
+     * deliberately *never* served from the rollup, even when already
+     * covered by rollupStatus() - only the days strictly between them are.
+     * rollup_route has no granularity finer than a whole day, but $dateFrom
+     * (e.g. Admin2's "last 30 days") is an exact instant that only rarely
+     * lands exactly on a day boundary; summing the *whole* rollup day it
+     * falls in - as an earlier version of this method did - silently
+     * pulled in hours from before $dateFrom too (caught by comparing
+     * against the original live query on a synthetic benchmark DB, see
+     * docs/DATABASES.md - a several-percent overcount on every widget,
+     * not an edge case). Always routing both boundary days through the
+     * live query below costs at most two days out of the range, however
+     * long it is - negligible next to the win from the (usually many more)
+     * interior days.
+     */
+    private function pagesSummaryViaRollup(int $limit, DateTimeImmutable $dateFrom, DateTimeImmutable $dateTo, array $params)
+    {
+        $rolledUpTo = $this->rollupStatus();
+
+        $interiorFromDay = $dateFrom->modify('+1 day')->format('Y-m-d');
+        $interiorToDay = $dateTo->modify('-1 day')->format('Y-m-d');
+
+        $rows = [];
+        $liveQuery = 'SELECT route, page_title, count(route) as hits, count(distinct ip) as visitors, count(distinct user) as users FROM data %where GROUP BY page_title';
+
+        if ($rolledUpTo !== null && $interiorFromDay <= $interiorToDay && $rolledUpTo >= $interiorFromDay) {
+            $coveredToDay = min($rolledUpTo, $interiorToDay);
+            $rows = $this->pagesSummaryRollupPart($interiorFromDay, $coveredToDay, $params);
+
+            $coveredStart = new DateTimeImmutable($interiorFromDay);
+            $coveredEndExclusive = (new DateTimeImmutable($coveredToDay))->modify('+1 day');
+
+            if ($dateFrom < $coveredStart) {
+                $rows = array_merge($rows, $this->query($liveQuery, $params, null, $dateFrom, $coveredStart->modify('-1 second')));
+            }
+            if ($coveredEndExclusive <= $dateTo) {
+                $rows = array_merge($rows, $this->query($liveQuery, $params, null, $coveredEndExclusive, $dateTo));
+            }
+        } else {
+            // Nothing usable from the rollup (range spans less than 3 days,
+            // or isn't rolled up far enough yet) - entire range live,
+            // exactly like pagesSummary() before this method existed.
+            $rows = $this->query($liveQuery, $params, null, $dateFrom, $dateTo);
+        }
+
+        $merged = [];
+        foreach ($rows as $r) {
+            $key = $r['page_title'];
+            if (!isset($merged[$key])) {
+                $merged[$key] = $r;
+                $merged[$key]['hits'] = (int) $r['hits'];
+                $merged[$key]['visitors'] = (int) $r['visitors'];
+                $merged[$key]['users'] = (int) $r['users'];
+                continue;
+            }
+            $merged[$key]['hits'] += (int) $r['hits'];
+            $merged[$key]['visitors'] += (int) $r['visitors'];
+            $merged[$key]['users'] += (int) $r['users'];
+            if (!empty($r['route'])) {
+                $merged[$key]['route'] = $r['route']; // prefer the live/most-recent route, same "arbitrary but stable" spirit as the original GROUP BY page_title
+            }
+        }
+
+        usort($merged, static fn($a, $b) => $b['hits'] <=> $a['hits']);
+
+        return array_slice(array_values($merged), 0, $limit);
+    }
+
+    private function pagesSummaryRollupPart(string $fromDay, string $toDay, array $params): array
+    {
+        $where = ['day BETWEEN :from_day AND :to_day'];
+        $bindings = [':from_day' => $fromDay, ':to_day' => $toDay];
+
+        if (array_key_exists('is_bot', $params)) {
+            $where[] = 'is_bot = :is_bot';
+            $bindings[':is_bot'] = $params['is_bot'];
+        }
+
+        if (array_key_exists('route', $params)) {
+            $routes = $params['route'];
+            if (empty($routes)) {
+                return [];
+            }
+            $placeholders = [];
+            foreach (array_values($routes) as $i => $v) {
+                $ph = ":route_$i";
+                $placeholders[] = $ph;
+                $bindings[$ph] = $v;
+            }
+            $where[] = 'route IN (' . implode(', ', $placeholders) . ')';
+        }
+
+        $sql = '
+            SELECT page_title, MIN(route) as route, SUM(hits) as hits, SUM(visitors) as visitors, SUM(users) as users
+            FROM rollup_route
+            WHERE ' . implode(' AND ', $where) . '
+            GROUP BY page_title
+        ';
+
+        $s = $this->db->prepare($sql);
+        $s->execute($bindings);
+
+        return $s->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * (Re)computes rollup_daily + rollup_route for exactly one calendar
+     * day, and advances rollup_state accordingly. Idempotent - deletes
+     * that day's existing rollup rows first, so re-running it (e.g. to
+     * backfill history, or to correct a day after a bug fix) is always
+     * safe and never double-counts.
+     *
+     * The day boundary matches the same "date(datetime(date), :offset)"
+     * calendar-day bucketing already used elsewhere (recentPages(),
+     * siteSummary()) - not a plain UTC calendar day - so a rolled-up day
+     * groups exactly the same rows a live query would have grouped into
+     * that day. The WHERE clause first narrows via the existing
+     * idx_data_date_normalized expression index with a generous +/-1 day
+     * pad (covers any real-world UTC offset) before applying the exact
+     * per-offset day equality, so this still benefits from an index seek
+     * despite scanning the whole table's worth of days over time.
+     *
+     * @return array{day: string, daily_rows: int, route_rows: int}
+     */
+    public function rollupDay(DateTimeImmutable $day): array
+    {
+        $dayStr = $day->format('Y-m-d');
+        $roughFrom = $day->modify('-1 day')->format('c');
+        $roughTo = $day->modify('+2 days')->format('c');
+
+        $this->db->beginTransaction();
+        try {
+            $del1 = $this->db->prepare('DELETE FROM rollup_daily WHERE day = :day');
+            $del1->execute([':day' => $dayStr]);
+
+            $del2 = $this->db->prepare('DELETE FROM rollup_route WHERE day = :day');
+            $del2->execute([':day' => $dayStr]);
+
+            $dailyStmt = $this->db->prepare('
+                INSERT INTO rollup_daily (day, is_bot, hits, visitors, users, http_200, http_404, http_other)
+                SELECT
+                    :day AS day,
+                    is_bot,
+                    COUNT(*) AS hits,
+                    COUNT(DISTINCT ip) AS visitors,
+                    COUNT(DISTINCT user) AS users,
+                    SUM(CASE WHEN http_code = 200 THEN 1 ELSE 0 END) AS http_200,
+                    SUM(CASE WHEN http_code = 404 THEN 1 ELSE 0 END) AS http_404,
+                    SUM(CASE WHEN http_code IS NULL OR http_code NOT IN (200, 404) THEN 1 ELSE 0 END) AS http_other
+                FROM data
+                WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
+                  AND date(datetime(date), :offset) = :day2
+                GROUP BY is_bot
+            ');
+            $dailyStmt->execute([
+                ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
+                ':offset' => $this->dt_offset, ':day2' => $dayStr,
+            ]);
+            $dailyRows = $dailyStmt->rowCount();
+
+            $routeStmt = $this->db->prepare('
+                INSERT INTO rollup_route (day, is_bot, page_title, route, hits, visitors, users)
+                SELECT
+                    :day AS day,
+                    is_bot,
+                    page_title,
+                    MIN(route) AS route,
+                    COUNT(*) AS hits,
+                    COUNT(DISTINCT ip) AS visitors,
+                    COUNT(DISTINCT user) AS users
+                FROM data
+                WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
+                  AND date(datetime(date), :offset) = :day2
+                GROUP BY is_bot, page_title
+            ');
+            $routeStmt->execute([
+                ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
+                ':offset' => $this->dt_offset, ':day2' => $dayStr,
+            ]);
+            $routeRows = $routeStmt->rowCount();
+
+            $upsert = $this->db->prepare("
+                INSERT INTO rollup_state (job, last_rolled_up_day) VALUES ('daily', :day)
+                ON CONFLICT(job) DO UPDATE SET last_rolled_up_day = excluded.last_rolled_up_day
+                    WHERE rollup_state.last_rolled_up_day IS NULL OR excluded.last_rolled_up_day > rollup_state.last_rolled_up_day
+            ");
+            $upsert->execute([':day' => $dayStr]);
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        return ['day' => $dayStr, 'daily_rows' => $dailyRows, 'route_rows' => $routeRows];
+    }
+
+    /**
+     * The most recent calendar day rollupDay() has (re)computed, or null
+     * if it's never run on this database yet - e.g. right after upgrading
+     * to this version, before either the scheduled job or
+     * `rollup:build` has run for the first time.
+     */
+    public function rollupStatus(): ?string
+    {
+        $row = $this->query("SELECT last_rolled_up_day FROM rollup_state WHERE job = 'daily' LIMIT 1");
+
+        return $row[0]['last_rolled_up_day'] ?? null;
     }
 
     /**

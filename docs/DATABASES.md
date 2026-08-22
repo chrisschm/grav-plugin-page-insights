@@ -190,6 +190,78 @@ optional automatic scheduling) and `vacuum` operate on this schema but are workf
 documented in `ARCHITECTURE.md` ("CLI commands", "Admin2 database maintenance dialog", "Automatic
 scheduling") rather than schema design - not duplicated here.
 
+### Rollups (`rollup_daily`, `rollup_route`, `rollup_state` - migration 7)
+
+`idx_data_date_normalized` (above) fixes SQLite matching the wrong index for a date-range filter,
+but doesn't change what happens *after* the index seek: `EXPLAIN QUERY PLAN` against a synthetic,
+realistically sized (3M-row) `data` table showed `SEARCH ... USING INDEX idx_data_date_normalized`
+immediately followed by `USE TEMP B-TREE FOR GROUP BY` / `... FOR count(DISTINCT)` (twice) / `... FOR
+ORDER BY` - all four scale with the number of *matched rows*, not the index. Measured on that same
+database (~1M hits/month accumulated over 90 days): a single `pagesSummary()` call over the full
+range took ~12.9s, `totalUniqueVisitors()` (no `GROUP BY` at all, just one `COUNT(DISTINCT ip)`) took
+~17.4s, and a full ~10-widget dashboard load reached ~115s. The index was necessary but not
+sufficient once a site's accumulated traffic reaches roughly this range.
+
+`rollup_daily` and `rollup_route` precompute one row per `(day, is_bot[, page_title])` via
+`Stats::rollupDay()`, so a query against them scales with the number of *days* in the requested
+range instead of the number of matched hits - turning a GROUP BY over millions of rows into one over
+at most a few hundred. Two dimensions currently exist:
+
+- `rollup_daily`: one row per `(day, is_bot)` - `hits`, `visitors`/`users` (see below), and the three
+  `statusCodeSummary()` buckets (`http_200`/`http_404`/`http_other`).
+- `rollup_route`: one row per `(day, is_bot, page_title)` - same `hits`/`visitors`/`users`, plus
+  `route` (`MIN(route)` per group - see the comment on the table in `data/migrations/7.sql` for why
+  it's keyed by `page_title`, matching `pagesSummary()`'s pre-existing `GROUP BY page_title` exactly,
+  not by `route`).
+
+**`visitors`/`users` are a deliberate, documented approximation for any range spanning more than one
+day.** Each is an exact `COUNT(DISTINCT ip)`/`COUNT(DISTINCT user)` *for that single day* - correct
+in isolation, but summing several days' worth (the only cheap thing a rollup can do without a
+mergeable sketch structure like HyperLogLog, judged too much complexity/dependency weight for this
+plugin) overcounts a visitor who came back on more than one of the summed days. `hits` has no such
+issue - a count is exact regardless of how many days it's summed over. User-confirmed trade-off
+(2026-08-22): approximate-and-labelled beats exact-but-slow, given the benchmark above showed
+`COUNT(DISTINCT ...)` itself, not just combined with a `GROUP BY`, is one of the most expensive query
+shapes at this scale - there's no live-query rewrite that avoids that cost.
+
+**Read path (`Stats::pagesSummary()`, currently the only rewired method - see "Notable past bugs"
+below for why the others aren't yet):** the *first and last* calendar day touched by
+`[$dateFrom, $dateTo]` always go through the original live query against `data`, never the rollup,
+even when both are already covered by `rollupStatus()`. Only $dateFrom/$dateTo being exact day
+boundaries would make summing the *whole* first/last rollup day safe; a caller passing e.g. "now
+minus 30 days" (an arbitrary instant, not necessarily midnight) does not guarantee that, and
+assuming it does was a real, caught-by-the-benchmark-comparison bug during development (see
+"Notable past bugs"). Only the days strictly *between* the two boundary days are ever served from
+the rollup. For a multi-week/-month range this costs two live-queried days out of many - negligible
+next to the win from the rest.
+
+**Write path (`Stats::rollupDay()`):** deletes then re-inserts that single day's rows in both
+tables (idempotent - safe to rebuild any day, e.g. after a bug fix, without double-counting), then
+advances `rollup_state.last_rolled_up_day` - but only forward, via `ON CONFLICT ... DO UPDATE ...
+WHERE excluded.last_rolled_up_day > rollup_state.last_rolled_up_day`, so rebuilding an old day out of
+order (e.g. `rollup:build --date=...` for one historical day) never regresses how far the read path
+thinks the rollup reaches. The day boundary itself uses the same `date(datetime(date), :offset)`
+calendar-day bucketing already used by `recentPages()`/`siteSummary()` - not a plain UTC day - so a
+rolled-up day groups exactly the rows a live query would group into it; the `WHERE` clause narrows
+via `idx_data_date_normalized` with a generous ±1 day pad first (covers any real-world UTC offset)
+before applying the exact per-offset equality, so building a rollup day is itself an index `SEARCH`,
+not a scan, despite running once per day over the whole table's history.
+
+`rollup_state` exists as its own tiny table rather than deriving "how far is the rollup built"
+from `MAX(day)` in `rollup_daily`/`rollup_route` - a real calendar day with literally zero traffic
+(bots or humans) would write no rows to either table, which `MAX(day)` can't distinguish from "not
+rolled up yet".
+
+Building/refreshing is always either the `rollup:build` CLI command or the optional
+`rollup_auto_build: daily` scheduled job (`PageInsightsPlugin::registerRollupBuildJob()`) - never
+triggered from `collect()` itself. An SQLite trigger that updated the rollup on every insert was
+considered and rejected: it would add write-path cost/risk to every single page hit, in the same
+request path this plugin has previously had to specifically harden against lock contention
+(`busy_timeout`/WAL, see "Connection setup" above) - a daily batch job keeps that hot path
+untouched. A first-time backfill of existing history is never automatic (see `rollup:build`'s own
+docblock) - a potentially long-running, resource-intensive operation over months of history
+shouldn't run unexpectedly on a bare command invocation or a newly-enabled scheduled job.
+
 ## Geo country index (`geo_db_index_path` config key, default `user/data/page-insights/geo-country-index.bin`)
 
 Not a SQL database. A single self-built, self-contained binary file, read via direct `fseek`/`fread`

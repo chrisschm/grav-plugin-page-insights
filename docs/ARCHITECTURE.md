@@ -60,10 +60,11 @@ user/plugins/page-insights/
 │   ├── GeoDbUpdateCommand.php             # geo-db:update
 │   ├── PruneCommand.php                   # prune
 │   ├── EventsPruneOrphansCommand.php      # events:prune-orphans
-│   └── VacuumCommand.php                  # vacuum
+│   ├── VacuumCommand.php                  # vacuum
+│   └── RollupBuildCommand.php             # rollup:build
 ├── data/
 │   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see below
-│   └── migrations/{1..5}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
+│   └── migrations/{1..7}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
 │                                           # (schema/format details: DATABASES.md)
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
@@ -435,6 +436,14 @@ vendor-bloat mistake `git` history already went through once, see "Notable past 
 - **`bin/plugin page-insights vacuum`** - runs `VACUUM` on its own, independent of `prune`. SQLite
   only frees deleted rows' pages for internal reuse by default; the file itself stays at its
   largest-ever size until `VACUUM` rewrites it. Needs a brief exclusive lock on the database.
+- **`bin/plugin page-insights rollup:build [--date=<day>] [--from=<value> [--to=<value>]]`** -
+  (re)computes `rollup_daily`/`rollup_route` (see `DATABASES.md`, "Rollups") for one or more
+  completed days via `Stats::rollupDay()`; idempotent, safe to rerun for any day. Without any
+  option, only catches up whatever's missing since the last run (up to yesterday) - deliberately
+  just "yesterday" on a fresh install with no prior rollup state, not the entire history, so a
+  bare invocation can't accidentally trigger a long-running backfill. Use `--from=<value>` (same
+  relative/absolute syntax as `prune --older-than`, via `RelativeDate`) once, manually, to backfill
+  an existing installation's history.
 
 ## Admin2 database maintenance dialog (`PageInsightsApiController::maintainDb()`)
 
@@ -530,7 +539,7 @@ unconditionally in `getSubscribedEvents()` (like `onApiRegisterRoutes` et al.), 
 `isAdmin()` branch - `bin/grav scheduler`'s CLI context is neither `isAdmin()` nor a normal
 frontend request.
 
-Both jobs are opt-in/opt-out via config, independently:
+All three jobs are opt-in/opt-out via config, independently:
 
 - `geo_db_auto_update` (`disabled`|`weekly`|`monthly`, **default `weekly`**) - safe to default to
   enabled, it only refreshes a lookup file.
@@ -541,9 +550,19 @@ Both jobs are opt-in/opt-out via config, independently:
   that combination - an admin opting into unattended deletion isn't necessarily also opting into an
   unattended brief exclusive database lock; use `vacuum` (optionally its own scheduler/cron entry)
   separately if that's wanted too.
+- `rollup_auto_build` (`disabled`|`daily`, **default `disabled`**, see `DATABASES.md` "Rollups") -
+  runs `Stats::rollupDay()` for whatever's missing since the last run, up to yesterday. Default
+  *disabled*: only worth turning on once a site's accumulated traffic/history actually makes the
+  dashboard noticeably slow (small/new sites don't need it, and turning it on doesn't retroactively
+  backfill history - see `rollup:build --from=...`). Only offers `daily`, not `weekly`/`monthly`
+  like the other two jobs - a rollup that falls a week behind defeats its own purpose, since
+  `pagesSummary()`'s rollup fast path just falls back to the original live query for whatever isn't
+  covered yet.
 
-The admin never picks a concrete weekday or time - only `disabled`/`weekly`/`monthly`. `AutoSchedule
-::cronExpression()` derives the actual weekday/day-of-month and time-of-day deterministically from
+The admin never picks a concrete weekday or time - only `disabled`/`daily`/`weekly`/`monthly`
+(`daily` only actually offered for `rollup_auto_build`, see above - `AutoSchedule` itself supports
+it generically, nothing stops another job from using it later). `AutoSchedule::cronExpression()`
+derives the actual weekday/day-of-month and time-of-day deterministically from
 `crc32(GRAV_ROOT . ':' . $jobKey)`. This exists specifically to avoid many independent installations
 of this plugin clustering on the same instinctive time (e.g. "Sunday 00:05", or any round hour/
 top-of-hour minute - all popular default cron times on shared hosting in their own right) once
@@ -551,8 +570,14 @@ there are enough installations for that to matter. `GRAV_ROOT` (not e.g. the req
 used as the seed because it's the one value that's stable and available in every context this can
 run from, including `bin/grav scheduler`'s own CLI context, which has no HTTP host to read at all -
 the trade-off is that moving a whole site to a different path/server shifts its computed schedule,
-accepted as a rare, harmless side effect. `$jobKey` (`"geo-db-update"` vs. `"data-auto-prune"`)
-keeps the two jobs on one site from landing on the exact same second.
+accepted as a rare, harmless side effect. `$jobKey` (`"geo-db-update"` vs. `"data-auto-prune"` vs.
+`"rollup-build"`) keeps the jobs on one site from landing on the exact same second.
+
+**Not yet done, deliberately out of scope for this pass:** unlike `next_geo_db_update`/
+`next_auto_prune` below, there's no `next_rollup_build`/"next run" display wired into
+`Stats::dbStats()` or either admin UI yet for this third job - would follow the exact same
+piggy-backing pattern once someone wants it, just not bundled into the performance work that
+motivated `rollup_auto_build` itself.
 
 `AutoSchedule::nextRun()` computes, from the same seed/jobKey/mode, the next actual occurrence as
 a plain `DateTimeImmutable` - deliberately separate from `cronExpression()` (which only the
@@ -813,6 +838,22 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     the wrong language" (bug #17's kind), and one that's easy to miss by code review alone if
     nothing nearby calls attention to that specific line - a live check against a real admin
     instance, in a real non-English admin language, is what actually caught both.
+19. **An early version of `pagesSummary()`'s rollup fast path (see docs/DATABASES.md, "Rollups")
+    silently overcounted "hits" by several percent on every call.** It summed the *entire* first and
+    last rollup day covered by `[$dateFrom, $dateTo]`, on the unstated assumption that both would
+    always land exactly on a day boundary - true for a UI date picker that only ever offers whole
+    days, false for the benchmark harness's `now->modify('-30 days')` (an arbitrary instant partway
+    through a day) and for any other caller that isn't guaranteed to pass midnight-aligned bounds.
+    The extra hours before `$dateFrom` on the first rollup day got summed in anyway. Never showed up
+    in the `EXPLAIN QUERY PLAN`/timing work (both are blind to whether a *correct* query returns the
+    *right numbers*) - only caught by writing a second script that ran the new rollup-backed method
+    and the original live query against the same synthetic database and diffing their results
+    row-by-row, which is what turned up a consistent several-percent-too-high count instead of an
+    exact match. Fixed by never serving the first/last calendar day from the rollup at all,
+    regardless of whether they happen to be fully covered - see the method's docblock. A reminder
+    that a performance fix that returns plausible-looking, consistently-in-the-same-direction wrong
+    numbers is more dangerous than one that crashes outright - it wouldn't have been visually obvious
+    on a real dashboard either, just quietly-inflated totals.
 
 ## Known cleanup items
 

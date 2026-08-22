@@ -1,6 +1,9 @@
 # v3.1.10
 ## unreleased
 
+1. [](#new)
+    * feat: added an optional daily rollup for the dashboard's aggregate queries (top pages, top countries/browsers/platforms, status codes, unique visitors/users, chart data) - `rollup_daily`/`rollup_route` (migration 7), built by a new `Stats::rollupDay()` and kept current by a new `bin/plugin page-insights rollup:build` CLI command or an optional daily scheduled job (`rollup_auto_build`, disabled by default). Motivated by a synthetic-benchmark investigation (~1M hits/month accumulated over 90 days, same methodology as the v3.1.9 index fix): the v3.1.9 index fix was necessary but not sufficient at that scale - `EXPLAIN QUERY PLAN` still showed `GROUP BY`/`ORDER BY`/two `count(DISTINCT ...)` operations after the index seek, scaling with the number of matched rows regardless of indexing; a full dashboard load reached ~115s. `Stats::pagesSummary()` is the first method rewired onto the rollup as a proof of concept (see `docs/DATABASES.md`, "Rollups") - a 90-day query dropped from ~12.9s to ~0.1s in that same benchmark, with results verified to match the original live query exactly. The other aggregate methods are expected to follow the same now-proven pattern in a later release. `visitors`/`users` figures are a deliberate, documented approximation for any range spanning more than one day (summed per-day exact counts, which can overcount a visitor active on more than one of the summed days) rather than requiring a sketch-based (HyperLogLog) structure - `hits`/counts have no such issue and are always exact.
+
 # v3.1.9
 ## 08/21/2026 ([5a7074e](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/5a7074e7c0233610ad3d26805bbaa81f3aeb4afc))
 

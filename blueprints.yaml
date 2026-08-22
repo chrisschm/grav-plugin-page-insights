@@ -283,6 +283,21 @@ form:
                                         # datetime_offset above (valid PCRE, but Admin2 also runs this pattern
                                         # through a native JS RegExp).
                                         pattern: '^(\d+[dwmy]|\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?)$'
+
+                        section_rollup:
+                            type: section
+                            title: PLUGIN_PAGE_INSIGHTS.SECTION_ROLLUP
+                            text: PLUGIN_PAGE_INSIGHTS.SECTION_ROLLUP_LABEL
+                            underline: true
+                            fields:
+                                rollup_auto_build:
+                                    type: select
+                                    label: PLUGIN_PAGE_INSIGHTS.ROLLUP_AUTO_BUILD_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.ROLLUP_AUTO_BUILD_HELP
+                                    default: disabled
+                                    options:
+                                        disabled: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_DISABLED
+                                        daily: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_DAILY
                 tab_classic_admin:
                     type: tab
                     title: PLUGIN_PAGE_INSIGHTS.TAB_CLASSIC_ADMIN
