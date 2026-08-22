@@ -16,7 +16,7 @@
                 {{ "PLUGIN_PAGE_INSIGHTS.GEO_DB_NOT_BUILT"|t }}
             {% else %}
                 {{ "PLUGIN_PAGE_INSIGHTS.GEO_DB_BUILT_STATUS"|t(
-                    geoDb.builtAt ? geoDb.builtAt|date('Y-m-d H:i') : "PLUGIN_PAGE_INSIGHTS.GEO_DB_UNKNOWN"|t,
+                    geoDb.builtAt ? geoDb.builtAt|page_insights_localized_datetime : "PLUGIN_PAGE_INSIGHTS.GEO_DB_UNKNOWN"|t,
                     geoDb.sourceDate ?: "PLUGIN_PAGE_INSIGHTS.GEO_DB_UNKNOWN"|t,
                     (geoDb.ipv4Entries + geoDb.ipv6Entries)
                 ) }}

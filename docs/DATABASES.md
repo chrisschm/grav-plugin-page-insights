@@ -40,12 +40,19 @@ to default to off.
 
 Numbered SQL files (`1.sql`, `2.sql`, ...) are applied strictly in order, each wrapped in its own
 transaction, tracked via a row inserted into the `migrations` table after each one succeeds. On
-boot, `Stats` checks whether it needs to migrate at all: either the database file isn't writable
-yet (fresh install) or a `data/migrations/MUST_MIGRATE` flag file exists (forces a re-check even
-against an existing database); that flag file is deleted at the end of a successful `migrate()`
-run. There is currently no down-migration/rollback mechanism - migrations are additive only (e.g.
-`referer` was added as a new column in migration 3 rather than replacing `refer` from migration 1;
-see "Known schema quirks" below).
+boot, `Stats` checks whether it needs to migrate at all, via any of three independent conditions:
+the database file isn't writable yet (fresh install); a `data/migrations/MUST_MIGRATE` flag file
+exists (a file shipped tracked in git, force-checking even against an existing database - reliable
+whenever an update replaces the whole plugin directory, e.g. a GPM download or tarball extraction,
+since the flag's tracked content reappears with everything else); or `hasPendingMigrations()` finds
+a numbered `*.sql` file beyond what the `migrations` table has recorded as applied, independent of
+the flag file. That third condition (added 2026-08-22) exists specifically because the flag alone
+is not a reliable trigger under a `git pull`-based deployment - see "Notable past bugs" in
+`ARCHITECTURE.md` for the real incident that prompted it. Whichever condition fires, `migrate()`
+deletes the flag file at the end of a successful run if it happens to exist (it may not, when only
+the third condition fired). There is currently no down-migration/rollback mechanism - migrations
+are additive only (e.g. `referer` was added as a new column in migration 3 rather than replacing
+`refer` from migration 1; see "Known schema quirks" below).
 
 ### Table `data` (one row per page hit)
 

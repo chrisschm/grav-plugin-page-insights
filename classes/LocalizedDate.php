@@ -143,4 +143,55 @@ class LocalizedDate
         'en' => 'MM/dd',
         'fr' => 'dd/MM',
     ];
+
+    /**
+     * Formats a Unix timestamp (not a day-only string like longDay()/
+     * shortDay() above - the status displays this backs always carry a
+     * time-of-day too) as a locale-aware date+time, e.g. "22.08.2026,
+     * 09:15" for 'de', "8/22/2026, 9:15 AM" for 'en'. Used for the three
+     * Classic Admin "next scheduled run" / "built at" status lines
+     * (`next_geo_db_update`/`next_auto_prune` in stats.html.twig,
+     * `builtAt` in widgets/geo-db-status.html.twig) - see
+     * ARCHITECTURE.md's "Localized date formatting" section for why these
+     * three were still unlocalized after that section's first round of
+     * fixes (they didn't exist yet at the time), and "Notable past bugs"
+     * for how this one was found. Deliberately mirrors Admin2's own
+     * `new Date(ts * 1000).toLocaleString()` for these exact same fields
+     * (see admin-next/pages/page-insights.js) closely enough that both
+     * admin UIs read the same way side by side, using IntlDateFormatter's
+     * MEDIUM/SHORT (date/time) length rather than a fixed custom pattern
+     * like shortDay() - unlike that day-only axis label, there's no
+     * cross-UI byte-for-byte output to match here, `toLocaleString()`'s
+     * own exact formatting is itself locale/browser-dependent, so this is
+     * simply "the closest standard ICU equivalent", not a pixel-perfect
+     * match. MEDIUM rather than SHORT for the date part specifically to
+     * keep a full 4-digit year (`22.08.2026`, not the 2-digit `22.08.26`
+     * ICU's own SHORT length uses for 'de') - a "next run" status line is
+     * exactly the kind of place a truncated year invites misreading.
+     *
+     * Same intl-availability and fail-safe fallback approach as longDay()/
+     * shortDay(): falls back to the previous fixed 'Y-m-d H:i' rendering
+     * (this plugin's original, pre-localization format for all three call
+     * sites) rather than a different neutral format, so a missing `intl`
+     * extension never produces output no prior release ever showed there.
+     */
+    public static function dateTime(int $timestamp, string $languageCode): string
+    {
+        $date = (new \DateTimeImmutable())->setTimestamp($timestamp);
+
+        if (extension_loaded('intl')) {
+            $locale = self::ICU_LOCALES[$languageCode] ?? self::ICU_LOCALES['en'];
+            $formatter = new \IntlDateFormatter(
+                $locale,
+                \IntlDateFormatter::MEDIUM,
+                \IntlDateFormatter::SHORT
+            );
+            $formatted = $formatter->format($date);
+            if ($formatted !== false) {
+                return $formatted;
+            }
+        }
+
+        return $date->format('Y-m-d H:i');
+    }
 }

@@ -16,10 +16,10 @@
             <p>
                 {{ "PLUGIN_PAGE_INSIGHTS.USING"|t }}: {{ pageStats.db.dbStats.path }} ({{ pageStats.db.dbStats.mb }} MB)
                 {% if pageStats.db.dbStats.next_geo_db_update %}
-                    &middot; {{ "PLUGIN_PAGE_INSIGHTS.NEXT_GEO_DB_UPDATE"|t(pageStats.db.dbStats.next_geo_db_update|date('Y-m-d H:i')) }}
+                    &middot; {{ "PLUGIN_PAGE_INSIGHTS.NEXT_GEO_DB_UPDATE"|t(pageStats.db.dbStats.next_geo_db_update|page_insights_localized_datetime) }}
                 {% endif %}
                 {% if pageStats.db.dbStats.next_auto_prune %}
-                    &middot; {{ "PLUGIN_PAGE_INSIGHTS.NEXT_AUTO_PRUNE"|t(pageStats.db.dbStats.next_auto_prune|date('Y-m-d H:i')) }}
+                    &middot; {{ "PLUGIN_PAGE_INSIGHTS.NEXT_AUTO_PRUNE"|t(pageStats.db.dbStats.next_auto_prune|page_insights_localized_datetime) }}
                 {% endif %}
             </p>
         </div>

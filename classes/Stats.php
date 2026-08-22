@@ -28,7 +28,7 @@ class Stats
         $this->dt_offset = $this->config['datetime_offset'];
 
         $this->dbPath = new \SplFileInfo($dbPath);
-        $migrate = !$this->dbPath->isWritable() || file_exists(__DIR__ . self::FORCE_MIGRATION_FLAG);
+        $freshOrForced = !$this->dbPath->isWritable() || file_exists(__DIR__ . self::FORCE_MIGRATION_FLAG);
         $this->db  = new PDO(
             'sqlite:' . $dbPath,
             null,
@@ -49,6 +49,42 @@ class Stats
         $this->db->exec('PRAGMA synchronous = NORMAL');
 
 
+        // $freshOrForced alone used to be the only trigger for migrate() on
+        // an existing (already-writable) database - via
+        // FORCE_MIGRATION_FLAG, a file shipped tracked in git and deleted by
+        // migrate() itself once it succeeds (see that method's docblock).
+        // That works for any deployment method that replaces the whole
+        // plugin directory wholesale on update (a fresh GPM download, a
+        // tarball extraction) - the flag's tracked content reappears
+        // because the *entire* directory tree is overwritten. It silently
+        // does not work for a `git pull`-based deployment: a `pull` only
+        // applies the diff between the old and new commit for each path,
+        // and FORCE_MIGRATION_FLAG's tracked content never actually changes
+        // between releases, so a local deletion of it - which is exactly
+        // what happens the very first time migrate() ever runs - has
+        // nothing to "pull back", and it stays deleted forever. Every
+        // migration shipped after the first one ever applied on such an
+        // installation was then silently never running again - confirmed
+        // in practice (see "Notable past bugs" in ARCHITECTURE.md): two
+        // real installations updated exclusively via `git pull` had been
+        // stuck on an old schema version for weeks, missing not just this
+        // release's rollup tables but also a previous release's
+        // performance-critical indexes, with no error of any kind - a
+        // missing index degrades a query silently, it doesn't throw.
+        //
+        // hasPendingMigrations() below closes that gap by checking, on
+        // every request, whether data/migrations/ actually contains a
+        // numbered file beyond what the "migrations" table has recorded -
+        // independent of whether FORCE_MIGRATION_FLAG happens to exist on
+        // disk. This makes migrate() self-triggering regardless of
+        // deployment method. The extra cost in the (overwhelmingly common)
+        // already-up-to-date steady state is one indexed `SELECT ... LIMIT
+        // 1` plus one filesystem stat() per request - negligible next to
+        // everything else this class already does per page view, and
+        // nowhere near the scale of cost this session's benchmarking work
+        // was actually concerned with (GROUP BY/DISTINCT scans over
+        // millions of "data" rows, not a handful of migration files).
+        $migrate = $freshOrForced || $this->hasPendingMigrations();
         if ($migrate) {
             $this->migrate();
         }
@@ -83,6 +119,38 @@ class Stats
     }
 
     /**
+     * Whether data/migrations/ contains a numbered *.sql file beyond what
+     * the "migrations" table currently has recorded as applied - i.e.
+     * whether migrate() actually has work to do right now, independent of
+     * FORCE_MIGRATION_FLAG (see the long comment in __construct() for why
+     * that flag alone isn't a reliable trigger under a `git pull`-based
+     * deployment). Deliberately mirrors migrate()'s own version-lookup
+     * query and fallback ($version = 0, i.e. "definitely pending") rather
+     * than sharing code with it - migrate() itself only needs to run this
+     * lookup once per actual migration run, this needs to run it on every
+     * request, so keeping them independent avoids coupling the cheap check
+     * to whatever migrate() might grow in the future.
+     */
+    private function hasPendingMigrations(): bool
+    {
+        $version = 0;
+        try {
+            $q = $this->query('SELECT version FROM migrations ORDER BY id Desc LIMIT 1');
+            if ($q) {
+                $version = (int) $q[0]['version'];
+            }
+        } catch (\Throwable $e) {
+            // No usable "migrations" table at all (e.g. mid-migration
+            // build, or a database that predates it entirely) - treat as
+            // "definitely pending", same as migrate()'s own fallback.
+            return true;
+        }
+
+        $next = new \SplFileInfo(__DIR__ . '/../data/migrations/' . ($version + 1) . '.sql');
+        return $next->isFile();
+    }
+
+    /**
      * executes a db migration by running the <int>.sql files not executted yet
      */
     public function migrate()
@@ -114,7 +182,15 @@ class Stats
             $this->db->exec('INSERT INTO migrations (version) VALUES(' . $version . ');');
         }
 
-        unlink(__DIR__ . self::FORCE_MIGRATION_FLAG);
+        // Only ever guaranteed to exist when migrate() was entered via
+        // $freshOrForced - hasPendingMigrations() (see __construct()) can
+        // now also trigger a migrate() run with the flag never having
+        // existed on disk at all (that's the whole point of it), so an
+        // unconditional unlink() here would throw a PHP warning in exactly
+        // the scenario this fix exists for.
+        if (file_exists(__DIR__ . self::FORCE_MIGRATION_FLAG)) {
+            unlink(__DIR__ . self::FORCE_MIGRATION_FLAG);
+        }
     }
 
     /**

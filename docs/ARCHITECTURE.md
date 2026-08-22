@@ -207,7 +207,8 @@ table-date spots found only after live-testing the first round of fixes against 
 natural for that side, rather than through one shared mechanism - there's no PHP involved in the
 Admin2 Web Component's rendering, and no JavaScript involved in Classic Admin's server-rendered Twig
 output, so a single shared implementation would mean introducing a dependency neither side actually
-needs. Four spots total, two per side:
+needs. Five spots total: two per side, plus one more found later on the Classic Admin side only (see
+below) - Admin2's equivalent displays were already correct from the start, see that spot's own entry.
 
 - **Admin2 trend-chart x-axis** (`_formatDayLabel()`) - was a fixed `DD.MM.` format regardless of
   admin language; the original still-open item here. Now the browser-native `Intl.DateTimeFormat`,
@@ -240,16 +241,35 @@ needs. Four spots total, two per side:
   for `fr`) so both dashboards' charts look the same regardless of which admin UI is open - and, like
   that JS-side format, deliberately omits the year for the same reason (a single, currently-selected
   date range shown elsewhere on the page).
+- **Classic Admin's three "next scheduled run"/"built at" status lines** (`next_geo_db_update`/
+  `next_auto_prune` in `stats.html.twig`, `builtAt` in `widgets/geo-db-status.html.twig`) - found
+  2026-08-22, live-testing the new rollup feature against real Grav 1.7/2.0 instances (same
+  discovery method as the other spots above): all three used Twig's `|date('Y-m-d H:i')`, the same
+  non-localized formatting bug as #17 above, just not previously caught because it wasn't part of
+  that round's live-testing pass. Admin2's equivalent (`o.db.next_geo_db_update` etc. in
+  `admin-next/pages/page-insights.js`) was already correct - it always used the browser's
+  `toLocaleString()`, never a hardcoded format. Unlike `longDay()`/`shortDay()` above, these three
+  are Unix timestamps with a time-of-day, not day-only ISO strings, so they're backed by a new
+  `LocalizedDate::dateTime()` (`IntlDateFormatter::MEDIUM`/`SHORT`) and a new
+  `page_insights_localized_datetime` Twig filter rather than reusing either existing method.
+  Deliberately **not** touched: the structurally identical `date('Y-m-d H:i', $builtAt)` in
+  `cli/GeoDbUpdateCommand.php` and the scheduler-job log line in
+  `PageInsightsPlugin::registerGeoDbAutoUpdateJob()` - both write to a terminal/log file for the site
+  operator, not a browser-rendered admin UI, where a technical, locale-independent timestamp is the
+  more appropriate choice, not a bug.
 
-Both `classes/LocalizedDate.php` methods (`longDay()`, `shortDay()`) are given the current admin
-language via `$grav['language']->getLanguage()` - "active if set, else default", the same resolution
-`Language::translate()` itself falls back to, so both always track whatever language the rest of the
-same page's `|t`-translated strings are already rendering in. Mapped through the same short-code ->
-locale convention already established by `mergeAdmin2TranslationAliases()` above (`de`/`en`/`fr`,
-this plugin's shipped languages), just aimed at an ICU locale (`de_DE`) instead of a BCP47 code
-(`de-DE`). `shortDay()` uses a fixed custom ICU pattern per locale rather than a standard length
-constant - no standard `IntlDateFormatter` length (`LONG`/`MEDIUM`/`SHORT`) produces "day+month, no
-year" directly, they all include a year.
+`classes/LocalizedDate.php`'s three methods (`longDay()`, `shortDay()`, `dateTime()`) are all given
+the current admin language via `$grav['language']->getLanguage()` - "active if set, else default",
+the same resolution `Language::translate()` itself falls back to, so all three always track whatever
+language the rest of the same page's `|t`-translated strings are already rendering in. Mapped through
+the same short-code -> locale convention already established by `mergeAdmin2TranslationAliases()`
+above (`de`/`en`/`fr`, this plugin's shipped languages), just aimed at an ICU locale (`de_DE`)
+instead of a BCP47 code (`de-DE`). `shortDay()` uses a fixed custom ICU pattern per locale rather
+than a standard length constant - no standard `IntlDateFormatter` length (`LONG`/`MEDIUM`/`SHORT`)
+produces "day+month, no year" directly, they all include a year. `dateTime()` uses
+`MEDIUM`/`SHORT` rather than `SHORT`/`SHORT` for the same reason `shortDay()` avoids a bare `SHORT`
+date: ICU's `SHORT` date length renders a 2-digit year for `de` (`22.08.26`), which a "next
+scheduled run" status line shouldn't risk being misread as.
 
 `ext-intl` is deliberately **not** a new hard requirement (`composer.json` still only lists
 `ext-sqlite3`/`ext-pdo`) - confirmed against Grav core itself
@@ -854,6 +874,54 @@ any syntax check runs, points at the `composer.lock` drift described above, not 
     that a performance fix that returns plausible-looking, consistently-in-the-same-direction wrong
     numbers is more dangerous than one that crashes outright - it wouldn't have been visually obvious
     on a real dashboard either, just quietly-inflated totals.
+20. **Two real, `git pull`-updated installations had been silently stuck on an old schema for
+    weeks**, discovered while rolling out migration 7 (see #19 above) - `bin/plugin page-insights
+    rollup:build` failed with `no such table: rollup_daily` on both, and a manual
+    `SELECT version FROM migrations ORDER BY id DESC LIMIT 1` on one of them showed the last-recorded
+    migration was version 5's *indexes*, not migration 7. Root cause: `Stats::migrate()`'s trigger on
+    an already-existing database was, until this fix, `data/migrations/MUST_MIGRATE` existing on
+    disk alone - a file shipped tracked in git and `unlink()`-ed by `migrate()` once it succeeds.
+    That's reliable for any deployment method that replaces the whole plugin directory wholesale
+    (GPM download, tarball extraction - the flag's tracked content reappears with everything else),
+    but not for `git pull`: a pull only applies the diff between commits for each path, and the
+    flag's tracked *content* never actually changes between releases, so the local deletion that
+    happens the very first time `migrate()` ever runs on an installation has nothing to "pull back" -
+    it stays deleted forever, and every migration shipped after that first one silently never runs
+    again. Confirmed in practice: migration 6's `idx_data_date_normalized` expression index (see
+    "Indexes" in `DATABASES.md`, and bug #15 below it - the fix this exact index was built for) had
+    never actually been applied on either installation - see bug #15 for the dashboard-slowdown it
+    was built to fix - meaning that fix was never actually live in production, silently, for as long
+    as those installations had been running `git pull` updates. A missing index doesn't throw an
+    error, it just makes a query slow -
+    nothing surfaced this until a *table*, not just an index, turned out missing too. One of the two
+    installations had a second, unrelated problem compounding this: its `migrations` table's last row
+    recorded `version = 1` instead of `5` (a stale manual backfill from an earlier test-environment
+    reset, all rows sharing one identical timestamp rather than the different times real sequential
+    migrations would have) - `ORDER BY id DESC LIMIT 1` trusted that wrong value, so `migrate()`
+    tried to re-run migration 2 against a database whose columns already existed, failing with
+    `duplicate column name`. Fixed with two independent changes: `Stats::__construct()` now also
+    calls a new `hasPendingMigrations()`, comparing the highest `data/migrations/N.sql` on disk
+    against the recorded version, and triggers `migrate()` on that alone, regardless of whether
+    `MUST_MIGRATE` exists - self-healing under any deployment method, not just whole-directory
+    replacement (see "Migrations" in `DATABASES.md`); and the incorrect `migrations` row was manually
+    deleted (not "corrected" to `5` - migration 5 demonstrably never ran, so marking it done would
+    have left the index permanently missing) on the one affected installation, restoring it to a
+    truthful state before letting `migrate()` catch up normally. A reminder that a mechanism proven
+    correct under the deployment method it was designed and tested against (see bug #12 above for a
+    similar "worked as designed for the tested case" gap) can still be silently wrong under a
+    different, equally normal one nobody happened to test it against - and that a *missing* piece of
+    schema is a strictly quieter failure than a *wrong* one: no error, no wrong numbers, just
+    whatever the pre-fix behavior already was, indefinitely.
+21. **Three more Classic Admin date displays turned out to be unlocalized** (`next_geo_db_update`/
+    `next_auto_prune` in `stats.html.twig`, `builtAt` in `widgets/geo-db-status.html.twig`) - same
+    underlying bug class as #17/#18, found live-testing the fix for #20 above rather than #17's
+    original round (these three carry a time-of-day, not just a calendar day, so they weren't caught
+    by `longDay()`/`shortDay()`'s day-only scope at the time). See "Localized date formatting" above
+    for the fix (`LocalizedDate::dateTime()`, `page_insights_localized_datetime` filter) and for the
+    two structurally identical spots deliberately left alone (CLI/scheduler-log output, not an admin
+    UI). A reminder that "found by live-testing, not by reading the code" (already the lesson of #18)
+    keeps applying every time a *new* live-testing pass touches a screen nobody happened to look at
+    during the previous one.
 
 ## Known cleanup items
 

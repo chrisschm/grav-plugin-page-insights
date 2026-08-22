@@ -181,6 +181,15 @@ class PageInsightsPlugin extends Plugin
      *   straight into Chart.js as an x-axis label in
      *   widgets/page-views.html.twig, unique-visitors.html.twig and
      *   unique-users.html.twig.
+     * - `page_insights_localized_datetime`: replaces the previous fixed,
+     *   non-localized `|date('Y-m-d H:i')` used for the three Unix-
+     *   timestamp "next scheduled run"/"built at" status lines
+     *   (stats.html.twig's `next_geo_db_update`/`next_auto_prune`,
+     *   widgets/geo-db-status.html.twig's `builtAt`) - unlike the two
+     *   filters above, these carry a time-of-day, not just a calendar day,
+     *   which is why they need their own LocalizedDate::dateTime() rather
+     *   than reusing longDay()/shortDay(). See "Notable past bugs" in
+     *   ARCHITECTURE.md for how this was found.
      */
     public function onTwigExtensions(): void
     {
@@ -198,6 +207,13 @@ class PageInsightsPlugin extends Plugin
             'page_insights_short_day',
             static function (string $isoDay) use ($language): string {
                 return LocalizedDate::shortDay($isoDay, (string) $language->getLanguage());
+            }
+        ));
+
+        $twig->addFilter(new \Twig\TwigFilter(
+            'page_insights_localized_datetime',
+            static function (int $timestamp) use ($language): string {
+                return LocalizedDate::dateTime($timestamp, (string) $language->getLanguage());
             }
         ));
     }
