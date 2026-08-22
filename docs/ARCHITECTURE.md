@@ -465,6 +465,17 @@ vendor-bloat mistake `git` history already went through once, see "Notable past 
   bare invocation can't accidentally trigger a long-running backfill. Use `--from=<value>` (same
   relative/absolute syntax as `prune --older-than`, via `RelativeDate`) once, manually, to backfill
   an existing installation's history.
+- **`bin/plugin page-insights prune:bots [--yes] [--vacuum]`** - deletes every `data` row with
+  `is_bot = 1`, regardless of age, plus any now-orphaned `events` rows (`Stats::pruneBotTraffic()`
+  calls `pruneOrphanedEvents()` internally, same as `pruneData()`). CLI equivalent of the Admin2
+  maintenance dialog's `prune_bots` preset (see below). Kept as its own command rather than an
+  `--older-than`-style option on `prune`, since "is this row a bot" and "is this row old" are two
+  unrelated deletion criteria - folding both into one flag would be confusing.
+- **`bin/plugin page-insights prune:notfound [--yes] [--vacuum]`** - deletes every `data` row with
+  `http_code = 404`, regardless of age, plus any now-orphaned `events` rows
+  (`Stats::pruneNotFoundHits()`, same `pruneOrphanedEvents()` pattern as above). CLI equivalent of
+  the Admin2 maintenance dialog's `prune_notfound` preset. Same reasoning as `prune:bots` for
+  keeping it a separate command rather than an `--older-than` variant.
 
 ## Admin2 database maintenance dialog (`PageInsightsApiController::maintainDb()`)
 
@@ -480,13 +491,15 @@ would mean maintaining a second mutation-triggering surface in the old environme
 forward, which isn't worth it for a feature this specific.
 
 **UI:** a single `window.__GRAV_DIALOGS.form()` modal - a warning that deletion is permanent,
-followed by one `select` field with exactly three presets (`vacuum` / `prune_orphans` /
-`prune_old`). Deliberately just the one dialog, with no separate `confirm()` safety step
-afterwards: the warning is already shown right above the choice, and the modal's own submit
-button *is* the confirmation - matching what was actually asked for rather than adding an extra
-click "to be safe". Deliberately no free-form "older than" input either (unlike the `prune` CLI
-command's `--older-than`) - three fixed presets keep the dialog simple, which was an explicit
-design goal for this feature.
+followed by one `select` field with five presets (`vacuum` / `prune_orphans` / `prune_old` /
+`prune_bots` / `prune_notfound`). Deliberately just the one dialog, with no separate `confirm()`
+safety step afterwards: the warning is already shown right above the choice, and the modal's own
+submit button *is* the confirmation - matching what was actually asked for rather than adding an
+extra click "to be safe". Deliberately no free-form "older than" input either (unlike the `prune`
+CLI command's `--older-than`) - fixed presets keep the dialog simple, which was an explicit design
+goal for this feature; `prune_bots`/`prune_notfound` fit the same fixed-preset shape as the
+original three (no parameter to fill in - "bot" and "404" are both binary conditions), which is
+why they were added as presets here rather than as a new kind of dialog control.
 
 **Backend mapping** (`maintainDb()`):
 
@@ -495,6 +508,11 @@ design goal for this feature.
 - `prune_old` → `Stats::pruneData($cutoff)` with `$cutoff` fixed at "now minus 1 year" (not
   configurable in this dialog - see above), then `Stats::vacuum()`. `pruneData()` already deletes
   orphaned events as a side effect (see its doc comment), so this covers both in one preset.
+- `prune_bots` → `Stats::pruneBotTraffic()`, then `Stats::vacuum()`. Deletes every `data` row with
+  `is_bot = 1`, regardless of age. Same backend method as the `prune:bots` CLI command above.
+- `prune_notfound` → `Stats::pruneNotFoundHits()`, then `Stats::vacuum()`. Deletes every `data` row
+  with `http_code = 404`, regardless of age. Same backend method as the `prune:notfound` CLI
+  command above.
 
 `VACUUM` always runs last regardless of which preset was chosen, mirroring the CLI's own
 `prune --vacuum` combination - the response therefore always reports a `size_before`/`size_after`

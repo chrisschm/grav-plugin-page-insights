@@ -257,6 +257,55 @@ class Stats
     }
 
     /**
+     * Deletes every "data" row recognized as bot traffic (is_bot = 1) -
+     * deliberately no age cutoff at all, unlike pruneData() above. Bot/404
+     * cleanup (this and pruneNotFoundHits() below) answers a different
+     * question than age-based pruning: once a site's SEO work is done,
+     * historical bot hits are typically no longer useful for anything,
+     * regardless of how old or recent they are - see docs/ARCHITECTURE.md,
+     * "Admin2 database maintenance dialog", for the fuller reasoning and
+     * why this is a manually-triggered action (CLI or dialog), never
+     * automatic.
+     *
+     * Same "best-effort classification, not a guarantee" caveat as every
+     * other use of this column - see docs/DATABASES.md, "Bot detection
+     * reliability": a bot hit not recognized as such at collection time
+     * (e.g. a scraper spoofing a real browser's User-Agent) is untouched by
+     * this, and running it again after editing `bot_regexp` does not
+     * retroactively catch anything newly recognized either - `is_bot` is
+     * only ever set once, at insert time.
+     *
+     * @return int Number of deleted "data" rows.
+     */
+    public function pruneBotTraffic(): int
+    {
+        $deleted = (int) $this->db->exec('DELETE FROM data WHERE is_bot = 1');
+
+        $this->pruneOrphanedEvents();
+
+        return $deleted;
+    }
+
+    /**
+     * Deletes every "data" row recorded as a 404 (http_code = 404) - same
+     * no-age-bound rationale as pruneBotTraffic() above. "http_code" is
+     * only populated since 2026-08-19 (see docs/DATABASES.md, table
+     * "data") - rows written before that have a NULL http_code and are
+     * untouched by this, the same rows statusCodeSummary() already bins
+     * into its "other" bucket rather than guessing at their status.
+     *
+     * @return int Number of deleted "data" rows.
+     */
+    public function pruneNotFoundHits(): int
+    {
+        $deleted = (int) $this->db->exec('DELETE FROM data WHERE http_code = 404');
+
+        $this->pruneOrphanedEvents();
+
+        return $deleted;
+    }
+
+    /**
      * Deletes "events" rows whose "session_id" no longer matches any "data"
      * row - independent of any age cutoff. "events.session_id" is declared
      * as "REFERENCES data (id)" in the schema, but without an ON DELETE

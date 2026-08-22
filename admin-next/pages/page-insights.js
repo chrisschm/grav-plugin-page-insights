@@ -376,7 +376,7 @@ class PageInsightsPage extends HTMLElement {
     /**
      * Opens the "Maintain database" dialog (button next to the database-size
      * badge, see _renderDashboardShell()) via window.__GRAV_DIALOGS.form() -
-     * a single modal with a warning description plus a three-option select,
+     * a single modal with a warning description plus a five-option select,
      * deliberately no separate confirm() step: the warning is already shown
      * right above the choice, and the dialog's own submit button is the
      * confirmation, keeping this to the one dialog that was asked for rather
@@ -403,6 +403,8 @@ class PageInsightsPage extends HTMLElement {
                         { value: 'vacuum', label: this._t('ADMIN2.DB_MAINTAIN_ACTION_VACUUM', 'Free up disk space only (no data is deleted)') },
                         { value: 'prune_orphans', label: this._t('ADMIN2.DB_MAINTAIN_ACTION_PRUNE_ORPHANS', 'Delete orphaned events') },
                         { value: 'prune_old', label: this._t('ADMIN2.DB_MAINTAIN_ACTION_PRUNE_OLD', 'Delete data older than 1 year') },
+                        { value: 'prune_bots', label: this._t('ADMIN2.DB_MAINTAIN_ACTION_PRUNE_BOTS', 'Delete bot traffic') },
+                        { value: 'prune_notfound', label: this._t('ADMIN2.DB_MAINTAIN_ACTION_PRUNE_NOTFOUND', 'Delete 404 (not found) hits') },
                     ],
                 },
             ],

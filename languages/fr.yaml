@@ -257,6 +257,29 @@ PLUGIN_PAGE_INSIGHTS:
   AUTO_SCHEDULE_DISABLED: Désactivée
   AUTO_SCHEDULE_WEEKLY: Hebdomadaire
   AUTO_SCHEDULE_MONTHLY: Mensuelle
+  AUTO_SCHEDULE_DAILY: Quotidienne
+
+  SECTION_ROLLUP: Agrégats du tableau de bord (rollups)
+  SECTION_ROLLUP_LABEL: "Précalcule des résumés quotidiens afin que les
+    widgets du tableau de bord restent rapides sur les sites avec un trafic
+    cumulé important, au lieu de ré-agréger chaque ligne correspondante à
+    chaque chargement. Désactivé par défaut - ne vaut la peine d'être activé
+    que lorsque le trafic/l'historique d'un site ralentit sensiblement le
+    tableau de bord ; les sites petits/récents n'en ont pas besoin. Voir
+    aussi la commande CLI `rollup:build`, que ce réglage ne fait
+    qu'automatiser."
+  ROLLUP_AUTO_BUILD_LABEL: Rollups automatiques
+  ROLLUP_AUTO_BUILD_HELP: "Agrège automatiquement chaque jour terminé (voir
+    `rollup:build --help`). Désactivé par défaut. Seule l'option
+    « Quotidienne » est proposée ici, contrairement aux options
+    hebdomadaire/mensuelle ci-dessus - un rollup qui prend une semaine de
+    retard perd son intérêt, puisque le tableau de bord revient simplement à
+    la requête d'origine, non accélérée, pour tout ce qui n'est pas encore
+    agrégé. L'activation de cette option ne remplit pas rétroactivement
+    l'historique existant - pour cela, exécuter une fois soi-même `bin/plugin
+    page-insights rollup:build --from=<période>` ; ce réglage ne fait que le
+    maintenir à jour par la suite."
+
   NEXT_GEO_DB_UPDATE: "Prochaine mise à jour de la base géo : %s"
   NEXT_AUTO_PRUNE: "Prochain nettoyage automatique : %s"
 
@@ -317,6 +340,9 @@ PLUGIN_PAGE_INSIGHTS:
       donnée n'est supprimée)"
     DB_MAINTAIN_ACTION_PRUNE_ORPHANS: Supprimer les événements orphelins
     DB_MAINTAIN_ACTION_PRUNE_OLD: Supprimer les données de plus d'1 an
+    DB_MAINTAIN_ACTION_PRUNE_BOTS: Supprimer le trafic des robots
+    DB_MAINTAIN_ACTION_PRUNE_NOTFOUND: "Supprimer les erreurs 404 (page
+      introuvable)"
     DB_MAINTAIN_SUBMIT: Exécuter
     DB_MAINTAIN_TOAST_DELETED: "%s ligne(s) supprimée(s). Taille de la base de
       données : %s Mo → %s Mo."

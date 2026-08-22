@@ -417,9 +417,15 @@ class PageInsightsApiController extends AbstractApiController
             case 'prune_old':
                 $deleted = $stats->pruneData(new DateTimeImmutable('-1 year'));
                 break;
+            case 'prune_bots':
+                $deleted = $stats->pruneBotTraffic();
+                break;
+            case 'prune_notfound':
+                $deleted = $stats->pruneNotFoundHits();
+                break;
             default:
                 throw new ValidationException("Unknown action '{$action}'.", [
-                    ['field' => 'action', 'message' => 'Must be one of: vacuum, prune_orphans, prune_old.'],
+                    ['field' => 'action', 'message' => 'Must be one of: vacuum, prune_orphans, prune_old, prune_bots, prune_notfound.'],
                 ]);
         }
 
@@ -429,7 +435,7 @@ class PageInsightsApiController extends AbstractApiController
         // log an admin is already asked to attach to a bug report (see
         // docs/ARCHITECTURE.md "Admin2 database maintenance dialog"), e.g.
         // to confirm which action actually ran and when, without needing DB
-        // access - this deletes data for two of the three actions, unlike
+        // access - this deletes data for four of the five actions, unlike
         // the read-only geo-db rebuild above.
         Grav::instance()['log']->info(sprintf(
             'PageInsights plugin: database maintenance "%s" triggered manually via Admin2 by %s - %s row(s) deleted, %s MB -> %s MB.',

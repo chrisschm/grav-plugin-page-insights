@@ -250,6 +250,8 @@ PLUGIN_PAGE_INSIGHTS:
         DB_MAINTAIN_ACTION_VACUUM: Free up disk space only (no data is deleted)
         DB_MAINTAIN_ACTION_PRUNE_ORPHANS: Delete orphaned events
         DB_MAINTAIN_ACTION_PRUNE_OLD: Delete data older than 1 year
+        DB_MAINTAIN_ACTION_PRUNE_BOTS: Delete bot traffic
+        DB_MAINTAIN_ACTION_PRUNE_NOTFOUND: Delete 404 (not found) hits
         DB_MAINTAIN_SUBMIT: Run
         DB_MAINTAIN_TOAST_DELETED: "%s row(s) deleted. Database size: %s MB → %s MB."
         DB_MAINTAIN_TOAST_VACUUM: "Database size: %s MB → %s MB."

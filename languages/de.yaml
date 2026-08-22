@@ -216,6 +216,27 @@ PLUGIN_PAGE_INSIGHTS:
   AUTO_SCHEDULE_DISABLED: Deaktiviert
   AUTO_SCHEDULE_WEEKLY: Wöchentlich
   AUTO_SCHEDULE_MONTHLY: Monatlich
+  AUTO_SCHEDULE_DAILY: Täglich
+
+  SECTION_ROLLUP: Dashboard-Rollups
+  SECTION_ROLLUP_LABEL: Berechnet tägliche Zusammenfassungen im Voraus, damit
+    Dashboard-Widgets auch bei Sites mit viel angesammeltem Traffic schnell
+    bleiben, statt bei jedem Laden erneut jede passende Zeile zu aggregieren.
+    Standardmäßig deaktiviert - lohnt sich erst, wenn Traffic/Historie einer
+    Site das Dashboard spürbar verlangsamen; kleine/neue Sites benötigen dies
+    nicht. Siehe auch den `rollup:build`-CLI-Befehl, den diese Einstellung
+    lediglich automatisiert.
+  ROLLUP_AUTO_BUILD_LABEL: Automatische Rollups
+  ROLLUP_AUTO_BUILD_HELP: Führt für jeden abgeschlossenen Tag automatisch ein
+    Rollup aus (siehe `rollup:build --help`). Standardmäßig deaktiviert.
+    Anders als bei den Wochen-/Monats-Optionen oben wird hier nur "Täglich"
+    angeboten - ein Rollup, das eine Woche hinterherhinkt, verfehlt seinen
+    Zweck, da das Dashboard für alles noch nicht Zusammengefasste einfach auf
+    die ursprüngliche, unbeschleunigte Abfrage zurückfällt. Das Aktivieren
+    füllt bestehende Historie nicht rückwirkend auf - dafür einmalig selbst
+    `bin/plugin page-insights rollup:build --from=<zeitraum>` ausführen;
+    diese Einstellung hält es nur ab jetzt aktuell.
+
   NEXT_GEO_DB_UPDATE: "Nächste Geo-DB-Aktualisierung: %s"
   NEXT_AUTO_PRUNE: "Nächste automatische Bereinigung: %s"
   LOG_ADMIN_LABEL: Aktivitäten von Administratoren protokollieren
@@ -278,6 +299,8 @@ PLUGIN_PAGE_INSIGHTS:
       Daten gelöscht)
     DB_MAINTAIN_ACTION_PRUNE_ORPHANS: Verwaiste Events löschen
     DB_MAINTAIN_ACTION_PRUNE_OLD: Daten älter als 1 Jahr löschen
+    DB_MAINTAIN_ACTION_PRUNE_BOTS: Bot-Traffic löschen
+    DB_MAINTAIN_ACTION_PRUNE_NOTFOUND: 404-Treffer (nicht gefunden) löschen
     DB_MAINTAIN_SUBMIT: Ausführen
     DB_MAINTAIN_TOAST_DELETED: '%s Eintrag/Einträge gelöscht. Datenbankgröße:
       %s MB → %s MB.'
