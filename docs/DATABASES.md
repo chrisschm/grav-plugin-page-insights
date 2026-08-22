@@ -197,7 +197,8 @@ optional automatic scheduling) and `vacuum` operate on this schema but are workf
 documented in `ARCHITECTURE.md` ("CLI commands", "Admin2 database maintenance dialog", "Automatic
 scheduling") rather than schema design - not duplicated here.
 
-### Rollups (`rollup_daily`, `rollup_route`, `rollup_state` - migration 7)
+### Rollups (`rollup_daily`, `rollup_route`, `rollup_country`, `rollup_browser`, `rollup_platform`,
+`rollup_state` - migrations 7 and 8)
 
 `idx_data_date_normalized` (above) fixes SQLite matching the wrong index for a date-range filter,
 but doesn't change what happens *after* the index seek: `EXPLAIN QUERY PLAN` against a synthetic,
@@ -209,10 +210,13 @@ range took ~12.9s, `totalUniqueVisitors()` (no `GROUP BY` at all, just one `COUN
 ~17.4s, and a full ~10-widget dashboard load reached ~115s. The index was necessary but not
 sufficient once a site's accumulated traffic reaches roughly this range.
 
-`rollup_daily` and `rollup_route` precompute one row per `(day, is_bot[, page_title])` via
-`Stats::rollupDay()`, so a query against them scales with the number of *days* in the requested
-range instead of the number of matched hits - turning a GROUP BY over millions of rows into one over
-at most a few hundred. Two dimensions currently exist:
+`rollup_daily`/`rollup_route`/`rollup_country`/`rollup_browser`/`rollup_platform` precompute one row
+per `(day, is_bot[, dimension])` via `Stats::rollupDay()`, so a query against them scales with the
+number of *days* in the requested range instead of the number of matched hits - turning a GROUP BY
+over millions of rows into one over at most a few hundred. Five narrow tables, not one wide one -
+same reasoning at each step: a single cross-product table would multiply row counts by every
+dimension combination, most of which no query here ever asks for together (see the comment on
+`rollup_country` in `data/migrations/8.sql` for the fuller version of this argument). Dimensions:
 
 - `rollup_daily`: one row per `(day, is_bot)` - `hits`, `visitors`/`users` (see below), and the three
   `statusCodeSummary()` buckets (`http_200`/`http_404`/`http_other`).
@@ -220,6 +224,14 @@ at most a few hundred. Two dimensions currently exist:
   `route` (`MIN(route)` per group - see the comment on the table in `data/migrations/7.sql` for why
   it's keyed by `page_title`, matching `pagesSummary()`'s pre-existing `GROUP BY page_title` exactly,
   not by `route`).
+- `rollup_country`/`rollup_browser`/`rollup_platform` (migration 8): one row per
+  `(day, is_bot, country|browser|platform)` - `hits` only, no `visitors`/`users` (neither
+  `topCountries()`/`topBrowsers()`/`topPlatforms()` has ever returned those, only `hits` and a
+  computed `share`). Deliberately no `route` column, unlike `rollup_route` - `topCountries()` etc.
+  also serve a per-route breakdown (`page-details.html.twig`'s "top countries/browsers/platforms for
+  this one page") and a per-visitor one (`user-details.html.twig`), but both are single-entity
+  lookups, not the full-dashboard aggregate scan this rollup work targets, so a `route`/`user`/`ip`
+  -filtered call keeps using each method's original live query - see "Read path" below.
 
 **`visitors`/`users` are a deliberate, documented approximation for any range spanning more than one
 day.** Each is an exact `COUNT(DISTINCT ip)`/`COUNT(DISTINCT user)` *for that single day* - correct
@@ -231,28 +243,58 @@ issue - a count is exact regardless of how many days it's summed over. User-conf
 `COUNT(DISTINCT ...)` itself, not just combined with a `GROUP BY`, is one of the most expensive query
 shapes at this scale - there's no live-query rewrite that avoids that cost.
 
-**Read path (`Stats::pagesSummary()`, currently the only rewired method - see "Notable past bugs"
-below for why the others aren't yet):** the *first and last* calendar day touched by
-`[$dateFrom, $dateTo]` always go through the original live query against `data`, never the rollup,
-even when both are already covered by `rollupStatus()`. Only $dateFrom/$dateTo being exact day
-boundaries would make summing the *whole* first/last rollup day safe; a caller passing e.g. "now
-minus 30 days" (an arbitrary instant, not necessarily midnight) does not guarantee that, and
-assuming it does was a real, caught-by-the-benchmark-comparison bug during development (see
-"Notable past bugs"). Only the days strictly *between* the two boundary days are ever served from
-the rollup. For a multi-week/-month range this costs two live-queried days out of many - negligible
-next to the win from the rest.
+**Read path.** Eight `Stats` methods now have a rollup fast path, all following the same shape:
+`pagesSummary()` (migration 7); `topCountries()`/`topBrowsers()`/`topPlatforms()`/
+`statusCodeSummary()`/`totalUniqueVisitors()`/`totalUniqueUsers()`/`siteSummary()` (migration 8).
+Each checks, at the top of the method, whether `$dateFrom`/`$dateTo` are both set *and* `$params`'
+keys are a subset of what that method's rollup table(s) can answer (`pagesSummary()` allows
+`is_bot`/`route`; the other seven allow `is_bot` only - see each table's own entry above for why) -
+if not, the method falls straight through to its original, byte-identical live query, exactly as
+before any rollup existed. `topUsers()`/`recentPages()` have no rollup fast path (not part of this
+work) and always run live.
 
-**Write path (`Stats::rollupDay()`):** deletes then re-inserts that single day's rows in both
-tables (idempotent - safe to rebuild any day, e.g. after a bug fix, without double-counting), then
-advances `rollup_state.last_rolled_up_day` - but only forward, via `ON CONFLICT ... DO UPDATE ...
-WHERE excluded.last_rolled_up_day > rollup_state.last_rolled_up_day`, so rebuilding an old day out of
-order (e.g. `rollup:build --date=...` for one historical day) never regresses how far the read path
-thinks the rollup reaches. The day boundary itself uses the same `date(datetime(date), :offset)`
+Every rollup-backed method shares `Stats::rollupInteriorCoverage($dateFrom, $dateTo)` for the same
+boundary-safety rule: the *first and last* calendar day touched by `[$dateFrom, $dateTo]` always go
+through a live query against `data`, never the rollup, even when both are already covered by
+`rollupStatus()`. Only `$dateFrom`/`$dateTo` being exact day boundaries would make summing the
+*whole* first/last rollup day safe; a caller passing e.g. "now minus 30 days" (an arbitrary instant,
+not necessarily midnight) does not guarantee that, and assuming it does was a real,
+caught-by-benchmark-comparison bug during `pagesSummary()`'s original development (see "Notable past
+bugs" #19 in `ARCHITECTURE.md`) - `rollupInteriorCoverage()` exists specifically so that fix only
+had to be written, and gotten right, once. Only the days strictly *between* the two boundary days
+are ever served from the rollup. For a multi-week/-month range this costs two live-queried days out
+of many - negligible next to the win from the rest; for a range spanning fewer than three calendar
+days (no interior day at all) or one `rollupStatus()` hasn't reached yet, the whole range falls back
+to live, transparently.
+
+Re-verified with the same methodology as `pagesSummary()`'s original rollout - not just
+`EXPLAIN QUERY PLAN`/timing, but a second script comparing every rollup-backed method's output
+against a direct live-query reference on the same synthetic (3M-row, ~90-day) database, across
+multiple ranges and `hide_bots` states, plus the route/user-filter-bypasses-the-rollup and
+no-interior-day edge cases. All matched exactly for `hits`-based figures (`topCountries()` etc.,
+`statusCodeSummary()`, `siteSummary()`'s `hits` series); `visitors`/`users`-based figures
+(`totalUniqueVisitors()`/`totalUniqueUsers()`, `siteSummary()`'s `visitors`/`users` series)
+consistently matched or *exceeded* the exact reference, never fell short - the expected direction for
+the same documented summed-per-day approximation `pagesSummary()` already uses (see below). Measured
+on the same 89-day/3M-row range used for the original `pagesSummary()` benchmark, `hide_bots` on:
+`topCountries()`/`topBrowsers()`/`topPlatforms()`/`statusCodeSummary()` each dropped from roughly
+9.1-9.4s to ~90-105ms (~90-104x); `totalUniqueVisitors()` from ~21.7s to ~110ms (~196x);
+`totalUniqueUsers()` from ~8.1s to ~87ms (~93x); `siteSummary()`'s three queries combined from ~29.1s
+to ~311ms (~94x) - all seven together, ~96.2s down to ~0.88s (~109x).
+
+**Write path (`Stats::rollupDay()`):** deletes then re-inserts that single day's rows in all five
+rollup tables (idempotent - safe to rebuild any day, e.g. after a bug fix, without double-counting),
+then advances `rollup_state.last_rolled_up_day` - but only forward, via `ON CONFLICT ... DO UPDATE
+... WHERE excluded.last_rolled_up_day > rollup_state.last_rolled_up_day`, so rebuilding an old day
+out of order (e.g. `rollup:build --date=...` for one historical day) never regresses how far the read
+path thinks the rollup reaches. The day boundary itself uses the same `date(datetime(date), :offset)`
 calendar-day bucketing already used by `recentPages()`/`siteSummary()` - not a plain UTC day - so a
 rolled-up day groups exactly the rows a live query would group into it; the `WHERE` clause narrows
 via `idx_data_date_normalized` with a generous ±1 day pad first (covers any real-world UTC offset)
 before applying the exact per-offset equality, so building a rollup day is itself an index `SEARCH`,
-not a scan, despite running once per day over the whole table's history.
+not a scan, despite running once per day over the whole table's history. Backfilling all five tables
+across a full 90-day history over the same 3M-row database took ~83s - a one-time cost per
+`rollup:build --from=...` run, not per request.
 
 `rollup_state` exists as its own tiny table rather than deriving "how far is the rollup built"
 from `MAX(day)` in `rollup_daily`/`rollup_route` - a real calendar day with literally zero traffic

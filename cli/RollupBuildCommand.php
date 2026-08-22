@@ -12,8 +12,9 @@ use Symfony\Component\Console\Input\InputOption;
 /**
  * bin/plugin page-insights rollup:build [--date=YYYY-MM-DD] [--from=<Wert> [--to=<Wert>]]
  *
- * (Re-)berechnet rollup_daily/rollup_route (Stats::rollupDay(), siehe
- * docs/DATABASES.md "Rollups") für einen oder mehrere abgeschlossene Tage.
+ * (Re-)berechnet rollup_daily/rollup_route/rollup_country/rollup_browser/
+ * rollup_platform (Stats::rollupDay(), siehe docs/DATABASES.md "Rollups")
+ * für einen oder mehrere abgeschlossene Tage.
  * Manuelles Äquivalent zum optionalen, per Config gesteuerten automatischen
  * Rollup-Job (PageInsightsPlugin::registerRollupBuildJob()) - beide rufen
  * dieselbe Methode auf.
@@ -76,10 +77,13 @@ class RollupBuildCommand extends ConsoleCommand
 
             $result = $stats->rollupDay($day);
             $this->output->writeln(sprintf(
-                '<green>%s</green>: %d Bot/Nicht-Bot-Zeilen, %d Seiten-Zeilen',
+                '<green>%s</green>: %d Bot/Nicht-Bot-Zeilen, %d Seiten-Zeilen, %d Länder-Zeilen, %d Browser-Zeilen, %d Plattform-Zeilen',
                 $result['day'],
                 $result['daily_rows'],
-                $result['route_rows']
+                $result['route_rows'],
+                $result['country_rows'],
+                $result['browser_rows'],
+                $result['platform_rows']
             ));
 
             $days++;

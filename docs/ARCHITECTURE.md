@@ -64,7 +64,7 @@ user/plugins/page-insights/
 │   └── RollupBuildCommand.php             # rollup:build
 ├── data/
 │   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see below
-│   └── migrations/{1..7}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
+│   └── migrations/{1..8}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
 │                                           # (schema/format details: DATABASES.md)
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
@@ -457,8 +457,9 @@ vendor-bloat mistake `git` history already went through once, see "Notable past 
   only frees deleted rows' pages for internal reuse by default; the file itself stays at its
   largest-ever size until `VACUUM` rewrites it. Needs a brief exclusive lock on the database.
 - **`bin/plugin page-insights rollup:build [--date=<day>] [--from=<value> [--to=<value>]]`** -
-  (re)computes `rollup_daily`/`rollup_route` (see `DATABASES.md`, "Rollups") for one or more
-  completed days via `Stats::rollupDay()`; idempotent, safe to rerun for any day. Without any
+  (re)computes `rollup_daily`/`rollup_route`/`rollup_country`/`rollup_browser`/`rollup_platform`
+  (see `DATABASES.md`, "Rollups") for one or more completed days via `Stats::rollupDay()`;
+  idempotent, safe to rerun for any day. Without any
   option, only catches up whatever's missing since the last run (up to yesterday) - deliberately
   just "yesterday" on a fresh install with no prior rollup state, not the entire history, so a
   bare invocation can't accidentally trigger a long-running backfill. Use `--from=<value>` (same

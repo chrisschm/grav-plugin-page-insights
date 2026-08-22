@@ -578,16 +578,13 @@ class Stats
      */
     private function pagesSummaryViaRollup(int $limit, DateTimeImmutable $dateFrom, DateTimeImmutable $dateTo, array $params)
     {
-        $rolledUpTo = $this->rollupStatus();
-
-        $interiorFromDay = $dateFrom->modify('+1 day')->format('Y-m-d');
-        $interiorToDay = $dateTo->modify('-1 day')->format('Y-m-d');
+        $coverage = $this->rollupInteriorCoverage($dateFrom, $dateTo);
 
         $rows = [];
         $liveQuery = 'SELECT route, page_title, count(route) as hits, count(distinct ip) as visitors, count(distinct user) as users FROM data %where GROUP BY page_title';
 
-        if ($rolledUpTo !== null && $interiorFromDay <= $interiorToDay && $rolledUpTo >= $interiorFromDay) {
-            $coveredToDay = min($rolledUpTo, $interiorToDay);
+        if ($coverage !== null) {
+            [$interiorFromDay, $coveredToDay] = $coverage;
             $rows = $this->pagesSummaryRollupPart($interiorFromDay, $coveredToDay, $params);
 
             $coveredStart = new DateTimeImmutable($interiorFromDay);
@@ -699,6 +696,15 @@ class Stats
             $del2 = $this->db->prepare('DELETE FROM rollup_route WHERE day = :day');
             $del2->execute([':day' => $dayStr]);
 
+            $del3 = $this->db->prepare('DELETE FROM rollup_country WHERE day = :day');
+            $del3->execute([':day' => $dayStr]);
+
+            $del4 = $this->db->prepare('DELETE FROM rollup_browser WHERE day = :day');
+            $del4->execute([':day' => $dayStr]);
+
+            $del5 = $this->db->prepare('DELETE FROM rollup_platform WHERE day = :day');
+            $del5->execute([':day' => $dayStr]);
+
             $dailyStmt = $this->db->prepare('
                 INSERT INTO rollup_daily (day, is_bot, hits, visitors, users, http_200, http_404, http_other)
                 SELECT
@@ -742,6 +748,63 @@ class Stats
             ]);
             $routeRows = $routeStmt->rowCount();
 
+            // Migration 8 (see its own comment for why these are three
+            // separate narrow tables rather than one, and why "hits" only -
+            // no visitors/users, unlike rollup_route above).
+            $countryStmt = $this->db->prepare('
+                INSERT INTO rollup_country (day, is_bot, country, hits)
+                SELECT
+                    :day AS day,
+                    is_bot,
+                    country,
+                    COUNT(*) AS hits
+                FROM data
+                WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
+                  AND date(datetime(date), :offset) = :day2
+                GROUP BY is_bot, country
+            ');
+            $countryStmt->execute([
+                ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
+                ':offset' => $this->dt_offset, ':day2' => $dayStr,
+            ]);
+            $countryRows = $countryStmt->rowCount();
+
+            $browserStmt = $this->db->prepare('
+                INSERT INTO rollup_browser (day, is_bot, browser, hits)
+                SELECT
+                    :day AS day,
+                    is_bot,
+                    browser,
+                    COUNT(*) AS hits
+                FROM data
+                WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
+                  AND date(datetime(date), :offset) = :day2
+                GROUP BY is_bot, browser
+            ');
+            $browserStmt->execute([
+                ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
+                ':offset' => $this->dt_offset, ':day2' => $dayStr,
+            ]);
+            $browserRows = $browserStmt->rowCount();
+
+            $platformStmt = $this->db->prepare('
+                INSERT INTO rollup_platform (day, is_bot, platform, hits)
+                SELECT
+                    :day AS day,
+                    is_bot,
+                    platform,
+                    COUNT(*) AS hits
+                FROM data
+                WHERE datetime(date) BETWEEN datetime(:rough_from) AND datetime(:rough_to)
+                  AND date(datetime(date), :offset) = :day2
+                GROUP BY is_bot, platform
+            ');
+            $platformStmt->execute([
+                ':day' => $dayStr, ':rough_from' => $roughFrom, ':rough_to' => $roughTo,
+                ':offset' => $this->dt_offset, ':day2' => $dayStr,
+            ]);
+            $platformRows = $platformStmt->rowCount();
+
             $upsert = $this->db->prepare("
                 INSERT INTO rollup_state (job, last_rolled_up_day) VALUES ('daily', :day)
                 ON CONFLICT(job) DO UPDATE SET last_rolled_up_day = excluded.last_rolled_up_day
@@ -755,7 +818,14 @@ class Stats
             throw $e;
         }
 
-        return ['day' => $dayStr, 'daily_rows' => $dailyRows, 'route_rows' => $routeRows];
+        return [
+            'day' => $dayStr,
+            'daily_rows' => $dailyRows,
+            'route_rows' => $routeRows,
+            'country_rows' => $countryRows,
+            'browser_rows' => $browserRows,
+            'platform_rows' => $platformRows,
+        ];
     }
 
     /**
@@ -772,6 +842,43 @@ class Stats
     }
 
     /**
+     * Shared boundary-day-safe rollup coverage window for a
+     * [$dateFrom, $dateTo] range, used by every *ViaRollup() method below.
+     * Originally written inline inside pagesSummaryViaRollup() (see that
+     * method's docblock for the full "why boundary days are never rolled
+     * up" rationale - "Notable past bugs" #19 in ARCHITECTURE.md);
+     * extracted here once the same logic needed repeating for
+     * topCountries()/topBrowsers()/topPlatforms()/statusCodeSummary()/
+     * totalUniqueVisitors()/totalUniqueUsers()/siteSummary() (migration 8)
+     * rather than risk a fresh copy of that boundary math getting it wrong
+     * again.
+     *
+     * Returns [$interiorFromDay, $coveredToDay] (both 'Y-m-d' strings) if
+     * the rollup tables have *any* usable interior coverage for this range,
+     * or null if not (the range spans fewer than 3 calendar days, or
+     * rollupDay() hasn't run far enough yet) - callers fall back to an
+     * entirely live query in that case, exactly like before any rollup
+     * existed. $interiorFromDay/(the caller's own $interiorToDay, not
+     * returned - callers already have $dateTo to derive it, or use
+     * $coveredToDay directly) deliberately exclude the first/last calendar
+     * day touched by $dateFrom/$dateTo - only strictly-interior days are
+     * ever safe to serve from a whole-day rollup row.
+     */
+    private function rollupInteriorCoverage(DateTimeImmutable $dateFrom, DateTimeImmutable $dateTo): ?array
+    {
+        $rolledUpTo = $this->rollupStatus();
+
+        $interiorFromDay = $dateFrom->modify('+1 day')->format('Y-m-d');
+        $interiorToDay = $dateTo->modify('-1 day')->format('Y-m-d');
+
+        if ($rolledUpTo === null || $interiorFromDay > $interiorToDay || $rolledUpTo < $interiorFromDay) {
+            return null;
+        }
+
+        return [$interiorFromDay, min($rolledUpTo, $interiorToDay)];
+    }
+
+    /**
      * returns the users with the most page views
      */
     public function topUsers(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
@@ -783,10 +890,110 @@ class Stats
     }
 
     /**
+     * Shared rollup fast path for topCountries()/topBrowsers()/
+     * topPlatforms() - three near-identical "day+is_bot+dimension -> hits"
+     * breakdowns, each backed by its own narrow rollup table
+     * (rollup_country/rollup_browser/rollup_platform - migration 8) rather
+     * than one shared table; see that migration's own comment for why, and
+     * for why - unlike pagesSummary()'s rollup_route - there's no per-route
+     * breakdown here: only date-range + optional "hide bots" calls
+     * (params a subset of just ['is_bot']) use this at all, a route/user/ip
+     * -filtered call (Page/User Detail) keeps using each method's original
+     * live query below, same as pagesSummary() already excludes those.
+     *
+     * Boundary-day-safe via rollupInteriorCoverage() - see its docblock and
+     * "Notable past bugs" #19 in ARCHITECTURE.md for why the first/last
+     * calendar day of the range are always served live.
+     *
+     * $countColumn mirrors each call site's own original live-query COUNT()
+     * target (topCountries counts "country", topBrowsers/topPlatforms count
+     * "ip") rather than always counting $dimensionColumn - kept distinct on
+     * purpose so this shared path can never subtly change which rows count
+     * as a hit versus each method's pre-existing, unmodified live query.
+     */
+    private function topDimensionViaRollup(string $rollupTable, string $dimensionColumn, string $countColumn, int $limit, DateTimeImmutable $dateFrom, DateTimeImmutable $dateTo, array $params): array
+    {
+        $coverage = $this->rollupInteriorCoverage($dateFrom, $dateTo);
+        $liveQuery = "select {$dimensionColumn}, count({$countColumn}) as hits from data %where group by {$dimensionColumn}";
+
+        if ($coverage === null) {
+            $rows = $this->query($liveQuery, $params, null, $dateFrom, $dateTo);
+        } else {
+            [$interiorFromDay, $coveredToDay] = $coverage;
+            $rows = $this->dimensionRollupPart($rollupTable, $dimensionColumn, $interiorFromDay, $coveredToDay, $params);
+
+            $coveredStart = new DateTimeImmutable($interiorFromDay);
+            $coveredEndExclusive = (new DateTimeImmutable($coveredToDay))->modify('+1 day');
+
+            if ($dateFrom < $coveredStart) {
+                $rows = array_merge($rows, $this->query($liveQuery, $params, null, $dateFrom, $coveredStart->modify('-1 second')));
+            }
+            if ($coveredEndExclusive <= $dateTo) {
+                $rows = array_merge($rows, $this->query($liveQuery, $params, null, $coveredEndExclusive, $dateTo));
+            }
+        }
+
+        $merged = [];
+        foreach ($rows as $r) {
+            $key = $r[$dimensionColumn];
+            $merged[$key] = ($merged[$key] ?? 0) + (int) $r['hits'];
+        }
+
+        arsort($merged);
+        $totalHits = array_sum($merged);
+        $top = array_slice($merged, 0, $limit, true);
+
+        $result = [];
+        foreach ($top as $value => $hits) {
+            $result[] = [
+                $dimensionColumn => $value !== '' ? $value : 'unknown',
+                'hits' => $hits,
+                'share' => $totalHits > 0 ? round($hits * 100 / $totalHits, 2) : 0,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * SUM(hits) over rollup_country/rollup_browser/rollup_platform for a
+     * strictly-interior day range - $rollupTable/$dimensionColumn are
+     * always one of the three hardcoded pairs topDimensionViaRollup() above
+     * passes in, never user input, so directly interpolating them into the
+     * SQL (table/column names can't be bound PDO placeholders) is safe.
+     */
+    private function dimensionRollupPart(string $rollupTable, string $dimensionColumn, string $fromDay, string $toDay, array $params): array
+    {
+        $where = ['day BETWEEN :from_day AND :to_day'];
+        $bindings = [':from_day' => $fromDay, ':to_day' => $toDay];
+
+        if (array_key_exists('is_bot', $params)) {
+            $where[] = 'is_bot = :is_bot';
+            $bindings[':is_bot'] = $params['is_bot'];
+        }
+
+        $sql = "
+            SELECT {$dimensionColumn}, SUM(hits) as hits
+            FROM {$rollupTable}
+            WHERE " . implode(' AND ', $where) . "
+            GROUP BY {$dimensionColumn}
+        ";
+
+        $s = $this->db->prepare($sql);
+        $s->execute($bindings);
+
+        return $s->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
      * returns the countries with the most page views
      */
     public function topCountries(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
+        if ($dateFrom && $dateTo && empty(array_diff(array_keys($params), ['is_bot']))) {
+            return $this->topDimensionViaRollup('rollup_country', 'country', 'country', $limit, $dateFrom, $dateTo, $params);
+        }
+
         // No SQL-level LIMIT here on purpose: this used to run a completely
         // separate totalPageViews() query, with the exact same %where/date-
         // range filter, purely to get the denominator for "share" below -
@@ -835,6 +1042,10 @@ class Stats
      */
     public function totalUniqueVisitors(?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
+        if ($dateFrom && $dateTo && empty(array_diff(array_keys($params), ['is_bot']))) {
+            return [['visitors' => $this->totalUniqueViaRollup('visitors', 'ip', $dateFrom, $dateTo, $params)]];
+        }
+
         $q = 'select count(distinct ip) as visitors from data %where';
 
         return $this->query($q, $params, null, $dateFrom, $dateTo);
@@ -845,9 +1056,64 @@ class Stats
      */
     public function totalUniqueUsers(?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
+        if ($dateFrom && $dateTo && empty(array_diff(array_keys($params), ['is_bot']))) {
+            return [['users' => $this->totalUniqueViaRollup('users', 'user', $dateFrom, $dateTo, $params)]];
+        }
+
         $q = "select count(distinct user) as users from data %where";
 
         return $this->query($q, $params, null, $dateFrom, $dateTo);
+    }
+
+    /**
+     * Shared rollup fast path for totalUniqueVisitors()/totalUniqueUsers() -
+     * sums rollup_daily's already-per-day-exact "visitors"/"users" columns
+     * over strictly-interior days, plus a live count(distinct ...) for
+     * whatever boundary sliver(s) aren't covered (see
+     * rollupInteriorCoverage()). Summing per-day exact distinct counts
+     * across more than one day is the same deliberate, documented
+     * approximation as pagesSummary()'s rollup path (see the comment on
+     * rollup_daily in data/migrations/7.sql) - it can overcount a visitor
+     * active on more than one of the summed days. $rollupColumn is
+     * "visitors"/"users" (the rollup_daily column to sum), $liveColumn is
+     * "ip"/"user" (what the live boundary query counts distinct values of).
+     */
+    private function totalUniqueViaRollup(string $rollupColumn, string $liveColumn, DateTimeImmutable $dateFrom, DateTimeImmutable $dateTo, array $params): int
+    {
+        $coverage = $this->rollupInteriorCoverage($dateFrom, $dateTo);
+        $liveQuery = "select count(distinct {$liveColumn}) as n from data %where";
+
+        if ($coverage === null) {
+            $rows = $this->query($liveQuery, $params, null, $dateFrom, $dateTo);
+
+            return (int) ($rows[0]['n'] ?? 0);
+        }
+
+        [$interiorFromDay, $coveredToDay] = $coverage;
+
+        $where = ['day BETWEEN :from_day AND :to_day'];
+        $bindings = [':from_day' => $interiorFromDay, ':to_day' => $coveredToDay];
+        if (array_key_exists('is_bot', $params)) {
+            $where[] = 'is_bot = :is_bot';
+            $bindings[':is_bot'] = $params['is_bot'];
+        }
+        $s = $this->db->prepare("SELECT SUM({$rollupColumn}) as n FROM rollup_daily WHERE " . implode(' AND ', $where));
+        $s->execute($bindings);
+        $sum = (int) ($s->fetch(PDO::FETCH_ASSOC)['n'] ?? 0);
+
+        $coveredStart = new DateTimeImmutable($interiorFromDay);
+        $coveredEndExclusive = (new DateTimeImmutable($coveredToDay))->modify('+1 day');
+
+        if ($dateFrom < $coveredStart) {
+            $rows = $this->query($liveQuery, $params, null, $dateFrom, $coveredStart->modify('-1 second'));
+            $sum += (int) ($rows[0]['n'] ?? 0);
+        }
+        if ($coveredEndExclusive <= $dateTo) {
+            $rows = $this->query($liveQuery, $params, null, $coveredEndExclusive, $dateTo);
+            $sum += (int) ($rows[0]['n'] ?? 0);
+        }
+
+        return $sum;
     }
 
     /**
@@ -855,6 +1121,10 @@ class Stats
      */
     public function topBrowsers(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
+        if ($dateFrom && $dateTo && empty(array_diff(array_keys($params), ['is_bot']))) {
+            return $this->topDimensionViaRollup('rollup_browser', 'browser', 'ip', $limit, $dateFrom, $dateTo, $params);
+        }
+
         // See the comment on topCountries() above - same fix, same reason:
         // sum this query's own (unlimited) result instead of a second,
         // redundant totalPageViews() query.
@@ -885,6 +1155,10 @@ class Stats
      */
     public function topPlatforms(int $limit = 10, ?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
+        if ($dateFrom && $dateTo && empty(array_diff(array_keys($params), ['is_bot']))) {
+            return $this->topDimensionViaRollup('rollup_platform', 'platform', 'ip', $limit, $dateFrom, $dateTo, $params);
+        }
+
         // See the comment on topCountries() above - same fix, same reason:
         // sum this query's own (unlimited) result instead of a second,
         // redundant totalPageViews() query.
@@ -920,26 +1194,22 @@ class Stats
      */
     public function statusCodeSummary(?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
-        $q = 'select http_code, count(route) as hits from data %where group by http_code';
+        $buckets = [200 => 0, 404 => 0, 'other' => 0];
 
-        $rows = $this->query($q, $params, null, $dateFrom, $dateTo);
+        if ($dateFrom && $dateTo && empty(array_diff(array_keys($params), ['is_bot']))) {
+            $buckets = $this->statusCodeBucketsViaRollup($dateFrom, $dateTo, $params, $buckets);
+        } else {
+            $q = 'select http_code, count(route) as hits from data %where group by http_code';
+            $rows = $this->query($q, $params, null, $dateFrom, $dateTo);
+            $buckets = $this->addStatusCodeRows($rows, $buckets);
+        }
 
         // This GROUP BY already had no LIMIT (every http_code bucket is
         // fetched), so - same fix as topCountries()/topBrowsers()/
         // topPlatforms() above - summing its own "hits" column replaces a
         // second, redundant totalPageViews() query that used to compute
         // the exact same number via its own separate full pass over "data".
-        $totalPages = array_sum(array_column($rows, 'hits'));
-
-        $buckets = [200 => 0, 404 => 0, 'other' => 0];
-        foreach ($rows as $row) {
-            // (int) on a NULL http_code (rows written before this column
-            // existed) yields 0, which correctly isn't a known bucket key
-            // and falls through to 'other' below.
-            $code = (int) $row['http_code'];
-            $key = array_key_exists($code, $buckets) ? $code : 'other';
-            $buckets[$key] += (int) $row['hits'];
-        }
+        $totalPages = array_sum($buckets);
 
         $result = [];
         foreach ($buckets as $code => $hits) {
@@ -951,6 +1221,74 @@ class Stats
         }
 
         return $result;
+    }
+
+    /**
+     * Folds a set of {http_code, hits} rows (from either the live query or
+     * the rollup-boundary live queries below) into the fixed 200/404/other
+     * buckets - shared between statusCodeSummary()'s live path and its
+     * rollup path so the "unknown/NULL code -> other" rule (see the
+     * docblock above statusCodeSummary()) is defined exactly once.
+     */
+    private function addStatusCodeRows(array $rows, array $buckets): array
+    {
+        foreach ($rows as $row) {
+            $code = (int) $row['http_code'];
+            $key = array_key_exists($code, $buckets) ? $code : 'other';
+            $buckets[$key] += (int) $row['hits'];
+        }
+
+        return $buckets;
+    }
+
+    /**
+     * statusCodeSummary()'s rollup fast path - sums rollup_daily's already-
+     * exact per-day http_200/http_404/http_other columns over strictly-
+     * interior days (see rollupInteriorCoverage()), plus a live query for
+     * whatever boundary sliver(s) aren't covered. Unlike the
+     * visitors/users rollups elsewhere, this is not an approximation -
+     * counting rows by http_code is as exact summed across days as summed
+     * within one, same as "hits" everywhere else in this rollup work.
+     */
+    private function statusCodeBucketsViaRollup(DateTimeImmutable $dateFrom, DateTimeImmutable $dateTo, array $params, array $buckets): array
+    {
+        $coverage = $this->rollupInteriorCoverage($dateFrom, $dateTo);
+        $liveQuery = 'select http_code, count(route) as hits from data %where group by http_code';
+
+        if ($coverage === null) {
+            $rows = $this->query($liveQuery, $params, null, $dateFrom, $dateTo);
+
+            return $this->addStatusCodeRows($rows, $buckets);
+        }
+
+        [$interiorFromDay, $coveredToDay] = $coverage;
+
+        $where = ['day BETWEEN :from_day AND :to_day'];
+        $bindings = [':from_day' => $interiorFromDay, ':to_day' => $coveredToDay];
+        if (array_key_exists('is_bot', $params)) {
+            $where[] = 'is_bot = :is_bot';
+            $bindings[':is_bot'] = $params['is_bot'];
+        }
+        $s = $this->db->prepare('SELECT SUM(http_200) as http_200, SUM(http_404) as http_404, SUM(http_other) as http_other FROM rollup_daily WHERE ' . implode(' AND ', $where));
+        $s->execute($bindings);
+        $sums = $s->fetch(PDO::FETCH_ASSOC) ?: [];
+        $buckets[200] += (int) ($sums['http_200'] ?? 0);
+        $buckets[404] += (int) ($sums['http_404'] ?? 0);
+        $buckets['other'] += (int) ($sums['http_other'] ?? 0);
+
+        $coveredStart = new DateTimeImmutable($interiorFromDay);
+        $coveredEndExclusive = (new DateTimeImmutable($coveredToDay))->modify('+1 day');
+
+        if ($dateFrom < $coveredStart) {
+            $rows = $this->query($liveQuery, $params, null, $dateFrom, $coveredStart->modify('-1 second'));
+            $buckets = $this->addStatusCodeRows($rows, $buckets);
+        }
+        if ($coveredEndExclusive <= $dateTo) {
+            $rows = $this->query($liveQuery, $params, null, $coveredEndExclusive, $dateTo);
+            $buckets = $this->addStatusCodeRows($rows, $buckets);
+        }
+
+        return $buckets;
     }
 
     /**
@@ -988,6 +1326,21 @@ class Stats
      */
     public function siteSummary(?DateTimeImmutable $dateFrom = null, ?DateTimeImmutable $dateTo = null, array $params = [])
     {
+        if ($dateFrom && $dateTo && empty(array_diff(array_keys($params), ['is_bot']))) {
+            return $this->siteSummaryViaRollup($dateFrom, $dateTo, $params);
+        }
+
+        return $this->siteSummaryLive($dateFrom, $dateTo, $params);
+    }
+
+    /**
+     * siteSummary()'s original, unmodified live query, extracted into its
+     * own method so both the "not rollup-eligible at all" path above and
+     * siteSummaryViaRollup()'s boundary-sliver queries below can call the
+     * exact same SQL rather than a second, hand-copied version of it.
+     */
+    private function siteSummaryLive(?DateTimeImmutable $dateFrom, ?DateTimeImmutable $dateTo, array $params): array
+    {
         $hits = $this->query('SELECT date(datetime(date), :offset) as date, route, page_title, count(route) as hits FROM data %where GROUP BY date(datetime(date), :offset) ORDER BY date ASC', $params, null, $dateFrom, $dateTo);
         $visitors = $this->query('SELECT date(datetime(date), :offset) as date, route, page_title, ip, count(distinct ip) as hits FROM data %where GROUP BY date(datetime(date), :offset) ORDER BY date ASC',  $params, null, $dateFrom, $dateTo);
         $users = $this->query('SELECT date(datetime(date), :offset) as date, route, page_title, ip, count(distinct user) as hits FROM data %where GROUP BY date(datetime(date), :offset) ORDER BY date ASC',  $params, null, $dateFrom, $dateTo);
@@ -996,6 +1349,79 @@ class Stats
             'hits' => $hits,
             'visitors' => $visitors,
             'users' => $users,
+        ];
+    }
+
+    /**
+     * siteSummary()'s rollup fast path - the chart-data equivalent of
+     * pagesSummaryViaRollup(). rollup_daily is already bucketed exactly the
+     * way this method needs (one row per calendar day, matching
+     * "date(datetime(date), :offset)"'s own bucketing - see rollupDay()'s
+     * docblock), so strictly-interior days need only a single SUM()-per-day
+     * query instead of a live GROUP BY over every matched row; the
+     * first/last calendar day of the range still come from
+     * siteSummaryLive() (see rollupInteriorCoverage(), "Notable past bugs"
+     * #19 in ARCHITECTURE.md). No merge-by-key is needed here unlike
+     * pagesSummaryViaRollup()/topDimensionViaRollup() above: interior rows
+     * and boundary-sliver rows never share a calendar day, so they're
+     * simply concatenated in chronological order (both sides are already
+     * date-ascending).
+     *
+     * Interior rows carry only {date, hits} - no route/page_title/ip, since
+     * rollup_daily doesn't track those; the Classic Admin chart widgets
+     * (widgets/page-views.html.twig etc.) and Admin2's trend chart only
+     * ever read `s.date`/`s.hits` from this array, so the missing keys on
+     * rolled-up days are never actually referenced.
+     */
+    private function siteSummaryViaRollup(DateTimeImmutable $dateFrom, DateTimeImmutable $dateTo, array $params): array
+    {
+        $coverage = $this->rollupInteriorCoverage($dateFrom, $dateTo);
+        if ($coverage === null) {
+            return $this->siteSummaryLive($dateFrom, $dateTo, $params);
+        }
+
+        [$interiorFromDay, $coveredToDay] = $coverage;
+
+        $where = ['day BETWEEN :from_day AND :to_day'];
+        $bindings = [':from_day' => $interiorFromDay, ':to_day' => $coveredToDay];
+        if (array_key_exists('is_bot', $params)) {
+            $where[] = 'is_bot = :is_bot';
+            $bindings[':is_bot'] = $params['is_bot'];
+        }
+        $s = $this->db->prepare('
+            SELECT day, SUM(hits) as hits, SUM(visitors) as visitors, SUM(users) as users
+            FROM rollup_daily
+            WHERE ' . implode(' AND ', $where) . '
+            GROUP BY day ORDER BY day ASC
+        ');
+        $s->execute($bindings);
+        $interiorRows = $s->fetchAll(PDO::FETCH_ASSOC);
+
+        $hits = [];
+        $visitors = [];
+        $users = [];
+        foreach ($interiorRows as $r) {
+            $hits[] = ['date' => $r['day'], 'hits' => (int) $r['hits']];
+            $visitors[] = ['date' => $r['day'], 'hits' => (int) $r['visitors']];
+            $users[] = ['date' => $r['day'], 'hits' => (int) $r['users']];
+        }
+
+        $coveredStart = new DateTimeImmutable($interiorFromDay);
+        $coveredEndExclusive = (new DateTimeImmutable($coveredToDay))->modify('+1 day');
+
+        $before = ['hits' => [], 'visitors' => [], 'users' => []];
+        if ($dateFrom < $coveredStart) {
+            $before = $this->siteSummaryLive($dateFrom, $coveredStart->modify('-1 second'), $params);
+        }
+        $after = ['hits' => [], 'visitors' => [], 'users' => []];
+        if ($coveredEndExclusive <= $dateTo) {
+            $after = $this->siteSummaryLive($coveredEndExclusive, $dateTo, $params);
+        }
+
+        return [
+            'hits' => array_merge($before['hits'], $hits, $after['hits']),
+            'visitors' => array_merge($before['visitors'], $visitors, $after['visitors']),
+            'users' => array_merge($before['users'], $users, $after['users']),
         ];
     }
 
