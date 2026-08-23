@@ -1,5 +1,5 @@
 # v3.3.1
-## 08/23/2026
+## 08/23/2026 ([f4437ac](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/f4437acb80063d6f1629d02892064f7f1fdd9a1c))
 
 1. [](#bugfix)
     * bugfix: `Stats::migrate()` failed with `duplicate column name: browser` on a database
