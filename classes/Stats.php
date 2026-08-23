@@ -193,6 +193,7 @@ class Stats
                 break;
             }
             $contents = file_get_contents((string) $file);
+            $contents = $this->skipExistingColumns($contents);
             $this->db->exec($contents);
             $this->db->exec('INSERT INTO migrations (version) VALUES(' . $version . ');');
         }
@@ -206,6 +207,89 @@ class Stats
         if (file_exists(__DIR__ . self::FORCE_MIGRATION_FLAG)) {
             unlink(__DIR__ . self::FORCE_MIGRATION_FLAG);
         }
+    }
+
+    /**
+     * Drops any `ALTER TABLE ... ADD COLUMN ...` statement from a migration
+     * file's SQL whose column already exists on that table, making the
+     * migration idempotent with respect to column additions. Unlike
+     * `CREATE TABLE`, SQLite has no `ADD COLUMN IF NOT EXISTS` - running
+     * one of these statements a second time throws "duplicate column
+     * name" and (since a migration file's statements all run in one
+     * `PDO::exec()` call, see migrate()) aborts every statement after it
+     * in that same file, including the final `COMMIT TRANSACTION;`.
+     *
+     * This is not just a theoretical concern: the recorded `migrations`
+     * version can legitimately be behind the database's actual schema,
+     * most commonly on a database copied/migrated from an existing Page
+     * Stats installation whose own schema already contains columns this
+     * plugin's later migrations also add (e.g. `browser` in migration 2 -
+     * see Codeberg issue #6) - the `migrations` table itself may not even
+     * exist yet on such a database, which migrate()'s own version lookup
+     * already treats as "start from migration 1". A similar
+     * version/schema mismatch previously showed up from a stale manual
+     * `migrations` row on a test environment (see docs/HISTORY.md, bug
+     * #20) - `hasPendingMigrations()` fixed *detecting* that migrations
+     * were pending in both cases, but running them from scratch against a
+     * database whose columns already exist still needs this to actually
+     * succeed.
+     *
+     * Deliberately generic (matches any `ALTER TABLE ... ADD COLUMN ...`,
+     * not just migration 2's) rather than special-cased to the `browser`
+     * column alone, so the same class of bug can't resurface for
+     * `browser_version`/`platform` (migration 2), `referer` (migration
+     * 3), `environment` (migration 9), or any future column addition.
+     * Every other migration statement (`CREATE TABLE IF NOT EXISTS`,
+     * `DROP TABLE IF EXISTS` + `CREATE TABLE`, `CREATE INDEX`, `PRAGMA`)
+     * is already idempotent by construction and passes through untouched.
+     */
+    private function skipExistingColumns(string $sql): string
+    {
+        $columnsByTable = [];
+
+        $result = preg_replace_callback(
+            '/ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)[^;]*;/i',
+            function (array $match) use (&$columnsByTable) {
+                [$statement, $table, $column] = $match;
+
+                if (!isset($columnsByTable[$table])) {
+                    $columnsByTable[$table] = $this->tableColumns($table);
+                }
+
+                if (in_array($column, $columnsByTable[$table], true)) {
+                    error_log("==> page-insights:migrate skipping already-existing column {$table}.{$column}");
+                    return '';
+                }
+
+                return $statement;
+            },
+            $sql
+        );
+
+        // preg_replace_callback() returns null on a regex engine failure
+        // (e.g. backtrack/recursion limit) rather than throwing - fall
+        // back to the untouched SQL in that case so an ALTER TABLE
+        // statement is never silently dropped.
+        return $result ?? $sql;
+    }
+
+    /**
+     * Column names currently on $table, via `PRAGMA table_info` - empty if
+     * the table doesn't exist (yet). $table is only ever a name captured
+     * by skipExistingColumns()'s own `\w+` regex out of a migration file
+     * this plugin ships, never external input, so interpolating it
+     * directly into the PRAGMA statement (identifiers can't be bound as
+     * PDO parameters) is safe here.
+     */
+    private function tableColumns(string $table): array
+    {
+        try {
+            $rows = $this->db->query('PRAGMA table_info(' . $table . ')')->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        return array_column($rows, 'name');
     }
 
     /**

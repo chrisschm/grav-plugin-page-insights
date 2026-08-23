@@ -1,6 +1,17 @@
 # v3.3.1
 ## unreleased
 
+1. [](#bugfix)
+    * bugfix: `Stats::migrate()` failed with `duplicate column name: browser` on a database
+      copied/migrated from an existing Page Stats installation whose own schema already had the
+      `browser`/`browser_version`/`platform` columns migration 2 adds, but had never run this
+      plugin's own migration bookkeeping before (Codeberg issue #6). SQLite has no
+      `ADD COLUMN IF NOT EXISTS` (unlike `CREATE TABLE`), so re-running that `ALTER TABLE ADD
+      COLUMN` threw and aborted the rest of that migration file too. `migrate()` now strips any
+      `ADD COLUMN` statement whose column already exists before executing a migration file -
+      generic across migrations 2/3/9, not special-cased to `browser` - see `docs/DATABASES.md`
+      ("Migrations") and `docs/HISTORY.md` (bug #30).
+
 # v3.3.0
 ## 08/22/2026 ([850590e](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/850590e00e48f2e7e5e2b0b1f2fe2ec129d59aa5))
 
