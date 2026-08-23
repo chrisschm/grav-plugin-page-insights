@@ -80,7 +80,7 @@ class Stats
         // nothing to "pull back", and it stays deleted forever. Every
         // migration shipped after the first one ever applied on such an
         // installation was then silently never running again - confirmed
-        // in practice (see "Notable past bugs" in ARCHITECTURE.md): two
+        // in practice (see docs/HISTORY.md): two
         // real installations updated exclusively via `git pull` had been
         // stuck on an old schema version for weeks, missing not just this
         // release's rollup tables but also a previous release's
@@ -277,7 +277,7 @@ class Stats
      * cleanup (this and pruneNotFoundHits() below) answers a different
      * question than age-based pruning: once a site's SEO work is done,
      * historical bot hits are typically no longer useful for anything,
-     * regardless of how old or recent they are - see docs/ARCHITECTURE.md,
+     * regardless of how old or recent they are - see docs/MAINTENANCE.md,
      * "Admin2 database maintenance dialog", for the fuller reasoning and
      * why this is a manually-triggered action (CLI or dialog), never
      * automatic.
@@ -938,7 +938,7 @@ class Stats
      * [$dateFrom, $dateTo] range, used by every *ViaRollup() method below.
      * Originally written inline inside pagesSummaryViaRollup() (see that
      * method's docblock for the full "why boundary days are never rolled
-     * up" rationale - "Notable past bugs" #19 in ARCHITECTURE.md);
+     * up" rationale - docs/HISTORY.md #19);
      * extracted here once the same logic needed repeating for
      * topCountries()/topBrowsers()/topPlatforms()/statusCodeSummary()/
      * totalUniqueVisitors()/totalUniqueUsers()/siteSummary() (migration 8)
@@ -1013,7 +1013,7 @@ class Stats
      * live query below, same as pagesSummary() already excludes those.
      *
      * Boundary-day-safe via rollupInteriorCoverage() - see its docblock and
-     * "Notable past bugs" #19 in ARCHITECTURE.md for why the first/last
+     * docs/HISTORY.md #19 for why the first/last
      * calendar day of the range are always served live.
      *
      * $countColumn mirrors each call site's own original live-query COUNT()
@@ -1475,8 +1475,8 @@ class Stats
      * docblock), so strictly-interior days need only a single SUM()-per-day
      * query instead of a live GROUP BY over every matched row; the
      * first/last calendar day of the range still come from
-     * siteSummaryLive() (see rollupInteriorCoverage(), "Notable past bugs"
-     * #19 in ARCHITECTURE.md). No merge-by-key is needed here unlike
+     * siteSummaryLive() (see rollupInteriorCoverage(), docs/HISTORY.md
+     * #19). No merge-by-key is needed here unlike
      * pagesSummaryViaRollup()/topDimensionViaRollup() above: interior rows
      * and boundary-sliver rows never share a calendar day, so they're
      * simply concatenated in chronological order (both sides are already

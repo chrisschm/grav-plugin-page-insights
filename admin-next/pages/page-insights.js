@@ -994,7 +994,7 @@ class PageInsightsPage extends HTMLElement {
      * chart's x-axis (e.g. '21.08.' for 'de-DE', '8/21' for 'en-US') -
      * replaces the previous fixed 'DD.MM.' format, which rendered the same
      * regardless of the admin's configured language (see
-     * docs/ARCHITECTURE.md, "Admin2 i18n" - this was the one still-open
+     * docs/ADMIN-UI.md, "Admin2 i18n" - this was the one still-open
      * item there). Uses the browser-native Intl.DateTimeFormat with the
      * same locale window.__GRAV_I18N already reports (see _t()'s doc
      * comment) - no new dependency, Intl has been available in every
@@ -1245,7 +1245,7 @@ class PageInsightsPage extends HTMLElement {
      * index, rendered inside the "Top countries" card (see _renderBody()).
      * Deliberately lives here rather than in the config form: it's an
      * action tied to this stat, not a setting (see CountryIndexBuilder /
-     * docs/ARCHITECTURE.md "Geolocation" for why there's no automatic
+     * docs/GEOLOCATION.md for why there's no automatic
      * download - this button and its classic-admin equivalent are the only
      * ways the index ever gets (re)built).
      */

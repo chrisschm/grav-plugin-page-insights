@@ -348,7 +348,7 @@ class PageInsightsApiController extends AbstractApiController
 
         // Info-level, deliberately - not an error, but worth having in the
         // log an admin is already asked to attach to a bug report (see
-        // docs/ARCHITECTURE.md "Geolocation"), e.g. to confirm a rebuild
+        // docs/GEOLOCATION.md), e.g. to confirm a rebuild
         // actually ran and when, without needing DB/API access.
         $grav['log']->info(sprintf(
             'PageInsights plugin: geo country index rebuilt manually via Admin2 by %s - %d IPv4 + %d IPv6 entries (source date %s).',
@@ -433,7 +433,7 @@ class PageInsightsApiController extends AbstractApiController
 
         // Info-level, deliberately - not an error, but worth having in the
         // log an admin is already asked to attach to a bug report (see
-        // docs/ARCHITECTURE.md "Admin2 database maintenance dialog"), e.g.
+        // docs/MAINTENANCE.md "Admin2 database maintenance dialog"), e.g.
         // to confirm which action actually ran and when, without needing DB
         // access - this deletes data for four of the five actions, unlike
         // the read-only geo-db rebuild above.

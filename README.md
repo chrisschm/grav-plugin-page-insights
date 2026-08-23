@@ -93,7 +93,7 @@ for a tour of the dashboards, page/user detail views, and search.
 ## Credits
 
 Country-level IP lookup is built by the plugin itself (on demand, from the Admin config screen -
-see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#geolocation-classesgeolocation)) from the public
+see [`docs/GEOLOCATION.md`](docs/GEOLOCATION.md)) from the public
 delegated-stats data of the five Regional Internet Registries (RIPE NCC, ARIN, APNIC, LACNIC,
 AFRINIC), combined and published daily by RIPE NCC on behalf of the
 <a href="https://www.nro.net">Number Resource Organization (NRO)</a>. No third-party geolocation

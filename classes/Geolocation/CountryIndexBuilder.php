@@ -9,7 +9,7 @@ namespace Grav\Plugin\PageInsights\Geolocation;
  * from the ranges produced by RirStatsParser, and owns fetching the source
  * text over HTTP.
  *
- * Design goals (see docs/ARCHITECTURE.md "Geolocation" section and the
+ * Design goals (see docs/GEOLOCATION.md and the
  * 2026-08-15 session notes for the full reasoning):
  *  - No third-party BIN format to reverse-engineer/depend on - the format
  *    below is our own, small enough to fully document in this file.
@@ -57,7 +57,7 @@ class CountryIndexBuilder
      * A companion repository whose sole job is to run this same class
      * (RirStatsParser + CountryIndexBuilder, unchanged) once per cycle on a
      * well-resourced CI runner and publish the resulting index as a rolling
-     * release asset - see docs/ARCHITECTURE.md "Geolocation" for the full
+     * release asset - see docs/GEOLOCATION.md for the full
      * reasoning (this replaced a per-site daily/weekly raw-RIR download,
      * which was both a meaningful traffic cost on constrained hosting and
      * the reason build() needs a raised memory_limit in the first place).
@@ -222,7 +222,7 @@ class CountryIndexBuilder
         // 128M memory_limit (fatal, uncatchable "Allowed memory size
         // exhausted" - php.net/manual/en/ini.core.php#ini.memory-limit).
         // This is a rare, explicit, admin-triggered action, not the page-
-        // request path (see docs/ARCHITECTURE.md "Geolocation"), so
+        // request path (see docs/GEOLOCATION.md), so
         // temporarily raising the limit for just this call is reasonable -
         // restored in finally() so it never leaks into the rest of the
         // request. ini_set() returns false (not a warning/exception) when

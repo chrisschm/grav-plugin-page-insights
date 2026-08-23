@@ -18,7 +18,7 @@ namespace Grav\Plugin\PageInsights\Geolocation;
  * redistributable-via-public-repo) `data/IP2LOCATION-LITE-DB3.BIN` file. Only
  * country-level data is extracted, since that's the only field the plugin
  * (Stats.php / admin-next "Top countries") actually reads - region/city were
- * collected but never displayed anywhere (see docs/ARCHITECTURE.md).
+ * collected but never displayed anywhere (see docs/GEOLOCATION.md).
  *
  * This parser is intentionally source-format-only: it has no knowledge of
  * HTTP, files, or the on-disk lookup format - see CountryIndexBuilder for

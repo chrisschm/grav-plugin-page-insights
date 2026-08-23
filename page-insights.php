@@ -42,7 +42,7 @@ class PageInsightsPlugin extends Plugin
     // and section_geolocation in blueprints.yaml), same convention as `db`
     // below: deliberately outside this plugin's own directory so it
     // survives a GPM update, which replaces the whole plugin directory on
-    // every install (see docs/ARCHITECTURE.md, "Notable past bugs" #8).
+    // every install (see docs/HISTORY.md #8).
 
     // Classic Admin only (Admin2 goes through the REST endpoints in
     // PageInsightsApiController instead - grav-plugin-api isn't guaranteed
@@ -165,8 +165,8 @@ class PageInsightsPlugin extends Plugin
 
     /**
      * Adds two locale-aware date Twig filters (see LocalizedDate's doc
-     * comment and docs/ARCHITECTURE.md, "Localized date formatting"/
-     * "Notable past bugs" for the full history). Both use
+     * comment and docs/ADMIN-UI.md, "Localized date formatting"/
+     * docs/HISTORY.md for the full history). Both use
      * `$grav['language']->getLanguage()` - "active if set, else default" -
      * the same resolution `Language::translate()` itself falls back to, so
      * they always track whatever language the rest of this plugin's
@@ -188,8 +188,8 @@ class PageInsightsPlugin extends Plugin
      *   widgets/geo-db-status.html.twig's `builtAt`) - unlike the two
      *   filters above, these carry a time-of-day, not just a calendar day,
      *   which is why they need their own LocalizedDate::dateTime() rather
-     *   than reusing longDay()/shortDay(). See "Notable past bugs" in
-     *   ARCHITECTURE.md for how this was found.
+     *   than reusing longDay()/shortDay(). See docs/HISTORY.md for how
+     *   this was found.
      */
     public function onTwigExtensions(): void
     {
@@ -631,7 +631,7 @@ class PageInsightsPlugin extends Plugin
 
             // Info-level, deliberately - not an error, but worth having in
             // the log an admin is already asked to attach to a bug report
-            // (see docs/ARCHITECTURE.md "Geolocation"), e.g. to confirm a
+            // (see docs/GEOLOCATION.md), e.g. to confirm a
             // rebuild actually ran and when, without needing DB access.
             $this->grav['log']->info(sprintf(
                 'PageInsights plugin: geo country index rebuilt manually via Classic Admin by %s - %d IPv4 + %d IPv6 entries (source date %s).',
@@ -796,21 +796,21 @@ class PageInsightsPlugin extends Plugin
 
             // Geo country index: read-only status (used to render "last
             // updated" in the config tab) plus the actual admin-triggered
-            // (re)build action - see docs/ARCHITECTURE.md "Geolocation".
+            // (re)build action - see docs/GEOLOCATION.md.
             $group->get('/geo-db/status', [$controller, 'geoDbStatus']);
             $group->post('/geo-db/rebuild', [$controller, 'rebuildGeoDb']);
 
             // On-demand database maintenance (vacuum / prune orphaned events /
             // prune data older than 1 year), triggered from the "Maintain
             // database" button next to the Admin2 dashboard's database-size
-            // badge - see docs/ARCHITECTURE.md "Database maintenance".
+            // badge - see docs/MAINTENANCE.md "Admin2 database maintenance dialog".
             $group->post('/db/maintain', [$controller, 'maintainDb']);
         });
     }
 
     /**
      * `grav-plugin-api`'s `/translations` endpoint (consumed by
-     * `window.__GRAV_I18N` - see docs/ARCHITECTURE.md "Admin2 i18n") resolves
+     * `window.__GRAV_I18N` - see docs/ADMIN-UI.md "Admin2 i18n") resolves
      * plugin strings via `Grav\Common\Config\Languages::flattenByLang()`, a
      * raw, unaliased lookup keyed by the *exact* admin locale code (e.g.
      * `"de-DE"`). This plugin's `languages/*.yaml` files use the legacy
@@ -842,7 +842,7 @@ class PageInsightsPlugin extends Plugin
      * straight from the cache file and never re-invokes the route
      * definition callback at all, so `onApiRegisterRoutes` (an earlier,
      * broken version of this fix hooked there) simply never fires. See
-     * docs/ARCHITECTURE.md "Notable past bugs" #11.
+     * docs/HISTORY.md #11.
      */
     private function mergeAdmin2TranslationAliases(): void
     {

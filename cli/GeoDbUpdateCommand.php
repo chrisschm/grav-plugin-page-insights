@@ -60,7 +60,7 @@ class GeoDbUpdateCommand extends ConsoleCommand
         // snapshot date and the (companion-repo or local) build timestamp
         // are two different things that normally differ by roughly a day
         // (a nightly build packages the previous day's already-published
-        // snapshot) - see docs/ARCHITECTURE.md "CLI commands" for the full
+        // snapshot) - see docs/MAINTENANCE.md "CLI commands" for the full
         // explanation. Showing only sourceDate here (as before) looked like
         // a mismatch against the admin dashboards, which always show both.
         $this->output->writeln(sprintf(

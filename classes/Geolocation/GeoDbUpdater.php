@@ -21,7 +21,7 @@ namespace Grav\Plugin\PageInsights\Geolocation;
  *    self-contained path, kept as an explicit opt-out for anyone who'd
  *    rather not trust the companion repo/CI pipeline as a middleman and is
  *    fine with the larger download and temporarily raised memory_limit
- *    that entails. See docs/ARCHITECTURE.md "Geolocation" for the full
+ *    that entails. See docs/GEOLOCATION.md for the full
  *    reasoning behind offering both.
  *
  * Any other/unrecognized value for geo_db_source_mode falls back to

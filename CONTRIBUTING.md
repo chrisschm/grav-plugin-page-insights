@@ -28,13 +28,13 @@ exist without it.
 ## Design goals (please keep these in mind for any change)
 
 - Must stay installable via GPM without any manual steps by the end user. The plugin has no
-  third-party runtime dependency as of 2026-08-15 (see `docs/ARCHITECTURE.md` "Geolocation"), but
+  third-party runtime dependency as of 2026-08-15 (see `docs/GEOLOCATION.md`), but
   `vendor/` is still committed to the repository so end users installing via GPM or Admin never
   need Composer themselves. Any change to dependencies must keep this working — see the note on
   the autoloader below.
 - Must never ship or download a third-party geo/IP database automatically — the self-built country
   index (`classes/Geolocation/`) is only ever (re)built via an explicit admin action, never at
-  install time or on the page-request path. See `docs/ARCHITECTURE.md` "Geolocation" for why.
+  install time or on the page-request path. See `docs/GEOLOCATION.md` for why.
 - Must keep working on **both** supported Admin UIs: Classic Admin (Grav 1.x, templates under
   `themes/admin/templates/`) and Admin2 (Grav 2.0, `admin-next/pages/page-insights.js`). A change
   that only considers one of the two is incomplete.
@@ -108,13 +108,14 @@ directly.
   `languages/*.yaml`
 - `admin-next/pages/page-insights.js` — the Admin2 dashboard (single Web Component, Shadow DOM);
   UI strings are translatable via the same `PLUGIN_PAGE_INSIGHTS.*` keys, reached through
-  `window.__GRAV_I18N` (see `docs/ARCHITECTURE.md` "Admin2 i18n") rather than Grav's Twig `|t`
+  `window.__GRAV_I18N` (see `docs/ADMIN-UI.md` "Admin2 i18n") rather than Grav's Twig `|t`
   filter - use the file's own `_t()`/`_tf()` helpers, not the key strings directly
 - `themes/admin/templates/` — Classic Admin (Grav 1.x) dashboard widgets and detail pages
 
 See the wiki's [Configuration](https://codeberg.org/chschmidt/grav-plugin-page-insights/wiki/en.Configuration)
-page for the full list of configuration options, and `docs/ARCHITECTURE.md` for a deeper look at
-the Admin2 sub-routing approach and other non-obvious design decisions.
+page for the full list of configuration options, and `docs/ARCHITECTURE.md` (plus its linked
+topic files, e.g. `docs/ADMIN-UI.md` for the Admin2 sub-routing approach) for a deeper look at
+non-obvious design decisions.
 
 ## Release process (for context, maintainer-only)
 

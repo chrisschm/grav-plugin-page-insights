@@ -43,7 +43,7 @@ class LocalizedDate
      * not) list it as a hard requirement, since Grav itself doesn't treat
      * it as one either. Falls back to a neutral, unambiguous 'Y-m-d'
      * rendering rather than the previous hardcoded English `F jS` format
-     * (see docs/ARCHITECTURE.md, "Notable past bugs") when the extension
+     * (see docs/HISTORY.md) when the extension
      * is missing or formatting otherwise fails - wrong-language-once was a
      * bug, "no worse than before" a safe floor to fall back to, following
      * the same fail-safe principle already used for the geo country lookup
@@ -152,9 +152,9 @@ class LocalizedDate
      * Classic Admin "next scheduled run" / "built at" status lines
      * (`next_geo_db_update`/`next_auto_prune` in stats.html.twig,
      * `builtAt` in widgets/geo-db-status.html.twig) - see
-     * ARCHITECTURE.md's "Localized date formatting" section for why these
+     * docs/ADMIN-UI.md's "Localized date formatting" section for why these
      * three were still unlocalized after that section's first round of
-     * fixes (they didn't exist yet at the time), and "Notable past bugs"
+     * fixes (they didn't exist yet at the time), and docs/HISTORY.md
      * for how this one was found. Deliberately mirrors Admin2's own
      * `new Date(ts * 1000).toLocaleString()` for these exact same fields
      * (see admin-next/pages/page-insights.js) closely enough that both
