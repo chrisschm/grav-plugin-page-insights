@@ -1,5 +1,5 @@
 # v3.3.1
-## unreleased
+## 08/23/2026
 
 1. [](#bugfix)
     * bugfix: `Stats::migrate()` failed with `duplicate column name: browser` on a database
