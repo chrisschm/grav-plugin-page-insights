@@ -54,6 +54,7 @@ user/plugins/page-insights/
 │   ├── Stats.php                          # data layer (PDO/SQLite), UI-independent
 │   ├── AutoSchedule.php                   # deterministic per-install cron scheduling (see "Automatic scheduling")
 │   ├── RelativeDate.php                   # "--older-than"/"..._older_than" parsing, shared by CLI + scheduler
+│   ├── LocalizedDate.php                  # locale-aware date/time formatting (see "Localized date formatting")
 │   ├── Api/PageInsightsApiController.php  # REST controller consumed by Admin2
 │   └── Geolocation/                       # self-built country lookup (see "Geolocation" below)
 ├── cli/                                   # `bin/plugin page-insights <command>` (see "CLI commands")
@@ -61,10 +62,12 @@ user/plugins/page-insights/
 │   ├── PruneCommand.php                   # prune
 │   ├── EventsPruneOrphansCommand.php      # events:prune-orphans
 │   ├── VacuumCommand.php                  # vacuum
-│   └── RollupBuildCommand.php             # rollup:build
+│   ├── RollupBuildCommand.php             # rollup:build
+│   ├── PruneBotsCommand.php               # prune:bots
+│   └── PruneNotFoundCommand.php           # prune:notfound
 ├── data/
 │   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see below
-│   └── migrations/{1..8}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
+│   └── migrations/{1..9}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
 │                                           # (schema/format details: DATABASES.md)
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
