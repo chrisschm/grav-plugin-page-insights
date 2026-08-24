@@ -193,7 +193,7 @@ class Stats
                 break;
             }
             $contents = file_get_contents((string) $file);
-            $contents = $this->skipExistingColumns($contents);
+            $contents = $this->skipAlreadyAppliedSchema($contents);
             $this->db->exec($contents);
             $this->db->exec('INSERT INTO migrations (version) VALUES(' . $version . ');');
         }
@@ -210,38 +210,56 @@ class Stats
     }
 
     /**
-     * Drops any `ALTER TABLE ... ADD COLUMN ...` statement from a migration
-     * file's SQL whose column already exists on that table, making the
-     * migration idempotent with respect to column additions. Unlike
-     * `CREATE TABLE`, SQLite has no `ADD COLUMN IF NOT EXISTS` - running
-     * one of these statements a second time throws "duplicate column
-     * name" and (since a migration file's statements all run in one
-     * `PDO::exec()` call, see migrate()) aborts every statement after it
-     * in that same file, including the final `COMMIT TRANSACTION;`.
+     * Strips whatever pieces of a migration file's SQL would otherwise fail
+     * with a "such-and-such already exists" error, making migrate() as a
+     * whole idempotent against a database whose actual schema is ahead of
+     * what the `migrations` table records - not just for the one statement
+     * that happens to throw first. That gap between recorded version and
+     * real schema is a recurring, not hypothetical, situation for this
+     * plugin: a database copied/migrated from an existing Page Stats (or
+     * older Page Insights) installation can legitimately already contain
+     * columns and/or whole tables that a "start from migration 1" replay
+     * then tries to (re)create - `browser` (migration 2) was the first
+     * reported instance (Codeberg issue #6), `events` (migration 4) the
+     * second, reported on the *same* issue after the first fix only
+     * addressed that one statement - see docs/HISTORY.md, bugs #30/#31.
      *
-     * This is not just a theoretical concern: the recorded `migrations`
-     * version can legitimately be behind the database's actual schema,
-     * most commonly on a database copied/migrated from an existing Page
-     * Stats installation whose own schema already contains columns this
-     * plugin's later migrations also add (e.g. `browser` in migration 2 -
-     * see Codeberg issue #6) - the `migrations` table itself may not even
-     * exist yet on such a database, which migrate()'s own version lookup
-     * already treats as "start from migration 1". A similar
-     * version/schema mismatch previously showed up from a stale manual
-     * `migrations` row on a test environment (see docs/HISTORY.md, bug
-     * #20) - `hasPendingMigrations()` fixed *detecting* that migrations
-     * were pending in both cases, but running them from scratch against a
-     * database whose columns already exist still needs this to actually
-     * succeed.
+     * Three independent passes, one per kind of "already exists" SQLite
+     * can throw for a plain replay of these migration files:
+     * `skipExistingColumns()` (`ALTER TABLE ... ADD COLUMN ...` - SQLite
+     * has no `ADD COLUMN IF NOT EXISTS`, unlike `CREATE TABLE`/
+     * `CREATE INDEX`, so this one needs the same PHP-side guard even
+     * though every current migration file's `CREATE TABLE`/`CREATE INDEX`
+     * statements already use `IF NOT EXISTS` - see migration 4's own fix
+     * for the one that didn't), `skipExistingTables()` and
+     * `skipExistingIndexes()` (belt-and-suspenders for the `CREATE TABLE`/
+     * `CREATE INDEX` case: harmless no-ops against every migration file
+     * shipped today, since those already use `IF NOT EXISTS`, but a safety
+     * net against a future migration that forgets it, or any other
+     * not-yet-seen schema drift on a database this plugin didn't create
+     * from scratch itself).
      *
-     * Deliberately generic (matches any `ALTER TABLE ... ADD COLUMN ...`,
-     * not just migration 2's) rather than special-cased to the `browser`
-     * column alone, so the same class of bug can't resurface for
-     * `browser_version`/`platform` (migration 2), `referer` (migration
-     * 3), `environment` (migration 9), or any future column addition.
-     * Every other migration statement (`CREATE TABLE IF NOT EXISTS`,
-     * `DROP TABLE IF EXISTS` + `CREATE TABLE`, `CREATE INDEX`, `PRAGMA`)
-     * is already idempotent by construction and passes through untouched.
+     * Since a migration file's statements all run through one
+     * `PDO::exec()` call (see migrate()), any one of these errors would
+     * otherwise abort every statement after it in that same file too,
+     * including the closing `COMMIT TRANSACTION;` - not just the one
+     * `ALTER`/`CREATE` that happened to fail.
+     */
+    private function skipAlreadyAppliedSchema(string $sql): string
+    {
+        $sql = $this->skipExistingColumns($sql);
+        $sql = $this->skipExistingTables($sql);
+        $sql = $this->skipExistingIndexes($sql);
+
+        return $sql;
+    }
+
+    /**
+     * Drops any `ALTER TABLE ... ADD COLUMN ...` statement whose column
+     * already exists on that table. See skipAlreadyAppliedSchema()'s
+     * docblock for why this - unlike the table/index variants below - is
+     * not just a defensive safety net: SQLite genuinely has no
+     * `ADD COLUMN IF NOT EXISTS`.
      */
     private function skipExistingColumns(string $sql): string
     {
@@ -274,12 +292,116 @@ class Stats
     }
 
     /**
+     * Drops any `CREATE TABLE <name> (...)` statement - one *without* its
+     * own `IF NOT EXISTS` - whose table already exists. Every `CREATE
+     * TABLE` this plugin ships today already uses `IF NOT EXISTS` (fixed
+     * for the one exception, migration 4's `events` table, alongside this
+     * method - see Codeberg issue #6, reopened), so in the shipped
+     * migration files this pass is currently a no-op; kept as a safety net
+     * per skipAlreadyAppliedSchema()'s docblock, not as the primary fix.
+     * The `(?!IF\s+NOT\s+EXISTS\b)` guard skips right past any statement
+     * that already has its own `IF NOT EXISTS`. `.*?` is deliberately
+     * dot-all (`s` modifier) since a `CREATE TABLE` statement's column
+     * list always spans multiple lines in these files, and non-greedy so
+     * it stops at the *first* `);` - every column definition here is a
+     * plain type/constraint, none embeds a literal semicolon.
+     *
+     * Processes `DROP TABLE IF EXISTS <table>;` and un-guarded
+     * `CREATE TABLE <table> (...)` in one single left-to-right pass,
+     * tracking which tables were just dropped earlier in *this same*
+     * $sql - migration 9 uses exactly that `DROP TABLE IF EXISTS` +
+     * `CREATE TABLE` idempotent-rebuild pattern for its five rollup
+     * tables (see docs/DATABASES.md), and by the time migration 9 runs,
+     * those tables already exist from migrations 7/8. A table-existence
+     * check against live DB state alone - this method's first version,
+     * caught by this fix's own test suite before ever being shipped -
+     * can't tell "exists because a later migration created it" apart from
+     * "exists because *this file's own* preceding DROP hasn't run yet in
+     * the string I'm about to hand to exec()", and would strip the
+     * CREATE as "already exists" while leaving the DROP in place: the
+     * table would end up silently gone and never recreated. Once a table
+     * has its own `DROP TABLE IF EXISTS` earlier in this $sql, its
+     * `CREATE TABLE` is therefore always kept, regardless of live DB
+     * state.
+     */
+    private function skipExistingTables(string $sql): string
+    {
+        $droppedInThisFile = [];
+
+        $result = preg_replace_callback(
+            '/DROP\s+TABLE\s+IF\s+EXISTS\s+(\w+)\s*;'
+            . '|CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS\b)(\w+)\s*\(.*?\);/is',
+            function (array $match) use (&$droppedInThisFile) {
+                $statement = $match[0];
+
+                if ($match[1] !== '') {
+                    // DROP TABLE IF EXISTS branch - always idempotent by
+                    // construction, passes through unchanged; just record
+                    // it so a later CREATE TABLE for the same name in this
+                    // file is never mistaken for a duplicate.
+                    $droppedInThisFile[$match[1]] = true;
+
+                    return $statement;
+                }
+
+                $table = $match[2];
+
+                if (isset($droppedInThisFile[$table])) {
+                    return $statement;
+                }
+
+                if (!empty($this->tableColumns($table))) {
+                    error_log("==> page-insights:migrate skipping already-existing table {$table}");
+                    return '';
+                }
+
+                return $statement;
+            },
+            $sql
+        );
+
+        return $result ?? $sql;
+    }
+
+    /**
+     * Drops any `CREATE [UNIQUE] INDEX <name> ON ...` statement - one
+     * *without* its own `IF NOT EXISTS` - whose index already exists.
+     * Every `CREATE INDEX` this plugin ships today already uses
+     * `IF NOT EXISTS`, so like skipExistingTables() this is currently a
+     * no-op against the shipped migration files; kept for the same
+     * safety-net reasoning.
+     */
+    private function skipExistingIndexes(string $sql): string
+    {
+        $result = preg_replace_callback(
+            '/CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?!IF\s+NOT\s+EXISTS\b)(\w+)\s+ON\s+[^;]*?;/is',
+            function (array $match) {
+                [$statement, $index] = $match;
+
+                if ($this->indexExists($index)) {
+                    error_log("==> page-insights:migrate skipping already-existing index {$index}");
+                    return '';
+                }
+
+                return $statement;
+            },
+            $sql
+        );
+
+        return $result ?? $sql;
+    }
+
+    /**
      * Column names currently on $table, via `PRAGMA table_info` - empty if
-     * the table doesn't exist (yet). $table is only ever a name captured
-     * by skipExistingColumns()'s own `\w+` regex out of a migration file
-     * this plugin ships, never external input, so interpolating it
-     * directly into the PRAGMA statement (identifiers can't be bound as
-     * PDO parameters) is safe here.
+     * the table doesn't exist (yet), which doubles as this method's own
+     * "does $table exist at all" check (used by skipExistingTables()):
+     * `PRAGMA table_info` on a missing table returns zero rows rather than
+     * throwing, no try/catch needed for that case specifically. $table is
+     * only ever a name captured by one of the `skipExisting*()` methods'
+     * own `\w+` regexes out of a migration file this plugin ships, never
+     * external input, so interpolating it directly into the PRAGMA
+     * statement (identifiers can't be bound as PDO parameters) is safe
+     * here.
      */
     private function tableColumns(string $table): array
     {
@@ -290,6 +412,26 @@ class Stats
         }
 
         return array_column($rows, 'name');
+    }
+
+    /**
+     * Whether an index named $index currently exists, via `sqlite_master`
+     * (unlike table/column existence, SQLite has no per-index PRAGMA for
+     * this). Same "name only ever comes from our own regex, never external
+     * input" reasoning as tableColumns() - bound as a query parameter here
+     * regardless, since unlike a `PRAGMA` target a plain identifier isn't
+     * the only thing this statement needs to be safe.
+     */
+    private function indexExists(string $index): bool
+    {
+        try {
+            $stmt = $this->db->prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = :name");
+            $stmt->execute([':name' => $index]);
+
+            return (bool) $stmt->fetchColumn();
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**

@@ -384,7 +384,38 @@ interleaved, so cross-references between existing entries (e.g. "see bug #12 abo
     present (checked via `PRAGMA table_info`) before that file is executed - deliberately generic
     rather than special-cased to `browser`, so the same failure can't resurface for
     `browser_version`/`platform`/`referer`/`environment` or any future added column. See
-    "Migrations" in `DATABASES.md`.
+    "Migrations" in `DATABASES.md`. **Reopened days later on the same report - see bug #31.**
+31. **Same Codeberg issue #6, reopened: after the #30 fix, `migrate()` on that same reporter's
+    database got further and then failed with `table events already exists`** (migration 4). The
+    #30 fix only made `ALTER TABLE ... ADD COLUMN` idempotent - migration 4's
+    `CREATE TABLE events (...)` had no `IF NOT EXISTS` at all (the one migration statement in the
+    whole numbered sequence missing it; every other `CREATE TABLE`/`CREATE INDEX` shipped already
+    had one), so it failed the same way ADD COLUMN previously did, for the same underlying reason:
+    that reporter's database's schema is evidently far closer to this plugin's *final* target
+    schema than its `migrations` table records, columns and whole tables both. Reported together
+    with an explicit ask to audit every migration statement rather than patch each one as it's
+    individually hit - a full statement-by-statement audit of all nine migration files (done as
+    part of this fix) confirmed migration 4's `CREATE TABLE events` was in fact the *only* other
+    non-idempotent statement across the whole sequence. Fixed two ways: migration 4.sql itself now
+    reads `CREATE TABLE IF NOT EXISTS events` (matching every other `CREATE TABLE` in the codebase);
+    and `skipExistingColumns()` was generalized into `skipAlreadyAppliedSchema()`, adding
+    `skipExistingTables()`/`skipExistingIndexes()` as a safety net against a *future* migration
+    statement shipping without `IF NOT EXISTS` (both are no-ops against every currently-shipped
+    file, by design). Caught during that generalization, before it ever shipped: an initial version
+    of `skipExistingTables()` checked table existence purely against live DB state, which mishandled
+    migration 9's `DROP TABLE IF EXISTS rollup_daily; CREATE TABLE rollup_daily (...)`
+    idempotent-rebuild pattern for the five rollup tables - by the time migration 9 runs those
+    tables already exist (created in migrations 7/8), so that first version stripped the `CREATE
+    TABLE` as "already exists" while leaving the `DROP TABLE IF EXISTS` in place, silently dropping
+    every rollup table with no recreation. The fix (finding this before shipping, not from a report)
+    was to make `skipExistingTables()` track any `DROP TABLE IF EXISTS <table>;` earlier in the same
+    migration file's SQL and always keep that table's `CREATE TABLE` regardless of live DB state -
+    see "Migrations" in `DATABASES.md`. A reminder that a generic idempotency shim operating on raw
+    SQL text needs to understand statement *order and intra-file dependencies*, not just "does this
+    object exist right now" - the same class of blind spot as bug #19's boundary-day rollup
+    overcount (a fix correct in isolation, wrong once the surrounding sequence is taken into
+    account), caught here by a synthetic-database regression test exercising the full 9-migration
+    replay rather than each migration in isolation.
 
 ## Known cleanup items
 

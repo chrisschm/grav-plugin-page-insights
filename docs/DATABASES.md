@@ -54,20 +54,36 @@ the third condition fired). There is currently no down-migration/rollback mechan
 are additive only (e.g. `referer` was added as a new column in migration 3 rather than replacing
 `refer` from migration 1; see "Known schema quirks" below).
 
-Before a migration file's SQL is executed, `Stats::skipExistingColumns()` strips any
-`ALTER TABLE ... ADD COLUMN ...` statement whose column already exists on that table (checked via
-`PRAGMA table_info`), making migrations 2/3/9 (the only files that currently `ADD COLUMN`)
-idempotent - and any future `ADD COLUMN` migration too, since the check is generic rather than
-tied to a specific column name. This matters because the `migrations` table's recorded version can
-legitimately be behind the database's actual schema - most commonly a database
-copied/migrated from an existing Page Stats installation, whose own schema may already contain
-columns a later Page Insights migration also adds (see `docs/HISTORY.md`, bug #30). Without this,
-re-running such an `ALTER TABLE ADD COLUMN` throws `duplicate column name` (SQLite has no
-`ADD COLUMN IF NOT EXISTS`, unlike `CREATE TABLE`) - and since a migration file's statements all
-run through one `PDO::exec()` call, that error would abort every statement after it in the same
-file too, including its closing `COMMIT TRANSACTION;`. Every other migration statement
-(`CREATE TABLE IF NOT EXISTS`, `DROP TABLE IF EXISTS` + `CREATE TABLE`, `CREATE INDEX`, `PRAGMA`)
-is already idempotent by construction and needs no such handling.
+Before a migration file's SQL is executed, `Stats::skipAlreadyAppliedSchema()` runs it through three
+passes - `skipExistingColumns()`, `skipExistingTables()`, `skipExistingIndexes()` - each stripping
+whatever piece of that file's SQL would otherwise fail with a "such-and-such already exists" error.
+This matters because the `migrations` table's recorded version can legitimately be behind the
+database's actual schema - most commonly a database copied/migrated from an existing Page Stats (or
+older Page Insights) installation, whose own schema may already contain columns and/or whole tables
+a later migration also (re-)creates. First seen for `data.browser` (migration 2, Codeberg issue #6);
+the same issue was reopened days later on the very same report once the `events` table (migration 4)
+turned out to already exist too on that database - see `docs/HISTORY.md`, bugs #30/#31, for both.
+
+`skipExistingColumns()` is the one genuinely load-bearing pass: SQLite has no
+`ADD COLUMN IF NOT EXISTS` (unlike `CREATE TABLE`/`CREATE INDEX`), so an `ALTER TABLE ... ADD COLUMN`
+whose column already exists (migrations 2/3/9, generically - not tied to any specific column name)
+has no native idempotent form and throws `duplicate column name` on a replay. `skipExistingTables()`/
+`skipExistingIndexes()` are a safety net rather than the primary fix: every `CREATE TABLE`/
+`CREATE INDEX` this plugin ships already uses `IF NOT EXISTS` (fixed for the one exception - migration
+4's `events` table, which had none - alongside adding this pass), so today they're a no-op against
+the shipped files; they exist to catch a future migration that forgets `IF NOT EXISTS`, or any other
+not-yet-seen schema drift on a database this plugin didn't create from scratch itself.
+`skipExistingTables()` is deliberately aware of a `DROP TABLE IF EXISTS <table>;` earlier in the
+*same* migration file (exactly the idempotent-rebuild pattern migration 9 uses for the five rollup
+tables) - a table-existence check against live DB state alone would strip that `CREATE TABLE` as
+"already exists" too, since by the time migration 9 runs those tables already exist from migrations
+7/8, and (wrongly) leave the table dropped and never recreated; a bug caught by this fix's own test
+suite before it ever shipped, not by a report.
+
+Since a migration file's statements all run through one `PDO::exec()` call, any one of these errors
+would abort every statement after it in the same file too, including its closing
+`COMMIT TRANSACTION;` - not just the one statement that happened to fail. `PRAGMA` statements are
+idempotent by construction and need no such handling.
 
 ### Table `data` (one row per page hit)
 

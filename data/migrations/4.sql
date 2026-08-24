@@ -2,7 +2,7 @@ PRAGMA foreign_keys = off;
 
 BEGIN TRANSACTION;
 
-CREATE TABLE events (
+CREATE TABLE IF NOT EXISTS events (
     id         INTEGER       PRIMARY KEY AUTOINCREMENT,
     date       DATETIME      DEFAULT (CURRENT_TIMESTAMP),
     session_id INTEGER       REFERENCES data (id),

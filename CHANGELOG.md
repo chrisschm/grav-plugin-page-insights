@@ -1,3 +1,20 @@
+# v3.3.2
+## unreleased
+
+1. [](#bugfix)
+    * bugfix: the v3.3.1 fix for Codeberg issue #6 only made `ALTER TABLE ... ADD COLUMN`
+      idempotent. Reopened on the same issue once `migrate()` on that same reporter's database got
+      further and failed with `table events already exists` (migration 4) - the one `CREATE TABLE`
+      in the whole migration sequence that had no `IF NOT EXISTS` (a full statement-by-statement
+      audit of all nine migration files, prompted by the reporter's explicit ask to check
+      everything rather than patch statement-by-statement, confirmed it was the *only* other one).
+      Fixed migration 4.sql directly (`CREATE TABLE IF NOT EXISTS events`) and generalized
+      `Stats::skipExistingColumns()` into `skipAlreadyAppliedSchema()`, adding
+      `skipExistingTables()`/`skipExistingIndexes()` as a safety net for any future migration
+      statement that ships without `IF NOT EXISTS` - both correctly no-ops against every
+      currently-shipped migration file. See `docs/DATABASES.md` ("Migrations") and
+      `docs/HISTORY.md` (bug #31).
+
 # v3.3.1
 ## 08/23/2026 ([f4437ac](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/f4437acb80063d6f1629d02892064f7f1fdd9a1c))
 
