@@ -1,4 +1,5 @@
-# unreleased
+# v3.4.0
+# 08/24/2026
 
 1. [](#new)
     * feat: new opt-in "Scan detection" feature - periodically matches recently collected 404 hits
