@@ -4,7 +4,7 @@
 [![MIT-Lizenz](https://img.shields.io/badge/License-MIT-blue.svg)](https://de.wikipedia.org/wiki/MIT-Lizenz) 
 [![Übersetzungsstatus](https://translate.codeberg.org/widget/grav-plugin-page-insights/svg-badge.svg)](https://translate.codeberg.org/engage/grav-plugin-page-insights/)  
 
-![](screenshot.png)
+![](images/screenshot.png)
 
 The **Page Insights** Plugin is an extension for [Grav CMS](http://github.com/getgrav/grav).
 
