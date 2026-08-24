@@ -1,8 +1,9 @@
 # Admin UI
 
 This document describes the two admin surfaces' UI-level mechanics: Admin2's client-side routing,
-its bridge into Grav's translation system, localized date formatting on both sides, and the
-dashboard-wide "Hide bots" filter. It does **not** cover the underlying data model or query
+its bridge into Grav's translation system, localized date formatting on both sides, the
+dashboard-wide "Hide bots" filter, and the dashboard toolbar's status line. It does **not** cover
+the underlying data model or query
 mechanism (see [`DATABASES.md`](DATABASES.md) and "Backend: generic query filter" in
 [`ARCHITECTURE.md`](ARCHITECTURE.md)) or the database maintenance dialog and geo-index rebuild
 triggers (see [`MAINTENANCE.md`](MAINTENANCE.md) and [`GEOLOCATION.md`](GEOLOCATION.md)).
@@ -211,15 +212,77 @@ reload on first load once the true default arrives - accepted as a rare, self-se
 sites that opted into the non-default choice hit it), mirroring the same trade-off the pages-scope
 default already makes structurally, just paid across the whole dashboard instead of one card.
 
+## Dashboard toolbar status line
+
+The Admin2 dashboard toolbar (`_renderDashboardShell()`) used to mix two different kinds of
+content in one flex row: interactive controls (the range buttons, "Hide bots", "Maintain
+database", "Scan detection", "Refresh") and pure status text (database size, next scheduled
+geo-DB update/auto-prune - both fed by the same `overview()` `db` field, see `Stats::dbStats()`).
+Once the [scan detection](ARCHITECTURE.md#scan-detection) button pushed the row's total content
+close to the available width, `justify-content: space-between` on `.toolbar` (no explicit `gap`)
+stopped guaranteeing any minimum spacing between the range buttons and everything to their right -
+the two groups could end up flush against each other with zero gap once there wasn't enough
+surplus width left to distribute (reported 2026-08-24 against the production instance, screenshot
+in `page-insights-chat-2026-08-24-scan-detection.md`).
+
+**Fix:** the status text moved out of the toolbar entirely, into its own row above it
+(`.status-line`, built by `_statusLineHtml()`) - the toolbar itself now holds only the interactive
+controls, restoring reliable spacing (`.toolbar` also gained an explicit `gap` and `flex-wrap`, as
+a safety net if a future button set still doesn't fit). `_renderBody()` continues to populate the
+same `.db-size`/`.next-run` elements it always did (now living in the status line, targeted via
+`querySelectorAll` instead of `querySelector` - see below for why).
+
+**Scrolling (marquee) behavior for long content:** `_statusLineHtml()` renders the status text
+*twice*, back-to-back, as two `.status-line-copy` elements inside `.status-line-track` - the
+second copy is `aria-hidden` and exists purely so an endless, seamless CSS loop is possible:
+`transform: translateX(-50%)` moves by exactly one copy's own rendered width, so what scrolls into
+view next is the other, identical copy, with no visible seam or reset jump. `_renderBody()` keeps
+both copies in sync (`querySelectorAll('.db-size')`/`.next-run`, not the single-element
+`querySelector` this used before the move). `_updateStatusLineOverflow()`, called at the end of
+`_renderBody()`, then measures the *first* copy's `scrollWidth` against the container's
+`clientWidth` (deferred to the next animation frame, so it reads post-reflow) and only adds the
+`.marquee` class - which is what actually starts the CSS animation - once a single copy doesn't
+fit. A status line that fits stays perfectly static; this runs on every dashboard reload but is a
+no-op in the common case. Animation duration scales with text length (~60px/s, floor 8s) rather
+than a fixed duration, so a barely-overflowing line doesn't zip past unreadably and a very long one
+doesn't crawl.
+
+Two things deliberately guard against this being an accessibility regression:
+
+- **`prefers-reduced-motion: reduce` skips the animation outright** (checked once per
+  `_updateStatusLineOverflow()` call, not cached) - the line then relies on the plain
+  `text-overflow: ellipsis` truncation `.status-line`'s base CSS already provides, with the
+  untruncated text still reachable via the container's own `title` attribute. Known limitation:
+  `text-overflow: ellipsis` reliably truncates plain inline text, but `.status-line-track` is an
+  `inline-flex` box, not a text run - browsers may hard-clip without inserting the "…" character in
+  this specific (reduced-motion *and* overflowing) fallback path. Not yet verified live against a
+  real browser; a plain single-text-node fallback for this one case would sidestep it if the clip
+  turns out to look wrong in practice.
+- **Hovering or focusing anything inside a scrolling line pauses it**
+  (`.status-line.marquee:hover`/`:focus-within`), so it can actually be read rather than only
+  glimpsed mid-pass.
+
+The empty-state check (`hasContent` in `_updateStatusLineOverflow()`) deliberately reads
+`.db-size`/`.next-run` directly rather than the copy's own `textContent` - the latter would always
+include the `.status-sep` "·" text node even while it's `display: none` (CSS visibility doesn't
+affect `textContent`), which would make an actually-empty line (e.g. both the geo-DB and
+auto-prune scheduled jobs disabled, database size briefly unavailable) look non-empty and never get
+hidden.
+
+Checked with `node --check admin-next/pages/page-insights.js` (see `CONTRIBUTING.md`'s PR
+checklist) and a markup/DOM-logic dry run outside a browser, but **not yet live-verified against a
+real Grav instance** - that manual-testing step (`CONTRIBUTING.md` #5) is still open before this
+ships, same as every other Admin2 UI change in this project's history.
+
 ---
 
 ## Auf Deutsch (Kurzfassung)
 
 Diese Datei beschreibt die UI-Mechanik beider Admin-Oberflächen: Admin2-Client-Routing, die
-i18n-Bridge, lokalisierte Datumsformatierung auf beiden Seiten und den dashboard-weiten
-"Bots ausblenden"-Filter. Datenmodell und Abfragemechanismus stehen in `DATABASES.md`/
-`ARCHITECTURE.md`, der DB-Wartungsdialog und der Geo-Index-Rebuild-Auslöser in `MAINTENANCE.md`/
-`GEOLOCATION.md`.
+i18n-Bridge, lokalisierte Datumsformatierung auf beiden Seiten, den dashboard-weiten
+"Bots ausblenden"-Filter sowie die Statuszeile der Dashboard-Werkzeugleiste. Datenmodell und
+Abfragemechanismus stehen in `DATABASES.md`/`ARCHITECTURE.md`, der DB-Wartungsdialog und der
+Geo-Index-Rebuild-Auslöser in `MAINTENANCE.md`/`GEOLOCATION.md`.
 
 **Admin2-Sub-Routing:** da SvelteKits Router nur ein einziges dynamisches Pfadsegment pro
 Plugin-Seite kennt, werden Page-/User-Detail- sowie (seit 24.08.2026) die Scan-Erkennungs-Ansicht
@@ -244,3 +307,18 @@ bleibt dabei bewusst optional, nicht zur Hard-Requirement erhoben.
 "echte Seiten"-Scope-Filter), nutzt die bestehende `is_bot`-Spalte und den generischen
 Filter-Mechanismus ohne neue Query-Methode. Standardmäßig aus, damit sich Dashboard-Zahlen
 bestehender Installationen beim Update nicht stillschweigend ändern.
+
+**Statuszeile der Dashboard-Werkzeugleiste:** Datenbankgröße und die beiden
+"Nächste Ausführung"-Angaben (Geo-DB, Auto-Bereinigung) standen bisher mitten in der
+Werkzeugleiste, zwischen den Aktions-Schaltflächen - seit dem Scan-Erkennung-Button reichte der
+Platz dort nicht mehr zuverlässig, `justify-content: space-between` ohne festen `gap` konnte die
+Zeitraum-Buttons und den Rest ganz ohne Zwischenraum aneinanderstoßen lassen (gemeldet
+24.08.2026). Die Statustexte sitzen jetzt in einer eigenen Zeile oberhalb der Werkzeugleiste
+(`.status-line`), die Werkzeugleiste selbst bekam zusätzlich einen festen `gap` sowie `flex-wrap`
+als Sicherheitsnetz. Bei zu langem Inhalt scrollt die Statuszeile als nahtlose Endlos-Laufschrift
+(zwei identische, per `translateX(-50%)` verschobene Kopien) - aber nur, wenn eine einzelne Kopie
+tatsächlich nicht in die verfügbare Breite passt, und nie bei `prefers-reduced-motion: reduce`
+(dann greift stattdessen eine einfache Ellipsis-Kürzung, voller Text weiterhin über `title`
+erreichbar). Details, inklusive einer noch unklaren Ellipsis-Einschränkung im
+Reduced-Motion-Fallback und dem Hinweis, dass dies noch nicht an einer echten Grav-Instanz
+live-getestet wurde, siehe englischer Abschnitt oben.

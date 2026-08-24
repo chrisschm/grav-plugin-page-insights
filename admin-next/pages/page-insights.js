@@ -779,10 +779,45 @@ class PageInsightsPage extends HTMLElement {
         }
     }
 
+    /**
+     * Markup for the status line above the dashboard toolbar (database
+     * size, next scheduled geo-DB update/auto-prune) - split out from
+     * _renderDashboardShell() because it's built twice, back-to-back
+     * (`.status-line-copy` x2): the second, `aria-hidden` copy exists
+     * purely so `.status-line-track` can loop endlessly and seamlessly via
+     * `transform: translateX(-50%)` once the line needs to scroll (see
+     * _updateStatusLineOverflow() and docs/ADMIN-UI.md "Dashboard toolbar
+     * status line"). Used to live inline in the toolbar itself, mixed in
+     * with the action buttons - once the combined text ran out of room
+     * there was no reliable gap left between the range buttons and
+     * everything to their right (`justify-content: space-between` only
+     * distributes leftover space, it doesn't guarantee a minimum one).
+     * Both copies' `.db-size`/`.next-run` spans are kept in sync by
+     * _renderBody() (querySelectorAll, not querySelector) every time the
+     * dashboard reloads.
+     */
+    _statusLineHtml() {
+        const dbSizeTitle = this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'));
+        const copy = (hidden) => `
+            <span class="status-line-copy"${hidden ? ' aria-hidden="true"' : ''}>
+                <span class="db-size"${hidden ? '' : ` title="${dbSizeTitle}"`}></span>
+                <span class="status-sep" aria-hidden="true">&middot;</span>
+                <span class="next-run"></span>
+            </span>`;
+        return `
+            <div class="status-line">
+                <div class="status-line-track">
+                    ${copy(false)}
+                    ${copy(true)}
+                </div>
+            </div>`;
+    }
+
     _renderDashboardShell() {
         this.shadowRoot.innerHTML = `
             <style>${this._styles()}</style>
             <div class="wrap">
+                ${this._statusLineHtml()}
                 <div class="toolbar">
                     <div class="range">
                         <button data-range="7">${this._esc(this._t('ADMIN2.RANGE_7D', '7d'))}</button>
@@ -792,8 +827,6 @@ class PageInsightsPage extends HTMLElement {
                     </div>
                     <div class="toolbar-end">
                         <button class="hide-bots-btn ${this.#hideBots ? 'active' : ''}" title="${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON_TITLE', 'Filter every KPI, chart and list on this dashboard to hits not recognized as bot traffic (based on the "Bot User Agents" list in the config tab) - best-effort, not a guarantee.'))}">${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON', 'Hide bots'))}</button>
-                        <span class="next-run"></span>
-                        <span class="db-size" title="${this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'))}"></span>
                         <button class="db-maintain-btn" title="${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON_TITLE', 'Free up disk space or delete old statistics data'))}">${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON', 'Maintain database'))}</button>
                         <a href="${this._esc(location.pathname)}?view=scan-patterns" class="scan-detection-btn" data-nav="scan-patterns">${this._esc(this._t('ADMIN2.SCAN_DETECTION_NAV', 'Scan detection'))}</a>
                         <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
@@ -960,26 +993,37 @@ class PageInsightsPage extends HTMLElement {
         }
 
         const o = this.#overview;
-        const dbBadge = this.shadowRoot.querySelector('.db-size');
-        if (dbBadge) dbBadge.textContent = o.db?.mb !== undefined ? this._tf('ADMIN2.DB_SIZE', 'Database size: %s MB', o.db.mb) : '';
+        // Both the visible status-line copy and its aria-hidden marquee
+        // duplicate (see _statusLineHtml()) need the same text, hence
+        // querySelectorAll/forEach rather than the single-element
+        // querySelector this used before the status line moved out of the
+        // toolbar.
+        const dbSizeText = o.db?.mb !== undefined ? this._tf('ADMIN2.DB_SIZE', 'Database size: %s MB', o.db.mb) : '';
+        this.shadowRoot.querySelectorAll('.db-size').forEach((el) => { el.textContent = dbSizeText; });
 
         // Next scheduled run of the two optional automatic maintenance jobs
         // (see AutoSchedule/Stats::dbStats()) - null/absent when a job is
-        // "disabled", same as the db-size badge this sits next to, both
-        // fed by the same `overview()` `db` field so no extra request is
+        // "disabled", same as the db-size text this sits next to, both fed
+        // by the same `overview()` `db` field so no extra request is
         // needed. Same root-level (not ADMIN2.*) translation keys as the
         // equivalent Classic Admin titlebar text (stats.html.twig).
-        const nextRunEl = this.shadowRoot.querySelector('.next-run');
-        if (nextRunEl) {
-            const parts = [];
-            if (o.db?.next_geo_db_update) {
-                parts.push(this._tf('NEXT_GEO_DB_UPDATE', 'Next geo-DB update: %s', new Date(o.db.next_geo_db_update * 1000).toLocaleString()));
-            }
-            if (o.db?.next_auto_prune) {
-                parts.push(this._tf('NEXT_AUTO_PRUNE', 'Next automatic pruning: %s', new Date(o.db.next_auto_prune * 1000).toLocaleString()));
-            }
-            nextRunEl.textContent = parts.join(' · ');
+        const nextRunParts = [];
+        if (o.db?.next_geo_db_update) {
+            nextRunParts.push(this._tf('NEXT_GEO_DB_UPDATE', 'Next geo-DB update: %s', new Date(o.db.next_geo_db_update * 1000).toLocaleString()));
         }
+        if (o.db?.next_auto_prune) {
+            nextRunParts.push(this._tf('NEXT_AUTO_PRUNE', 'Next automatic pruning: %s', new Date(o.db.next_auto_prune * 1000).toLocaleString()));
+        }
+        const nextRunText = nextRunParts.join(' · ');
+        this.shadowRoot.querySelectorAll('.next-run').forEach((el) => { el.textContent = nextRunText; });
+        // The "·" between the two segments only makes sense when both are
+        // actually present - avoids a dangling separator with nothing
+        // after it if both scheduled jobs happen to be disabled.
+        this.shadowRoot.querySelectorAll('.status-sep').forEach((el) => {
+            el.style.display = dbSizeText && nextRunText ? '' : 'none';
+        });
+
+        this._updateStatusLineOverflow();
 
         const { from, to } = this._currentDateRange();
         const hitsSeries = this._buildDailySeries(this.#summary?.hits, from, to);
@@ -1075,6 +1119,66 @@ class PageInsightsPage extends HTMLElement {
         });
         body.querySelector('.geo-db-update-btn')?.addEventListener('click', () => this._updateGeoDb());
         this._bindNavLinks(body);
+    }
+
+    /**
+     * Shows/hides the status line above the toolbar and decides whether it
+     * needs to scroll (see _statusLineHtml() and docs/ADMIN-UI.md
+     * "Dashboard toolbar status line"). Called at the end of _renderBody()
+     * once both `.status-line-copy` elements have their current text.
+     *
+     * The aria-hidden second copy exists purely so a seamless, endless CSS
+     * loop is possible - `transform: translateX(-50%)` on `.status-line-
+     * track` moves by exactly one copy's rendered width, so what scrolls
+     * into view is the *other*, identical copy, with no visible seam or
+     * reset jump. That animation (`.marquee` on `.status-line`) is only
+     * actually applied once a single copy doesn't fit its container; a
+     * status line that fits stays perfectly static either way, so this
+     * runs on every dashboard reload but is a no-op in the common case.
+     *
+     * Respects `prefers-reduced-motion: reduce` by skipping the animation
+     * outright - the line then falls back to a plain `text-overflow:
+     * ellipsis` truncation (see .status-line CSS), with the untruncated
+     * text still reachable via the container's own `title` attribute.
+     */
+    _updateStatusLineOverflow() {
+        const statusLine = this.shadowRoot.querySelector('.status-line');
+        const firstCopy = this.shadowRoot.querySelector('.status-line-copy');
+        if (!statusLine || !firstCopy) return;
+
+        // Read .db-size/.next-run directly rather than firstCopy's own
+        // textContent - the latter would always include the "·"
+        // .status-sep text node even while it's display:none (CSS
+        // visibility doesn't affect textContent), which would make an
+        // actually-empty line look non-empty and never get hidden.
+        const dbText = firstCopy.querySelector('.db-size')?.textContent ?? '';
+        const runText = firstCopy.querySelector('.next-run')?.textContent ?? '';
+        const hasContent = Boolean(dbText || runText);
+        statusLine.style.display = hasContent ? '' : 'none';
+        statusLine.classList.remove('marquee');
+        statusLine.style.removeProperty('--marquee-duration');
+        if (!hasContent) return;
+
+        statusLine.title = [dbText, runText].filter(Boolean).join(' · ');
+
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        // Measured on the next frame, after the browser has laid out the
+        // text just set above - reading scrollWidth synchronously here can
+        // catch a stale, pre-reflow value.
+        requestAnimationFrame(() => {
+            const overflowing = firstCopy.scrollWidth > statusLine.clientWidth;
+            statusLine.classList.toggle('marquee', overflowing);
+            if (overflowing) {
+                // ~60px/s reading speed, scaled to the actual text length -
+                // a barely-overflowing line doesn't zip past unreadably,
+                // and a very long one doesn't crawl. Floor of 8s either way.
+                const duration = Math.max(8, Math.round(firstCopy.scrollWidth / 60));
+                statusLine.style.setProperty('--marquee-duration', `${duration}s`);
+            }
+        });
     }
 
     /**
@@ -1563,7 +1667,7 @@ class PageInsightsPage extends HTMLElement {
             :host { display: block; color: var(--foreground); font-family: inherit; padding-top: 16px; }
             .wrap { display: flex; flex-direction: column; gap: 16px; }
             .body, .detail-body { display: flex; flex-direction: column; gap: 16px; }
-            .toolbar { display: flex; justify-content: space-between; align-items: center; }
+            .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; row-gap: 8px; }
             .range { display: flex; gap: 4px; }
             .range button, .refresh, .db-maintain-btn, .hide-bots-btn, .lookup-row button, .load-more-recent, .scan-detection-btn, .pattern-delete {
                 background: var(--background);
@@ -1580,8 +1684,39 @@ class PageInsightsPage extends HTMLElement {
             .scan-routes { cursor: help; }
             code { font-size: 12px; }
             .toolbar-end { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; row-gap: 6px; }
-            .db-size { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
-            .next-run { font-size: 12px; color: var(--muted-foreground); }
+
+            /* Status line above the toolbar (database size, next scheduled
+               geo-DB update/auto-prune) - see _statusLineHtml() and
+               _updateStatusLineOverflow(). Static/ellipsis-truncated by
+               default; only scrolls (.marquee) once a single copy of the
+               text doesn't fit, and never when the visitor's system
+               requests reduced motion (handled in JS, .marquee is simply
+               never added in that case). */
+            .status-line {
+                font-size: 12px;
+                color: var(--muted-foreground);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .status-line-track { display: inline-flex; gap: 48px; }
+            .status-line-copy { display: inline-flex; align-items: center; gap: 6px; }
+            .status-sep { opacity: 0.6; }
+            .status-line.marquee { text-overflow: clip; }
+            .status-line.marquee .status-line-track {
+                animation: page-insights-status-marquee var(--marquee-duration, 20s) linear infinite;
+            }
+            /* Hovering (mouse) or focusing something inside (keyboard/AT)
+               pauses the scroll so the line can actually be read, not just
+               glimpsed mid-pass. */
+            .status-line.marquee:hover .status-line-track,
+            .status-line.marquee:focus-within .status-line-track {
+                animation-play-state: paused;
+            }
+            @keyframes page-insights-status-marquee {
+                from { transform: translateX(0); }
+                to { transform: translateX(-50%); }
+            }
             .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
             .chart-card { display: flex; flex-direction: column; }
             .chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }

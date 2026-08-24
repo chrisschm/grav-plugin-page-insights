@@ -1,3 +1,18 @@
+## unreleased
+
+1. [](#improved)
+    * improved: moved the Admin2 dashboard toolbar's status text (database size, next scheduled
+      geo-DB update/auto-prune) out of the toolbar itself into its own status line above it - once
+      the new "Scan detection" button (v3.4.0) pushed the row's total content close to the
+      available width, `justify-content: space-between` without an explicit `gap` stopped
+      guaranteeing any minimum spacing, letting the range buttons and the action buttons end up
+      flush against each other with no gap at all (reported against the production instance,
+      2026-08-24). The toolbar itself also gained an explicit `gap` and `flex-wrap` as a safety
+      net for future buttons. The new status line scrolls as a seamless, endless marquee if its
+      content doesn't fit (paused on hover/focus, skipped entirely under `prefers-reduced-motion:
+      reduce` in favor of a plain ellipsis truncation) - see `docs/ADMIN-UI.md` "Dashboard toolbar
+      status line" for the full design. Not yet live-tested against a real Grav instance.
+
 # v3.4.0
 # 08/24/2026 ([94e55a8](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/94e55a851e43af724afe1a089b14734d5e456a62))
 
