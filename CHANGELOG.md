@@ -1,5 +1,5 @@
 # v3.3.2
-## 08/24/2026
+## 08/24/2026 ([9015be0](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/9015be04739b2f9ef625722608d7e77b2c941aaf))
 
 1. [](#bugfix)
     * bugfix: the v3.3.1 fix for Codeberg issue #6 only made `ALTER TABLE ... ADD COLUMN`
