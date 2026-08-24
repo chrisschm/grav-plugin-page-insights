@@ -31,7 +31,8 @@ These apply to any future change (see also `CONTRIBUTING.md`):
   case-by-case call, not an automatic requirement: a new read-only display (e.g. the HTTP status
   codes widget, added to both admin UIs) is fine and welcome there too. A new *actionable*
   surface - anything that triggers a mutation and would need its own ongoing support/maintenance
-  in the old environment (e.g. the database maintenance dialog, deliberately Admin2-only) - isn't
+  in the old environment (e.g. the database maintenance dialog, deliberately Admin2-only, and,
+  since 2026-08-24, the "Scan detection" pattern-management view for the same reason) - isn't
   something to open up there without a specific reason; active development targets Admin2 only.
 - No third-party runtime Composer dependency (the last one, `ip2location/ip2location-php`, was
   removed 2026-08-15 - see [`GEOLOCATION.md`](GEOLOCATION.md)). `vendor/` is still deliberately
@@ -254,8 +255,8 @@ Larger topics that used to live in this file now have their own document:
   classes that build and read the index, and the prebuilt-vs-raw update modes.
 - [`ADMIN-UI.md`](ADMIN-UI.md) - Admin2's client-side sub-routing, its i18n bridge, localized
   date formatting on both admin sides, and the "Hide bots" filter.
-- [`MAINTENANCE.md`](MAINTENANCE.md) - CLI commands, the Admin2 database maintenance dialog, and
-  the automatic scheduler jobs.
+- [`MAINTENANCE.md`](MAINTENANCE.md) - CLI commands, the Admin2 database maintenance dialog, scan
+  detection (pattern list, alerts), and the automatic scheduler jobs.
 - [`HISTORY.md`](HISTORY.md) - a numbered list of non-obvious past bugs, their root cause, and
   the reasoning behind each fix - useful context before touching related code.
 
@@ -267,9 +268,10 @@ Diese Datei richtet sich an Contributor, die am Code arbeiten wollen (Endnutzer-
 `README.md`). Größere Themen stehen inzwischen in eigenen Dateien (siehe "Further documentation"
 oben): Datenbankschemata in `DATABASES.md`, Geolocation in `GEOLOCATION.md`, Admin-UI-Mechanik
 (Sub-Routing, i18n, Datumsformatierung, Bots-Filter) in `ADMIN-UI.md`, Wartungswerkzeuge (CLI,
-Wartungsdialog, Scheduler-Jobs) in `MAINTENANCE.md`, und die Bug-Historie in `HISTORY.md`. Diese
-Datei selbst behandelt nur noch Projektstruktur, die geteilte Datenschicht, den generischen
-Query-Filter, das Config-Blueprint und zwei betriebliche Stolpersteine (Composer/Autoloader, CI).
+Wartungsdialog, Scan-Erkennung, Scheduler-Jobs) in `MAINTENANCE.md`, und die Bug-Historie in
+`HISTORY.md`. Diese Datei selbst behandelt nur noch Projektstruktur, die geteilte Datenschicht, den
+generischen Query-Filter, das Config-Blueprint und zwei betriebliche Stolpersteine
+(Composer/Autoloader, CI).
 
 Zwei Admin-Oberflächen (Classic Admin, neun Twig-Unterseiten; Admin2, eine Web-Component) teilen
 sich dieselbe Datenschicht (`classes/Stats.php`) - Unterschiede betreffen ausschließlich die

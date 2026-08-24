@@ -25,7 +25,7 @@ duplicates that.
 - [`ADMIN-UI.md`](ADMIN-UI.md) - Admin2's client-side sub-routing, its i18n bridge, localized date
   formatting on both admin sides, and the dashboard-wide "Hide bots" filter.
 - [`MAINTENANCE.md`](MAINTENANCE.md) - CLI commands, the Admin2 database maintenance dialog, and
-  the automatic scheduler jobs (geo-db updates, data pruning, rollups).
+  the automatic scheduler jobs (geo-db updates, data pruning, rollups, scan detection).
 - [`HISTORY.md`](HISTORY.md) - a numbered list of non-obvious past bugs, their root cause, and the
   reasoning behind each fix - useful context before touching related code.
 
@@ -74,7 +74,7 @@ Ausgangspunkt für alle, die am Code arbeiten wollen (Contributor/Maintainer). A
 - [`ADMIN-UI.md`](ADMIN-UI.md) - Admin2-Sub-Routing, i18n-Bridge, lokalisierte Datumsformatierung
   auf beiden Admin-Seiten, "Bots ausblenden"-Filter.
 - [`MAINTENANCE.md`](MAINTENANCE.md) - CLI-Befehle, Admin2-Datenbankpflegedialog, automatische
-  Scheduler-Jobs (Geo-DB-Updates, Datenbereinigung, Rollups).
+  Scheduler-Jobs (Geo-DB-Updates, Datenbereinigung, Rollups, Scan-Erkennung).
 - [`HISTORY.md`](HISTORY.md) - nummerierte Liste nicht-offensichtlicher vergangener Bugs samt
   Ursache und Fix-Begründung.
 - [`../SECURITY.md`](../SECURITY.md), [`../CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md) -

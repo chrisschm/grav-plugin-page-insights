@@ -13,16 +13,21 @@ triggers (see [`MAINTENANCE.md`](MAINTENANCE.md) and [`GEOLOCATION.md`](GEOLOCAT
 Admin2's SvelteKit client router only knows a single dynamic segment per plugin page
 (`/plugin/[slug]`, no catch-all). A deeper, self-built path segment (e.g. `/plugin/page-insights/
 page-detail`) would fail client-side navigation, even though the server (`admin2.php`) answers
-every sub-route correctly with the SPA shell. **Solution:** Page Detail and User Detail are separate
-view *states* of the same fixed route, addressed purely via query string (`?view=page-detail&route=
-...`, `?view=user-detail&user=...`/`?ip=...`), driven by plain `history.pushState()`/`popstate`. The
-isolated custom element has no access to SvelteKit's `$app/navigation`, but the native browser
-mechanism is sufficient, since SvelteKit's own helpers do the same thing internally. Verified live:
-hard reload on all three URL shapes works, browser back/forward works, and the currently selected
-time range survives switching between detail views (shared `#range` state).
+every sub-route correctly with the SPA shell. **Solution:** Page Detail, User Detail, and (since
+2026-08-24) Scan detection are separate view *states* of the same fixed route, addressed purely via
+query string (`?view=page-detail&route=...`, `?view=user-detail&user=...`/`?ip=...`,
+`?view=scan-patterns`), driven by plain `history.pushState()`/`popstate`. The isolated custom
+element has no access to SvelteKit's `$app/navigation`, but the native browser mechanism is
+sufficient, since SvelteKit's own helpers do the same thing internally. Verified live: hard reload
+on all four URL shapes works, browser back/forward works, and the currently selected time range
+survives switching between Page/User Detail (shared `#range` state).
 
-Both detail views are assembled entirely from existing dashboard building blocks (`_chartCard()`,
-`_lineChart()`, `_bars()`, `_table()`) - no separate rendering code path to maintain.
+Page Detail and User Detail are assembled entirely from existing dashboard building blocks
+(`_chartCard()`, `_lineChart()`, `_bars()`, `_table()`) - no separate rendering code path to
+maintain. Scan detection reuses the same `_renderDetailShell()` (back-link, title, `.detail-body`
+container) but not the range/"Hide bots" toolbar - it has neither a date range nor a bot-traffic
+concept, so `_renderDetailShell()` swaps in a plain refresh button for that one view instead (see
+`isScanDetection` in `page-insights.js`).
 
 ## Admin2 i18n
 
@@ -217,8 +222,9 @@ i18n-Bridge, lokalisierte Datumsformatierung auf beiden Seiten und den dashboard
 `GEOLOCATION.md`.
 
 **Admin2-Sub-Routing:** da SvelteKits Router nur ein einziges dynamisches Pfadsegment pro
-Plugin-Seite kennt, werden Page-/User-Detail-Ansichten als Query-String-Zustand derselben festen
-Route umgesetzt (`?view=page-detail&route=...`), per `history.pushState()`/`popstate` - funktioniert
+Plugin-Seite kennt, werden Page-/User-Detail- sowie (seit 24.08.2026) die Scan-Erkennungs-Ansicht
+als Query-String-Zustand derselben festen Route umgesetzt (`?view=page-detail&route=...`,
+`?view=scan-patterns`), per `history.pushState()`/`popstate` - funktioniert
 nachweislich mit Hard-Reload, Browser-Vor/Zurück und geteiltem Zeitraum-Zustand.
 
 **Admin2-i18n:** `admin-next` stellt für genau diesen Fall (Plugin-Web-Components außerhalb des
