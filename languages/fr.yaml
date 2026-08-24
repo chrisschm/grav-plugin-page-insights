@@ -280,6 +280,38 @@ PLUGIN_PAGE_INSIGHTS:
     page-insights rollup:build --from=<période>` ; ce réglage ne fait que le
     maintenir à jour par la suite."
 
+  SECTION_SCAN_DETECTION: Détection de scans
+  SECTION_SCAN_DETECTION_LABEL: "Compare périodiquement les erreurs 404
+    récemment enregistrées à une liste organisée de chemins connus pour être
+    ciblés par des scans de vulnérabilités, et déclenche une alerte dès
+    qu'une IP accumule trop de correspondances différentes en trop peu de
+    temps - généralement le signe d'un balayage automatisé, pas d'un simple
+    lien mort isolé. Désactivé par défaut, et la liste de motifs démarre
+    vide - voir `scan-patterns:import` ou la vue « Détection de scans » dans
+    la barre latérale d'Admin2 pour la remplir."
+  SCAN_DETECTION_LABEL: Activer la détection de scans
+  SCAN_DETECTION_HELP: "S'exécute toutes les 5 minutes via le planificateur
+    natif de Grav (bin/grav scheduler) - aucune entrée cron séparée n'est
+    nécessaire. Ne lit que des erreurs 404 déjà enregistrées ; n'ajoute
+    aucun coût par requête."
+  SCAN_DETECTION_THRESHOLD_LABEL: Seuil d'alerte
+  SCAN_DETECTION_THRESHOLD_HELP: Nombre de chemins distincts correspondants,
+    provenant d'une même IP dans la fenêtre ci-dessous, à partir duquel une
+    alerte est déclenchée.
+  SCAN_DETECTION_WINDOW_LABEL: Fenêtre de détection (minutes)
+  SCAN_DETECTION_WINDOW_HELP: "Jusqu'où chaque exécution remonte dans le
+    temps, et pendant combien de temps une alerte reste ensuite « ouverte »."
+  SCAN_DETECTION_EMAIL_LABEL: Adresse e-mail pour les alertes
+  SCAN_DETECTION_EMAIL_HELP: "Optionnel. Nécessite que le plugin officiel
+    séparé « email » (bin/gpm install email) soit installé et configuré -
+    sinon, rien n'est envoyé. Laisser vide pour n'avoir que les
+    notifications du tableau de bord."
+  SCAN_ALERT_TITLE: Scan de vulnérabilités potentiel détecté
+  SCAN_ALERT_MESSAGE: "L'IP %s a demandé %s chemins différents connus pour
+    être vulnérables en peu de temps - cela indique généralement un
+    balayage automatisé, et non un trafic normal de visiteurs. Voir la vue
+    « Détection de scans » pour plus de détails."
+
   NEXT_GEO_DB_UPDATE: "Prochaine mise à jour de la base géo : %s"
   NEXT_AUTO_PRUNE: "Prochain nettoyage automatique : %s"
 
@@ -343,6 +375,35 @@ PLUGIN_PAGE_INSIGHTS:
     DB_MAINTAIN_ACTION_PRUNE_BOTS: Supprimer le trafic des robots
     DB_MAINTAIN_ACTION_PRUNE_NOTFOUND: "Supprimer les erreurs 404 (page
       introuvable)"
+
+    SCAN_DETECTION_NAV: Détection de scans
+    SCAN_DETECTION_TITLE: Détection de scans
+    SCAN_DETECTION_ALERTS_HEADING: "Alertes ouvertes (%s)"
+    SCAN_DETECTION_NO_ALERTS: Aucune alerte ouverte.
+    SCAN_DETECTION_PATTERNS_HEADING: Motifs
+    SCAN_DETECTION_ADD_PATTERN_PLACEHOLDER: "/chemin/vers/fichier-vulnerable.php"
+    SCAN_DETECTION_ADD_PATTERN_BUTTON: Ajouter
+    SCAN_DETECTION_ENABLE_TOGGLE: Activé
+    SCAN_DETECTION_DELETE_BUTTON: Supprimer
+    SCAN_DETECTION_DELETE_CONFIRM: "Supprimer ce motif ? Cette action est
+      irréversible."
+    TABLE_IP: IP
+    TABLE_FIRST_SEEN: Première détection
+    TABLE_LAST_SEEN: Dernière détection
+    TABLE_HIT_COUNT: Correspondances
+    TABLE_MATCHED_ROUTES: Chemins correspondants
+    TABLE_PATTERN: Motif
+    TABLE_SOURCE: Source
+    TABLE_ADDED: Ajouté
+    TABLE_ENABLED: Activé
+    TABLE_ACTIONS: Actions
+    ERROR_LOAD_SCAN_DETECTION: Impossible de charger les données de
+      détection de scans
+    ERROR_ADD_PATTERN: Impossible d'ajouter le motif
+    ERROR_UPDATE_PATTERN: Impossible de mettre à jour le motif
+    ERROR_DELETE_PATTERN: Impossible de supprimer le motif
+    PATTERN_ADDED_TOAST: Motif ajouté.
+    PATTERN_DELETED_TOAST: Motif supprimé.
     DB_MAINTAIN_SUBMIT: Exécuter
     DB_MAINTAIN_TOAST_DELETED: "%s ligne(s) supprimée(s). Taille de la base de
       données : %s Mo → %s Mo."
