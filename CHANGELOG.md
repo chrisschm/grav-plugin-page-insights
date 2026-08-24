@@ -1,5 +1,5 @@
 # v3.3.2
-## unreleased
+## 08/24/2026
 
 1. [](#bugfix)
     * bugfix: the v3.3.1 fix for Codeberg issue #6 only made `ALTER TABLE ... ADD COLUMN`
