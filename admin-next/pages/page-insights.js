@@ -43,7 +43,9 @@ class PageInsightsPage extends HTMLElement {
     #geoStatus = null; // GET /page-insights/geo-db/status response, or null while unknown/failed
     #geoBusy = false; // true while a rebuild (POST /page-insights/geo-db/rebuild) is in flight
     #geoError = null; // last rebuild error message, cleared on the next successful load/rebuild
-    #view = 'dashboard'; // 'dashboard' | 'page-detail' | 'user-detail'
+    #view = 'dashboard'; // 'dashboard' | 'page-detail' | 'user-detail' | 'scan-patterns'
+    #scanAlerts = [];
+    #scanPatterns = [];
     #viewParams = {};
     #onPopState = null;
     #unsubscribeLocale = null;
@@ -130,6 +132,11 @@ class PageInsightsPage extends HTMLElement {
             this.#viewParams = params.get('user') ? { user: params.get('user') } : { ip: params.get('ip') };
             return;
         }
+        if (view === 'scan-patterns') {
+            this.#view = 'scan-patterns';
+            this.#viewParams = {};
+            return;
+        }
         this.#view = 'dashboard';
         this.#viewParams = {};
     }
@@ -209,9 +216,21 @@ class PageInsightsPage extends HTMLElement {
     }
 
     async _apiPost(path, body) {
+        return this._apiWrite('POST', path, body);
+    }
+
+    async _apiPatch(path, body) {
+        return this._apiWrite('PATCH', path, body);
+    }
+
+    async _apiDelete(path) {
+        return this._apiWrite('DELETE', path);
+    }
+
+    async _apiWrite(method, path, body) {
         const hasBody = body !== undefined;
         const resp = await fetch(this._apiUrl(path), {
-            method: 'POST',
+            method,
             headers: hasBody ? { ...this._apiHeaders(), 'Content-Type': 'application/json' } : this._apiHeaders(),
             body: hasBody ? JSON.stringify(body) : undefined,
         });
@@ -260,6 +279,7 @@ class PageInsightsPage extends HTMLElement {
     async _load() {
         if (this.#view === 'page-detail') return this._loadPageDetail();
         if (this.#view === 'user-detail') return this._loadUserDetail();
+        if (this.#view === 'scan-patterns') return this._loadScanDetection();
         return this._loadDashboard();
     }
 
@@ -587,6 +607,170 @@ class PageInsightsPage extends HTMLElement {
         this._bindNavLinks(body);
     }
 
+    /**
+     * Scan detection view (see docs/ARCHITECTURE.md "Scan detection"):
+     * open alerts (Stats::listOpenScanAlerts()) plus the full pattern list
+     * with enable/disable and delete, and a small "add pattern" form.
+     * Neither list is filtered by #range/#hideBots - see _renderDetailShell()
+     * for why this view's toolbar omits both controls entirely.
+     */
+    async _loadScanDetection() {
+        const body = this._detailBodyEl();
+        if (!body) return;
+        body.innerHTML = `<div class="state">${this._esc(this._t('ADMIN2.LOADING', 'Loading…'))}</div>`;
+
+        const [alertsResult, patternsResult] = await Promise.allSettled([
+            this._apiGet('/page-insights/scan-alerts'),
+            this._apiGet('/page-insights/scan-patterns'),
+        ]);
+
+        if (alertsResult.status === 'rejected' && patternsResult.status === 'rejected') {
+            body.innerHTML = `<div class="state error">${this._esc(alertsResult.reason?.message || this._t('ADMIN2.ERROR_LOAD_SCAN_DETECTION', 'Could not load scan detection data'))}</div>`;
+            return;
+        }
+
+        this.#scanAlerts = alertsResult.status === 'fulfilled' ? (alertsResult.value.alerts || []) : [];
+        this.#scanPatterns = patternsResult.status === 'fulfilled' ? (patternsResult.value.patterns || []) : [];
+        this._renderScanDetectionBody();
+    }
+
+    _renderScanDetectionBody() {
+        const body = this._detailBodyEl();
+        if (!body) return;
+
+        const alertRows = this.#scanAlerts.map((a) => [
+            this._userCellHtml({ ip: a.ip }),
+            this._esc(this._formatRecentDate(...this._splitIsoDate(a.first_seen))),
+            this._esc(this._formatRecentDate(...this._splitIsoDate(a.last_seen))),
+            this._esc(String(a.hit_count)),
+            `<span class="scan-routes" title="${this._esc((a.matched_routes || '').split('\n').join(', '))}">${this._esc((a.matched_routes || '').split('\n').slice(0, 3).join(', '))}${(a.matched_routes || '').split('\n').length > 3 ? '…' : ''}</span>`,
+        ]);
+
+        const patternRows = this.#scanPatterns.map((p) => [
+            `<code>${this._esc(p.pattern)}</code>`,
+            this._esc(p.source || ''),
+            this._esc(this._formatRecentDate(...this._splitIsoDate(p.added_at))),
+            `<input type="checkbox" class="pattern-enabled" data-id="${p.id}" ${Number(p.enabled) ? 'checked' : ''} />`,
+            `<button class="pattern-delete" data-id="${p.id}">${this._esc(this._t('ADMIN2.SCAN_DETECTION_DELETE_BUTTON', 'Delete'))}</button>`,
+        ]);
+
+        body.innerHTML = `
+            <div class="grid">
+                <div class="card wide">
+                    <h3>${this._esc(this._tf('ADMIN2.SCAN_DETECTION_ALERTS_HEADING', 'Open alerts (%s)', this.#scanAlerts.length))}</h3>
+                    ${this.#scanAlerts.length
+                        ? this._table(
+                            [
+                                this._t('ADMIN2.TABLE_IP', 'IP'),
+                                this._t('ADMIN2.TABLE_FIRST_SEEN', 'First seen'),
+                                this._t('ADMIN2.TABLE_LAST_SEEN', 'Last seen'),
+                                this._t('ADMIN2.TABLE_HIT_COUNT', 'Matches'),
+                                this._t('ADMIN2.TABLE_MATCHED_ROUTES', 'Matched routes'),
+                            ],
+                            alertRows
+                        )
+                        : `<div class="state">${this._esc(this._t('ADMIN2.SCAN_DETECTION_NO_ALERTS', 'No open alerts.'))}</div>`}
+                </div>
+                <div class="card wide">
+                    <h3>${this._esc(this._t('ADMIN2.SCAN_DETECTION_PATTERNS_HEADING', 'Patterns'))}</h3>
+                    <div class="lookup-row">
+                        <input type="text" class="new-pattern" placeholder="${this._esc(this._t('ADMIN2.SCAN_DETECTION_ADD_PATTERN_PLACEHOLDER', '/some/vulnerable-path.php'))}" />
+                        <button class="add-pattern">${this._esc(this._t('ADMIN2.SCAN_DETECTION_ADD_PATTERN_BUTTON', 'Add'))}</button>
+                    </div>
+                    ${this._table(
+                        [
+                            this._t('ADMIN2.TABLE_PATTERN', 'Pattern'),
+                            this._t('ADMIN2.TABLE_SOURCE', 'Source'),
+                            this._t('ADMIN2.TABLE_ADDED', 'Added'),
+                            this._t('ADMIN2.TABLE_ENABLED', 'Enabled'),
+                            this._t('ADMIN2.TABLE_ACTIONS', 'Actions'),
+                        ],
+                        patternRows
+                    )}
+                </div>
+            </div>
+        `;
+
+        body.querySelector('.add-pattern')?.addEventListener('click', () => this._addScanPattern());
+        body.querySelector('.new-pattern')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this._addScanPattern();
+        });
+        body.querySelectorAll('.pattern-enabled').forEach((el) => {
+            el.addEventListener('change', () => this._setScanPatternEnabled(Number(el.dataset.id), el.checked));
+        });
+        body.querySelectorAll('.pattern-delete').forEach((el) => {
+            el.addEventListener('click', () => this._deleteScanPattern(Number(el.dataset.id)));
+        });
+        this._bindNavLinks(body);
+    }
+
+    /**
+     * "first_seen"/"last_seen"/"added_at" arrive as ISO-8601 strings (see
+     * docs/DATABASES.md "Date storage and comparison") - _formatRecentDate()
+     * expects the same separate (day, time) shape the dashboard's own
+     * "Recently viewed pages" rows use, so this splits an ISO string into
+     * that shape rather than duplicating a second date formatter.
+     */
+    _splitIsoDate(iso) {
+        if (!iso) return [null, null];
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return [null, null];
+        // Local date/time parts throughout (not a UTC/local mix) - the
+        // browser already renders "iso" (an offset-carrying ISO-8601
+        // string, see docs/DATABASES.md "Date storage and comparison") in
+        // the visitor's own local time via `new Date()`/these getters, same
+        // as everywhere else in this file that shows a timestamp.
+        const pad = (n) => String(n).padStart(2, '0');
+        const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        return [day, time];
+    }
+
+    async _addScanPattern() {
+        const input = this.shadowRoot.querySelector('.new-pattern');
+        const pattern = input?.value.trim();
+        if (!pattern) return;
+
+        try {
+            const data = await this._apiPost('/page-insights/scan-patterns', { pattern });
+            this.#scanPatterns = data.patterns || this.#scanPatterns;
+            this._renderScanDetectionBody();
+            window.__GRAV_TOAST?.success(this._t('ADMIN2.PATTERN_ADDED_TOAST', 'Pattern added.'));
+        } catch (err) {
+            window.__GRAV_TOAST?.error(err?.message || this._t('ADMIN2.ERROR_ADD_PATTERN', 'Could not add pattern'));
+        }
+    }
+
+    async _setScanPatternEnabled(id, enabled) {
+        try {
+            const data = await this._apiPatch(`/page-insights/scan-patterns/${id}`, { enabled });
+            this.#scanPatterns = data.patterns || this.#scanPatterns;
+        } catch (err) {
+            window.__GRAV_TOAST?.error(err?.message || this._t('ADMIN2.ERROR_UPDATE_PATTERN', 'Could not update pattern'));
+            this._renderScanDetectionBody(); // revert the checkbox to its last-known-good state
+        }
+    }
+
+    async _deleteScanPattern(id) {
+        const dialogs = window.__GRAV_DIALOGS;
+        if (dialogs?.confirm) {
+            const confirmed = await dialogs.confirm({
+                message: this._t('ADMIN2.SCAN_DETECTION_DELETE_CONFIRM', 'Delete this pattern? This cannot be undone.'),
+                variant: 'destructive',
+            });
+            if (!confirmed) return;
+        }
+
+        try {
+            const data = await this._apiDelete(`/page-insights/scan-patterns/${id}`);
+            this.#scanPatterns = data.patterns || this.#scanPatterns.filter((p) => p.id !== id);
+            this._renderScanDetectionBody();
+            window.__GRAV_TOAST?.success(this._t('ADMIN2.PATTERN_DELETED_TOAST', 'Pattern deleted.'));
+        } catch (err) {
+            window.__GRAV_TOAST?.error(err?.message || this._t('ADMIN2.ERROR_DELETE_PATTERN', 'Could not delete pattern'));
+        }
+    }
+
     _render() {
         if (this.#view === 'dashboard') {
             this._renderDashboardShell();
@@ -611,6 +795,7 @@ class PageInsightsPage extends HTMLElement {
                         <span class="next-run"></span>
                         <span class="db-size" title="${this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'))}"></span>
                         <button class="db-maintain-btn" title="${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON_TITLE', 'Free up disk space or delete old statistics data'))}">${this._esc(this._t('ADMIN2.DB_MAINTAIN_BUTTON', 'Maintain database'))}</button>
+                        <a href="${this._esc(location.pathname)}?view=scan-patterns" class="scan-detection-btn" data-nav="scan-patterns">${this._esc(this._t('ADMIN2.SCAN_DETECTION_NAV', 'Scan detection'))}</a>
                         <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
                     </div>
                 </div>
@@ -656,6 +841,7 @@ class PageInsightsPage extends HTMLElement {
         root.querySelector('.user-name').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') this._searchUser();
         });
+        this._bindNavLinks(root);
 
         this._highlightRange();
         this._highlightHideBots();
@@ -668,14 +854,16 @@ class PageInsightsPage extends HTMLElement {
      * and a .detail-body container filled by _loadPageDetail()/_loadUserDetail().
      */
     _renderDetailShell() {
-        this.shadowRoot.innerHTML = `
-            <style>${this._styles()}</style>
-            <div class="wrap">
-                <div class="detail-header">
-                    <a href="${this._esc(location.pathname)}" class="back-link" data-nav="dashboard">&larr; ${this._esc(this._t('ADMIN2.BACK_TO_DASHBOARD', 'Back to dashboard'))}</a>
-                    <h2>${this._esc(this._detailTitle())}</h2>
-                </div>
-                <div class="toolbar">
+        // The range/"Hide bots" toolbar only applies to Page Detail/User
+        // Detail (both filtered, chart-driven views sharing #range/#hideBots
+        // with the dashboard) - Scan detection has neither a date range nor
+        // a bot-traffic concept, so it gets a plain refresh button instead.
+        const isScanDetection = this.#view === 'scan-patterns';
+        const toolbar = isScanDetection
+            ? `<div class="toolbar"><div></div><div class="toolbar-end">
+                    <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
+                </div></div>`
+            : `<div class="toolbar">
                     <div class="range">
                         <button data-range="7">${this._esc(this._t('ADMIN2.RANGE_7D', '7d'))}</button>
                         <button data-range="30">${this._esc(this._t('ADMIN2.RANGE_30D', '30d'))}</button>
@@ -686,24 +874,35 @@ class PageInsightsPage extends HTMLElement {
                         <button class="hide-bots-btn ${this.#hideBots ? 'active' : ''}" title="${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON_TITLE', 'Filter every KPI, chart and list on this dashboard to hits not recognized as bot traffic (based on the "Bot User Agents" list in the config tab) - best-effort, not a guarantee.'))}">${this._esc(this._t('ADMIN2.HIDE_BOTS_BUTTON', 'Hide bots'))}</button>
                         <button class="refresh" title="${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}">&#8635; ${this._esc(this._t('ADMIN2.REFRESH', 'Refresh'))}</button>
                     </div>
+                </div>`;
+
+        this.shadowRoot.innerHTML = `
+            <style>${this._styles()}</style>
+            <div class="wrap">
+                <div class="detail-header">
+                    <a href="${this._esc(location.pathname)}" class="back-link" data-nav="dashboard">&larr; ${this._esc(this._t('ADMIN2.BACK_TO_DASHBOARD', 'Back to dashboard'))}</a>
+                    <h2>${this._esc(this._detailTitle())}</h2>
                 </div>
+                ${toolbar}
                 <div class="detail-body"></div>
             </div>
         `;
 
         const root = this.shadowRoot;
-        root.querySelectorAll('.range button').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                this.#range = btn.dataset.range;
-                this._highlightRange();
-                this._load();
+        if (!isScanDetection) {
+            root.querySelectorAll('.range button').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    this.#range = btn.dataset.range;
+                    this._highlightRange();
+                    this._load();
+                });
             });
-        });
+            root.querySelector('.hide-bots-btn').addEventListener('click', () => this._toggleHideBots());
+            this._highlightRange();
+            this._highlightHideBots();
+        }
         root.querySelector('.refresh').addEventListener('click', () => this._load());
-        root.querySelector('.hide-bots-btn').addEventListener('click', () => this._toggleHideBots());
         this._bindNavLinks(root);
-        this._highlightRange();
-        this._highlightHideBots();
     }
 
     _detailTitle() {
@@ -713,6 +912,9 @@ class PageInsightsPage extends HTMLElement {
         if (this.#view === 'user-detail') {
             if (this.#viewParams.user) return this._tf('ADMIN2.USER_DETAIL_TITLE', 'User detail: %s', this.#viewParams.user);
             if (this.#viewParams.ip) return this._tf('ADMIN2.USER_DETAIL_TITLE_ANONYMOUS', 'User detail: %s (anonymous)', this.#viewParams.ip);
+        }
+        if (this.#view === 'scan-patterns') {
+            return this._t('ADMIN2.SCAN_DETECTION_TITLE', 'Scan detection');
         }
         return '';
     }
@@ -1363,7 +1565,7 @@ class PageInsightsPage extends HTMLElement {
             .body, .detail-body { display: flex; flex-direction: column; gap: 16px; }
             .toolbar { display: flex; justify-content: space-between; align-items: center; }
             .range { display: flex; gap: 4px; }
-            .range button, .refresh, .db-maintain-btn, .hide-bots-btn, .lookup-row button, .load-more-recent {
+            .range button, .refresh, .db-maintain-btn, .hide-bots-btn, .lookup-row button, .load-more-recent, .scan-detection-btn, .pattern-delete {
                 background: var(--background);
                 color: var(--foreground);
                 border: 1px solid var(--border);
@@ -1372,8 +1574,11 @@ class PageInsightsPage extends HTMLElement {
                 cursor: pointer;
                 font-size: 13px;
             }
+            .scan-detection-btn { text-decoration: none; display: inline-block; }
             .range button.active, .hide-bots-btn.active { background: var(--primary); color: var(--primary-foreground, #fff); border-color: var(--primary); }
             .db-maintain-btn:disabled { cursor: default; opacity: 0.6; }
+            .scan-routes { cursor: help; }
+            code { font-size: 12px; }
             .toolbar-end { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; row-gap: 6px; }
             .db-size { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
             .next-run { font-size: 12px; color: var(--muted-foreground); }

@@ -64,10 +64,12 @@ user/plugins/page-insights/
 │   ├── VacuumCommand.php                  # vacuum
 │   ├── RollupBuildCommand.php             # rollup:build
 │   ├── PruneBotsCommand.php               # prune:bots
-│   └── PruneNotFoundCommand.php           # prune:notfound
+│   ├── PruneNotFoundCommand.php           # prune:notfound
+│   └── ScanPatternsImportCommand.php      # scan-patterns:import (see "Scan detection" below)
 ├── data/
 │   ├── geo-country-index.bin              # NOT shipped/committed - built on demand, see GEOLOCATION.md
-│   └── migrations/{1..9}.sql + MUST_MIGRATE  # schema upgrades, applied by Stats.php on boot
+│   ├── scan-patterns-webexploits.txt      # default scan-pattern seed list, see "Scan detection" below
+│   └── migrations/{1..10}.sql + MUST_MIGRATE # schema upgrades, applied by Stats.php on boot
 │                                           # (schema/format details: DATABASES.md)
 ├── admin-next/pages/page-insights.js      # Admin2 dashboard (Web Component, Shadow DOM)
 ├── themes/admin/templates/                # Classic Admin Twig templates (9 sub-pages, see below)
@@ -190,6 +192,57 @@ push/PR. A failure in the "Abhängigkeiten installieren" (`composer install`) st
 any syntax check runs, points at the `composer.lock` drift described above, not at a code issue.
 A force-push interacting badly with this diff-scoping logic once caused the check to silently
 skip everything and report success - see [`HISTORY.md`](HISTORY.md) #25.
+
+## Scan detection
+
+Opt-in (`scan_detection`, default `false`) feature that matches recently collected 404 hits
+against an admin-curated list of known vulnerability-scan paths (`scan_patterns` table) and raises
+an alert (`scan_alerts` table) once one IP racks up too many distinct matches in too short a
+window - typically automated probing (a scanner walking through `/wp-login.php`, `/.git/config`,
+`/phpMyAdmin/index.php` and similar known-vulnerable paths) rather than a stray broken link. Added
+2026-08-24 after noticing exactly this pattern in `data` during unrelated debugging. See
+[`DATABASES.md`](DATABASES.md) for the schema and [`MAINTENANCE.md`](MAINTENANCE.md) for the
+scheduler job, CLI import command, and Admin2 "Scan detection" view.
+
+Two design decisions worth calling out, both driven by the "no per-request performance cost"
+requirement this feature started from:
+
+- **Detection is entirely a scheduled batch job (`registerScanDetectionJob()`, every 5 minutes),
+  never a request hook.** `onPageInitialized` already logs every 404 (route, IP, timestamp) via
+  the existing `collect()` path - scan detection reads *that*, after the fact, rather than adding
+  its own per-request pattern-matching. A visitor's request is never slowed down or blocked by
+  this feature, regardless of how large `scan_patterns` grows.
+- **The 5-minute cadence isn't built on `AutoSchedule`** (unlike `geo_db_auto_update`/
+  `data_auto_prune`/`rollup_auto_build`): that class only ever derives a `disabled`/`daily`/
+  `weekly`/`monthly` point in time, since none of its other callers needed anything finer.
+  `registerScanDetectionJob()` uses a fixed `*/5 * * * *` cron expression instead, gated by a
+  plain boolean config flag. This needs no separate crontab entry or admin setup beyond the config
+  toggle - the site's one `bin/grav scheduler` cron entry already runs every minute regardless (a
+  Grav Admin "custom scheduled jobs" entry, the other mechanism considered, would have needed the
+  admin to configure a shell command by hand for something this plugin can register itself).
+
+Alerting has two independent channels, both reading `scan_alerts` fresh - neither is the source of
+truth for the other:
+
+- **Admin2 dashboard banner** (`onApiDashboardNotifications`, no-op without the `api` plugin -
+  same pattern as `onApiSidebarItems`/`onApiRegisterRoutes`): contributes one dismissible "top"
+  notification per currently-open alert every time the dashboard loads, via the api plugin's own
+  notification mechanism (`DashboardController::notifications()` - see that class for the
+  location/dismiss/`reappear_after` schema). Always reflects live state.
+- **Email**, optional (`scan_detection_alert_email`): reuses Grav-Core's `Scheduler\Job::email()`
+  directly - the same mechanism the Admin's "custom scheduled jobs" UI exposes as its own "E-Mail"
+  field - rather than this plugin implementing its own "is the `email` plugin installed" check.
+  `Job::email()` internally checks `Grav\Plugin\Email\Utils::sendEmail()` is callable and silently
+  no-ops otherwise, so nothing breaks on a site without the (separate, official, `bin/gpm install
+  email`) `email` plugin. Only sent once per alert (`scan_alerts.notified_at`) - a still-ongoing
+  incident doesn't re-email every five minutes for as long as it continues.
+
+`scan_patterns` starts empty on every install - population is a separate, deliberate step
+(`bin/plugin page-insights scan-patterns:import`, seeded from the bundled
+`data/scan-patterns-webexploits.txt` snapshot, or manual entries via the Admin2 "Scan detection"
+view). Both `importScanPatterns()` (the CLI command) and `addScanPattern()` (the Admin2 "add"
+form) insert-only-if-missing (`INSERT OR IGNORE` against the `UNIQUE pattern` column) - re-running
+the import after an admin has disabled or added their own patterns never touches those rows.
 
 ## Further documentation
 

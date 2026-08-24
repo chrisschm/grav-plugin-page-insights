@@ -65,7 +65,15 @@ once, see [`HISTORY.md`](HISTORY.md) #9/#12).
   `http_code = 404`, regardless of age, plus any now-orphaned `events` rows
   (`Stats::pruneNotFoundHits()`, same `pruneOrphanedEvents()` pattern as above). CLI equivalent of
   the Admin2 maintenance dialog's `prune_notfound` preset. Same reasoning as `prune:bots` for
-  keeping it a separate command rather than an `--older-than` variant.
+  keeping it a separate command rather than an `--older-than` variant. **Interaction with scan
+  detection (see below):** this deletes the exact `data` rows scan detection's own history is
+  read from (`http_code = 404`) - `scan_alerts` rows already raised are untouched (they're a
+  separate table, already-derived state), but running this manually removes the underlying
+  evidence for any *new* detection going forward until fresh 404s accumulate again. Not a reason
+  to avoid `prune:notfound` - just worth knowing before running it on a site with scan detection
+  enabled.
+- **`bin/plugin page-insights scan-patterns:import [--file=<pfad>] [--source=<name>]`** - see
+  "Scan detection" below.
 
 ## Admin2 database maintenance dialog (`PageInsightsApiController::maintainDb()`)
 
@@ -196,6 +204,47 @@ Surfaced in both admin UIs next to the database size (`Stats::dbStats()`'s `next
 `stats.html.twig` titlebar and Admin2's dashboard toolbar both already render `Stats::dbStats()`'s
 other fields there, so piggy-backing on that one method gets both UIs the schedule info without a
 new route or twig variable.
+
+## Scan detection (`PageInsightsPlugin::registerScanDetectionJob()`, Admin2-only)
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) "Scan detection" for the feature's full design/rationale
+and [`DATABASES.md`](DATABASES.md) "Tables `scan_patterns` / `scan_alerts`" for the schema; this
+section covers the operational surfaces.
+
+**Populating the pattern list** (`scan_patterns` starts empty on every install):
+
+- **`bin/plugin page-insights scan-patterns:import [--file=<pfad>] [--source=<name>]`** - without
+  `--file`, imports the plugin's own bundled `data/scan-patterns-webexploits.txt` snapshot (see
+  that file's header for provenance/license); with `--file`, imports a custom list in the same
+  one-pattern-per-line format instead. Always insert-only-if-missing (`Stats::importScanPatterns()`)
+  - safe to re-run after a future release ships an updated snapshot, or repeatedly against the
+  same file; existing rows (including ones an admin has since disabled or deleted) are never
+  touched or re-created.
+- **Admin2 "Scan detection" view** (sidebar link next to "Maintain database" on the dashboard,
+  `admin-next/pages/page-insights.js`) - lists every pattern with an enable/disable toggle and a
+  delete button, plus a one-line "add pattern" form (inserted with `source = 'manual'`, same
+  insert-only-if-missing behaviour as the CLI import). Also lists currently open `scan_alerts`.
+  No Classic Admin equivalent - an actionable, mutation-triggering surface, same category as the
+  Admin2-only database maintenance dialog above (see "Design goals" in `ARCHITECTURE.md`).
+
+**The detection job itself** - opt-in (`scan_detection`, default `false`), registered from
+`onSchedulerInitialized()` alongside the three jobs above but, unlike them, **not** built on
+`AutoSchedule`: that class only ever derives a `disabled`/`daily`/`weekly`/`monthly` point in
+time, since none of its other callers needed a sub-daily interval. `registerScanDetectionJob()`
+uses a fixed `*/5 * * * *` cron expression instead - the site's one `bin/grav scheduler` cron
+entry already runs every minute regardless, so this needs no separate crontab line or admin setup
+beyond the `scan_detection` toggle itself.
+
+Each run calls `Stats::detectScans($windowMinutes, $threshold)` (config: `scan_detection_window_minutes`
+default 10, `scan_detection_threshold` default 5) and logs a summary line per matched IP to
+`logs/page-insights-scan-detection.out` (same `Job::output()` convention as the other three jobs).
+If `scan_detection_alert_email` is set, the job also calls `Job::email()` - Grav-Core's own
+`Scheduler\Job` email support (the same mechanism the Admin's "custom scheduled jobs" UI exposes
+as its own "E-Mail" field), which internally no-ops unless the separate, official `email` plugin
+(`bin/gpm install email`) is installed and configured. Only sent once per alert
+(`scan_alerts.notified_at`), not on every run for as long as an incident continues - see
+`ARCHITECTURE.md` for the full alerting design, including the independent, always-live Admin2
+dashboard banner (`onApiDashboardNotifications`).
 
 ---
 

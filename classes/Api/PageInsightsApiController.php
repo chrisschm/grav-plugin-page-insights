@@ -456,6 +456,99 @@ class PageInsightsApiController extends AbstractApiController
     }
 
     /**
+     * GET /page-insights/scan-patterns
+     *
+     * Backs the "Scan detection" Admin2 view's pattern table - see
+     * docs/ARCHITECTURE.md "Scan detection".
+     */
+    public function scanPatterns(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->requirePermission($request, self::READ_PERMISSION);
+
+        return ApiResponse::create([
+            'patterns' => $this->getStats()->listScanPatterns(),
+        ]);
+    }
+
+    /**
+     * POST /page-insights/scan-patterns { pattern: string }
+     *
+     * Manually adds one pattern (source "manual" - see
+     * Stats::addScanPattern()). Insert-only-if-missing, same as the bulk
+     * `scan-patterns:import` CLI command - re-submitting an existing
+     * pattern is a harmless no-op, not an error.
+     */
+    public function addScanPattern(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->requirePermission($request, self::WRITE_PERMISSION);
+
+        $body = $this->getRequestBody($request);
+        $this->requireFields($body, ['pattern']);
+        $pattern = trim((string) $body['pattern']);
+        if ($pattern === '') {
+            throw new ValidationException('Pattern darf nicht leer sein.', [
+                ['field' => 'pattern', 'message' => 'Darf nicht leer sein.'],
+            ]);
+        }
+
+        $stats = $this->getStats();
+        $stats->addScanPattern($pattern);
+
+        return ApiResponse::create(['patterns' => $stats->listScanPatterns()]);
+    }
+
+    /**
+     * PATCH /page-insights/scan-patterns/{id} { enabled: bool }
+     */
+    public function setScanPatternEnabled(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->requirePermission($request, self::WRITE_PERMISSION);
+
+        $id = (int) $this->getRouteParam($request, 'id');
+        $body = $this->getRequestBody($request);
+        $this->requireFields($body, ['enabled']);
+
+        $stats = $this->getStats();
+        $stats->setScanPatternEnabled($id, (bool) $body['enabled']);
+
+        return ApiResponse::create(['patterns' => $stats->listScanPatterns()]);
+    }
+
+    /**
+     * DELETE /page-insights/scan-patterns/{id}
+     */
+    public function deleteScanPattern(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->requirePermission($request, self::WRITE_PERMISSION);
+
+        $id = (int) $this->getRouteParam($request, 'id');
+        $stats = $this->getStats();
+        $stats->deleteScanPattern($id);
+
+        return ApiResponse::create(['patterns' => $stats->listScanPatterns()]);
+    }
+
+    /**
+     * GET /page-insights/scan-alerts
+     *
+     * Currently open alerts (default: last_seen within the configured
+     * detection window) for the "Scan detection" view's alert list - the
+     * same data onApiDashboardNotifications() surfaces as dashboard
+     * banners, see Stats::listOpenScanAlerts().
+     */
+    public function scanAlerts(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->requirePermission($request, self::READ_PERMISSION);
+
+        $grav = Grav::instance();
+        $windowMinutes = (int) $grav['config']->get('plugins.page-insights.scan_detection_window_minutes', 10);
+
+        return ApiResponse::create([
+            'alerts' => $this->getStats()->listOpenScanAlerts($windowMinutes, 100),
+        ]);
+    }
+
+    /**
      * Builds the same style of equality-filter array Stats::query() expects
      * (['route' => ...] / ['user' => ...] / ['ip' => ...]) from whichever of
      * those query params is present. Returns [] (no filter) if none are -

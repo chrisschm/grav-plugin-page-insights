@@ -48,6 +48,32 @@ data_auto_prune: disabled
 # the `prune` CLI command's --older-than option, see classes/RelativeDate.php.
 data_auto_prune_older_than: '365d'
 
+# Scan detection (see docs/ARCHITECTURE.md "Scan detection" and
+# docs/MAINTENANCE.md "Scan detection"): periodically matches recent 404
+# hits against an admin-curated "scan_patterns" list and raises an alert
+# when one IP racks up too many distinct matches in too short a window.
+# Off by default - unlike geo_db_auto_update, this reads/writes new tables
+# and can send email, and scan_patterns starts out empty on every install
+# (see `scan-patterns:import`), so there's nothing useful for it to do until
+# an admin has both opted in here and populated a pattern list.
+scan_detection: false
+
+# How many distinct matched routes from one IP, within
+# scan_detection_window_minutes, count as an alert.
+scan_detection_threshold: 5
+
+# The lookback window (minutes) both the detection job and "how long does an
+# alert stay 'open'" (Stats::listOpenScanAlerts()) use.
+scan_detection_window_minutes: 10
+
+# Optional - if set, an alert email is sent via the "email" plugin (Grav
+# Scheduler's own Job::email(), see registerScanDetectionJob()) the first
+# time an incident crosses the threshold. Requires the separate, official
+# "email" plugin (bin/gpm install email) to be installed and configured;
+# silently does nothing otherwise. Empty = no email, dashboard notification
+# only.
+scan_detection_alert_email: ''
+
 show_top_users_widget: true
 cols_top_users_widget: 'col-12 col-md-3'
 limit_top_users_widget: 10

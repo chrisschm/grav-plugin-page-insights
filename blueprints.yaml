@@ -298,6 +298,45 @@ form:
                                     options:
                                         disabled: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_DISABLED
                                         daily: PLUGIN_PAGE_INSIGHTS.AUTO_SCHEDULE_DAILY
+
+                        section_scan_detection:
+                            type: section
+                            title: PLUGIN_PAGE_INSIGHTS.SECTION_SCAN_DETECTION
+                            text: PLUGIN_PAGE_INSIGHTS.SECTION_SCAN_DETECTION_LABEL
+                            underline: true
+                            fields:
+                                scan_detection:
+                                    type: toggle
+                                    label: PLUGIN_PAGE_INSIGHTS.SCAN_DETECTION_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.SCAN_DETECTION_HELP
+                                    highlight: 1
+                                    default: 0
+                                    options:
+                                        1: PLUGIN_ADMIN.ENABLED
+                                        0: PLUGIN_ADMIN.DISABLED
+                                    validate:
+                                        type: bool
+                                scan_detection_threshold:
+                                    type: number
+                                    label: PLUGIN_PAGE_INSIGHTS.SCAN_DETECTION_THRESHOLD_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.SCAN_DETECTION_THRESHOLD_HELP
+                                    default: 5
+                                    validate:
+                                        min: 1
+                                scan_detection_window_minutes:
+                                    type: number
+                                    label: PLUGIN_PAGE_INSIGHTS.SCAN_DETECTION_WINDOW_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.SCAN_DETECTION_WINDOW_HELP
+                                    default: 10
+                                    validate:
+                                        min: 1
+                                scan_detection_alert_email:
+                                    type: text
+                                    label: PLUGIN_PAGE_INSIGHTS.SCAN_DETECTION_EMAIL_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.SCAN_DETECTION_EMAIL_HELP
+                                    validate:
+                                        type: email
+                                        required: false
                 tab_classic_admin:
                     type: tab
                     title: PLUGIN_PAGE_INSIGHTS.TAB_CLASSIC_ADMIN

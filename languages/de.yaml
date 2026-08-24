@@ -237,6 +237,36 @@ PLUGIN_PAGE_INSIGHTS:
     `bin/plugin page-insights rollup:build --from=<zeitraum>` ausführen;
     diese Einstellung hält es nur ab jetzt aktuell.
 
+  SECTION_SCAN_DETECTION: Scan-Erkennung
+  SECTION_SCAN_DETECTION_LABEL: Gleicht periodisch zuletzt erfasste 404-Treffer
+    mit einer gepflegten Liste bekannter, für Angriffe typischer Pfade ab und
+    löst einen Alarm aus, sobald eine IP zu viele verschiedene Treffer in zu
+    kurzer Zeit erzeugt - typischerweise ein Zeichen für automatisiertes
+    Scannen, kein einzelner defekter Link. Standardmäßig deaktiviert, und die
+    Musterliste startet leer - siehe `scan-patterns:import` oder die Ansicht
+    "Scan-Erkennung" in der Admin2-Seitenleiste zum Befüllen.
+  SCAN_DETECTION_LABEL: Scan-Erkennung aktivieren
+  SCAN_DETECTION_HELP: Läuft alle 5 Minuten über Gravs eigenen Scheduler
+    (bin/grav scheduler) - kein separater Cron-Eintrag nötig. Liest
+    ausschließlich bereits erfasste 404-Treffer; kein zusätzlicher Aufwand pro
+    Anfrage.
+  SCAN_DETECTION_THRESHOLD_LABEL: Alarm-Schwellenwert
+  SCAN_DETECTION_THRESHOLD_HELP: Anzahl verschiedener passender Pfade derselben
+    IP innerhalb des unten angegebenen Zeitfensters, die als Alarm zählen.
+  SCAN_DETECTION_WINDOW_LABEL: Erkennungsfenster (Minuten)
+  SCAN_DETECTION_WINDOW_HELP: Wie weit jeder Durchlauf zurückblickt und wie
+    lange ein Alarm danach als "offen" gilt.
+  SCAN_DETECTION_EMAIL_LABEL: E-Mail-Adresse für Alarme
+  SCAN_DETECTION_EMAIL_HELP: Optional. Erfordert das separate, offizielle
+    "email"-Plugin (bin/gpm install email), installiert und konfiguriert -
+    sonst passiert nichts. Leer lassen für ausschließlich
+    Dashboard-Benachrichtigungen.
+  SCAN_ALERT_TITLE: Möglicher Schwachstellen-Scan erkannt
+  SCAN_ALERT_MESSAGE: "IP %s hat %s verschiedene bekannt verwundbare Pfade in
+    kurzer Zeit angefragt - das deutet typischerweise auf automatisiertes
+    Scannen hin, nicht auf normalen Besucherverkehr. Details in der Ansicht
+    \"Scan-Erkennung\"."
+
   NEXT_GEO_DB_UPDATE: "Nächste Geo-DB-Aktualisierung: %s"
   NEXT_AUTO_PRUNE: "Nächste automatische Bereinigung: %s"
   LOG_ADMIN_LABEL: Aktivitäten von Administratoren protokollieren
@@ -301,6 +331,33 @@ PLUGIN_PAGE_INSIGHTS:
     DB_MAINTAIN_ACTION_PRUNE_OLD: Daten älter als 1 Jahr löschen
     DB_MAINTAIN_ACTION_PRUNE_BOTS: Bot-Traffic löschen
     DB_MAINTAIN_ACTION_PRUNE_NOTFOUND: 404-Treffer (nicht gefunden) löschen
+
+    SCAN_DETECTION_NAV: Scan-Erkennung
+    SCAN_DETECTION_TITLE: Scan-Erkennung
+    SCAN_DETECTION_ALERTS_HEADING: 'Offene Alarme (%s)'
+    SCAN_DETECTION_NO_ALERTS: Keine offenen Alarme.
+    SCAN_DETECTION_PATTERNS_HEADING: Muster
+    SCAN_DETECTION_ADD_PATTERN_PLACEHOLDER: '/pfad/zu/einer-verwundbaren-datei.php'
+    SCAN_DETECTION_ADD_PATTERN_BUTTON: Hinzufügen
+    SCAN_DETECTION_ENABLE_TOGGLE: Aktiviert
+    SCAN_DETECTION_DELETE_BUTTON: Löschen
+    SCAN_DETECTION_DELETE_CONFIRM: 'Dieses Muster löschen? Das kann nicht rückgängig gemacht werden.'
+    TABLE_IP: IP
+    TABLE_FIRST_SEEN: Zuerst gesehen
+    TABLE_LAST_SEEN: Zuletzt gesehen
+    TABLE_HIT_COUNT: Treffer
+    TABLE_MATCHED_ROUTES: Passende Pfade
+    TABLE_PATTERN: Muster
+    TABLE_SOURCE: Quelle
+    TABLE_ADDED: Hinzugefügt
+    TABLE_ENABLED: Aktiviert
+    TABLE_ACTIONS: Aktionen
+    ERROR_LOAD_SCAN_DETECTION: Scan-Erkennungsdaten konnten nicht geladen werden
+    ERROR_ADD_PATTERN: Muster konnte nicht hinzugefügt werden
+    ERROR_UPDATE_PATTERN: Muster konnte nicht aktualisiert werden
+    ERROR_DELETE_PATTERN: Muster konnte nicht gelöscht werden
+    PATTERN_ADDED_TOAST: Muster hinzugefügt.
+    PATTERN_DELETED_TOAST: Muster gelöscht.
     DB_MAINTAIN_SUBMIT: Ausführen
     DB_MAINTAIN_TOAST_DELETED: '%s Eintrag/Einträge gelöscht. Datenbankgröße:
       %s MB → %s MB.'

@@ -109,6 +109,12 @@ class PageInsightsPlugin extends Plugin
             'onApiSidebarItems' => ['onApiSidebarItems', 0],
             'onApiPluginPageInfo' => ['onApiPluginPageInfo', 0],
 
+            // Contributes open scan-detection alerts (see
+            // registerScanDetectionJob()/onApiDashboardNotifications()) to
+            // the Admin2 dashboard's notification banner. Same no-op-without-
+            // the-api-plugin reasoning as the three events above.
+            'onApiDashboardNotifications' => ['onApiDashboardNotifications', 0],
+
             // Grav-Core's own Scheduler (`bin/grav scheduler` / the Admin's
             // Scheduler status page). Registered unconditionally, like the
             // onApi* events above - this needs to fire in the CLI context
@@ -805,6 +811,14 @@ class PageInsightsPlugin extends Plugin
             // database" button next to the Admin2 dashboard's database-size
             // badge - see docs/MAINTENANCE.md "Admin2 database maintenance dialog".
             $group->post('/db/maintain', [$controller, 'maintainDb']);
+
+            // Scan detection (see docs/ARCHITECTURE.md "Scan detection") -
+            // the "Scan detection" Admin2 view's pattern list/alert feed.
+            $group->get('/scan-patterns', [$controller, 'scanPatterns']);
+            $group->post('/scan-patterns', [$controller, 'addScanPattern']);
+            $group->patch('/scan-patterns/{id}', [$controller, 'setScanPatternEnabled']);
+            $group->delete('/scan-patterns/{id}', [$controller, 'deleteScanPattern']);
+            $group->get('/scan-alerts', [$controller, 'scanAlerts']);
         });
     }
 
@@ -885,6 +899,59 @@ class PageInsightsPlugin extends Plugin
     }
 
     /**
+     * Admin2: contributes one dismissible "top" banner notification per
+     * currently open scan-detection alert (see docs/ARCHITECTURE.md "Scan
+     * detection") to the api plugin's dashboard notification feed
+     * (DashboardController::notifications(), fired as
+     * onApiDashboardNotifications - see that method's own doc comment for
+     * the full mechanism: location grouping, dismiss/reappear_after,
+     * per-user hide state). Deliberately independent of
+     * data_auto_prune/notified_at - this always reflects live
+     * "scan_alerts" state, not whatever the scheduled job has or hasn't
+     * emailed yet (see registerScanDetectionJob()).
+     *
+     * No-op (no scan_patterns configured, feature disabled, or nothing
+     * currently open) leaves $event['notifications'] untouched, same as
+     * every other onApi* hook in this class when there's nothing to add.
+     */
+    public function onApiDashboardNotifications(Event $event): void
+    {
+        $config = $this->config();
+        if (!$config['scan_detection']) {
+            return;
+        }
+
+        $stats = new Stats((string) $config['db'], $config);
+        $windowMinutes = (int) ($config['scan_detection_window_minutes'] ?? 10);
+        $alerts = $stats->listOpenScanAlerts($windowMinutes);
+        if (!$alerts) {
+            return;
+        }
+
+        $notifications = $event['notifications'] ?? [];
+        $notifications['top'] = $notifications['top'] ?? [];
+
+        foreach ($alerts as $alert) {
+            $notifications['top'][] = [
+                'id' => 'page-insights-scan-alert-' . $alert['id'],
+                'type' => 'warning',
+                'title' => $this->grav['language']->translate('PLUGIN_PAGE_INSIGHTS.SCAN_ALERT_TITLE'),
+                'message' => sprintf(
+                    $this->grav['language']->translate('PLUGIN_PAGE_INSIGHTS.SCAN_ALERT_MESSAGE'),
+                    $alert['ip'],
+                    $alert['hit_count']
+                ),
+                // Reappears a day after being dismissed, in case the same IP
+                // keeps probing - a one-time dismissal shouldn't silence a
+                // genuinely ongoing attack for good.
+                'reappear_after' => '+1 day',
+            ];
+        }
+
+        $event['notifications'] = $notifications;
+    }
+
+    /**
      * Admin2: declares the "Page Stats" page as a component-mode page,
      * rendered by admin-next/pages/page-insights.js.
      */
@@ -932,6 +999,7 @@ class PageInsightsPlugin extends Plugin
         $this->registerGeoDbAutoUpdateJob($scheduler, $config);
         $this->registerAutoPruneJob($scheduler, $config);
         $this->registerRollupBuildJob($scheduler, $config);
+        $this->registerScanDetectionJob($scheduler, $config);
     }
 
     /**
@@ -1074,5 +1142,98 @@ class PageInsightsPlugin extends Plugin
         );
         $job->at($cron);
         $job->output('logs/page-insights-data-prune.out');
+    }
+
+    /**
+     * Optional scan-detection job (see docs/ARCHITECTURE.md "Scan
+     * detection"): every five minutes, matches recently collected 404 hits
+     * against the admin-curated "scan_patterns" list and raises an
+     * "scan_alerts" row for any IP with too many distinct matches in too
+     * short a window - see Stats::detectScans() for the actual logic, this
+     * method is purely wiring.
+     *
+     * Deliberately NOT built on AutoSchedule (unlike the three jobs above):
+     * AutoSchedule only derives a "disabled"/"daily"/"weekly"/"monthly"
+     * point in time, never a sub-daily interval, since none of its other
+     * callers need one - so this uses a fixed "*\/5 * * * *" cron
+     * expression instead, gated by a plain enabled/disabled config flag
+     * (scan_detection). The underlying `bin/grav scheduler` invocation
+     * already runs every minute regardless (the site's one Scheduler cron
+     * entry, same one every job here relies on), so this needs no
+     * additional crontab line or admin setup beyond the config toggle -
+     * see docs/MAINTENANCE.md "Scan detection" for the reasoning that ruled
+     * out the Admin's "custom scheduled jobs" UI for this instead.
+     *
+     * Off by default, like data_auto_prune: unlike geo_db_auto_update
+     * (which only refreshes a lookup file), this reads/writes new tables
+     * and can send email - an admin should consciously opt in, plus decide
+     * whether to populate scan_patterns at all first (`scan-patterns:import`
+     * or the Admin2 "Scan detection" view).
+     */
+    private function registerScanDetectionJob(Scheduler $scheduler, array $config): void
+    {
+        if (!$config['scan_detection']) {
+            return;
+        }
+
+        $dbPath = (string) $config['db'];
+        $windowMinutes = (int) ($config['scan_detection_window_minutes'] ?? 10);
+        $threshold = (int) ($config['scan_detection_threshold'] ?? 5);
+        $alertEmail = trim((string) ($config['scan_detection_alert_email'] ?? ''));
+
+        $job = $scheduler->addFunction(
+            function () use ($dbPath, $config, $windowMinutes, $threshold) {
+                // No environment passed: detectScans() deliberately looks
+                // across every site sharing this installation - see its
+                // own docblock.
+                $stats = new Stats($dbPath, $config);
+                $result = $stats->detectScans($windowMinutes, $threshold);
+
+                // Only the alerts this run actually raised/extended that
+                // haven't been emailed yet - a still-ongoing incident from
+                // five minutes ago shouldn't generate a fresh email every
+                // single run, only when it first crosses the threshold.
+                $toNotify = array_filter($result['alerts'], fn ($a) => $a['notified_at'] === null);
+
+                $lines = ["Scan-Erkennung: {$result['checked']} 404-Treffer im {$windowMinutes}-Minuten-Fenster geprueft.\n"];
+                foreach ($result['alerts'] as $alert) {
+                    $lines[] = sprintf(
+                        "  IP %s: %d verschiedene verdaechtige Pfade (Schwelle: %d)%s\n    %s\n",
+                        $alert['ip'],
+                        $alert['hit_count'],
+                        $threshold,
+                        $alert['notified_at'] === null ? '' : ' (bereits gemeldet)',
+                        implode(', ', $alert['matched_routes'])
+                    );
+                }
+
+                if ($toNotify) {
+                    $stats->markScanAlertsNotified(array_column($toNotify, 'id'));
+                }
+
+                return implode('', $lines);
+            },
+            [],
+            'page-insights-scan-detection'
+        );
+        // Fixed 5-minute cron, not AutoSchedule - see this method's own
+        // docblock for why.
+        $job->at('*/5 * * * *');
+        $job->output('logs/page-insights-scan-detection.out');
+
+        // Job::email() (Grav-Core's Scheduler\Job, same mechanism the
+        // Admin's own "custom scheduled jobs" UI exposes as its "E-Mail"
+        // field) only actually sends anything if the "email" plugin is
+        // installed (it checks Grav\Plugin\Email\Utils::sendEmail() being
+        // callable internally and silently no-ops otherwise) - no extra
+        // "is it installed" check needed here. Only wired up at all if the
+        // admin configured an address; ->email() also forces the job to
+        // run in the foreground (Job::inForeground()), which is fine here -
+        // this job's own work (one bounded SELECT plus a handful of small
+        // writes) never runs long enough for background execution to
+        // matter the way it might for a heavier job.
+        if ($alertEmail !== '') {
+            $job->email($alertEmail);
+        }
     }
 }

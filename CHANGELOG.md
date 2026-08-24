@@ -1,3 +1,22 @@
+# unreleased
+
+1. [](#new)
+    * feat: new opt-in "Scan detection" feature - periodically matches recently collected 404 hits
+      against an admin-curated list of known vulnerability-scan paths (new `scan_patterns` table,
+      started empty; populate via `bin/plugin page-insights scan-patterns:import`, seeded from a
+      bundled Fail2Ban.WebExploits-derived snapshot, or the new Admin2 "Scan detection" view) and
+      raises an alert (new `scan_alerts` table) once one IP racks up too many distinct matches
+      (default: 5) within a short window (default: 10 minutes) - typically automated probing
+      rather than a stray broken link. Runs entirely as a new opt-in Scheduler job every 5 minutes
+      (`scan_detection` config, default off) - never a request hook, so this adds no per-request
+      overhead regardless of pattern-list size. Alerts surface as a dismissible Admin2 dashboard
+      banner (`onApiDashboardNotifications`) and, optionally, email (`scan_detection_alert_email`,
+      via Grav-Core's own `Scheduler\Job::email()` - requires the separate, official `email`
+      plugin). Admin2-only (new "Scan detection" sidebar view), like the existing database
+      maintenance dialog - see `docs/ARCHITECTURE.md` ("Scan detection"), `docs/DATABASES.md`
+      ("Tables `scan_patterns` / `scan_alerts`"), and `docs/MAINTENANCE.md` ("Scan detection") for
+      the full design, schema, and operational details.
+
 # v3.3.2
 ## 08/24/2026 ([9015be0](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/9015be04739b2f9ef625722608d7e77b2c941aaf))
 

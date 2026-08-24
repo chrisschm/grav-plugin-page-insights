@@ -150,6 +150,43 @@ because `/event-collection` has no auth, nonce, or rate limiter in front of it (
 so the `api` plugin's own limiter never sees it) - without them, anyone could insert rows
 indefinitely until disk fills up.
 
+### Tables `scan_patterns` / `scan_alerts` (added in migration 10)
+
+Back the opt-in scan detection feature - see [`ARCHITECTURE.md`](ARCHITECTURE.md) "Scan detection"
+for the feature's design/rationale; this section is schema only.
+
+`scan_patterns` - the signature list matched (plain substring, not a regex engine) against
+`data.route` for every collected 404:
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | |
+| `pattern` | `VARCHAR(500) NOT NULL UNIQUE` | The `UNIQUE` constraint is load-bearing: `Stats::importScanPatterns()`/`addScanPattern()` rely on `INSERT OR IGNORE` against this column for their insert-only-if-missing behaviour. |
+| `source` | `VARCHAR(100)` | Free-form provenance label - `'webexploits'` for rows from `scan-patterns:import`'s default seed list, `'manual'` for rows added via the Admin2 "Scan detection" view's add-pattern form, or any `--source` value passed to a custom `scan-patterns:import --file=...` run. |
+| `added_at` | `DATETIME DEFAULT (CURRENT_TIMESTAMP)` | |
+| `enabled` | `BOOLEAN DEFAULT (1)` | Lets an admin disable a specific pattern (e.g. a false positive against a route the site legitimately uses) without losing/re-importing it - `Stats::detectScans()` only ever reads `WHERE enabled = 1`. |
+
+Starts empty on every install - see `ARCHITECTURE.md` for why population is a deliberate,
+separate step rather than a shipped default dataset.
+
+`scan_alerts` - one row per (IP, still-open incident), upserted by the scheduled detection job:
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | |
+| `ip` | `VARCHAR(255) NOT NULL` | Same raw-IP convention as `data.ip` - no separate anonymization here even if `anonymize_ips` is on, since an alert is only actionable with the actual offending IP. |
+| `first_seen` / `last_seen` | `DATETIME NOT NULL` | Copied verbatim from the matching `data.date` values (same ISO-8601-with-local-offset format and `datetime(...)`-wrapped comparison rules - see "Date storage and comparison" below - apply here too). `Stats::detectScans()` extends an existing row's `last_seen` rather than inserting a new row every 5 minutes for the same ongoing incident, as long as that row's `last_seen` is still inside the current detection window. |
+| `hit_count` | `INTEGER NOT NULL DEFAULT (0)` | Count of *distinct* matched routes, not total matched hits - two requests for the same suspicious path count once. |
+| `matched_routes` | `TEXT` | Newline-joined, capped at `Stats::SCAN_ALERT_MAX_ROUTES` (20) distinct routes - a diagnostic summary for the alert display, not a full audit log (the underlying `data` rows are still there for that). |
+| `notified_at` | `DATETIME` | Set once `Job::email()` has actually sent mail for this alert (see `ARCHITECTURE.md` "Scan detection", "Alerting") - `NULL` until then. Only gates the scheduled job's own email; the Admin2 dashboard banner (`onApiDashboardNotifications`) always reflects live `scan_alerts` state regardless of this column. |
+| `environment` | `VARCHAR(255)` | Informational only, same convention as `data.environment` (see "Multisite (environment) scoping" below) - `detectScans()` itself deliberately does **not** scope its read of `data` by environment, since the same probing IP commonly hits every site sharing one multisite install. |
+
+Indexes: `idx_scan_alerts_ip` (`ip`) and `idx_scan_alerts_last_seen` (`last_seen`) - both plain
+single-column indexes, same reasoning as `idx_data_route`/`idx_data_date` for `data` (see
+"Indexes" below): `Stats::detectScans()`'s "is there already an open alert for this IP" lookup
+filters on `ip` *and* `last_seen` together, but the table stays small (one row per currently-open
+incident, not one per hit) so a composite index was not worth the added complexity here.
+
 ### Table `migrations`
 
 | Column | Type | Notes |

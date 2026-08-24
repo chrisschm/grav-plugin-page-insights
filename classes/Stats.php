@@ -567,6 +567,263 @@ class Stats
     }
 
     /**
+     * Scan detection (migration 10, see docs/DATABASES.md "Tables
+     * scan_patterns / scan_alerts" and docs/ARCHITECTURE.md "Scan
+     * detection"). Everything below reads/writes those two tables; the
+     * detection pass itself (detectScans()) is driven entirely off "data"
+     * rows already collected by collect() - no separate request hook.
+     */
+
+    // Cap on how many distinct matched routes get stored (and shown) per
+    // alert - an aggressive scan can rack up hundreds of distinct 404s in
+    // one window; matched_routes is a diagnostic summary, not a full audit
+    // log (the underlying "data" rows are still there for that).
+    private const SCAN_ALERT_MAX_ROUTES = 20;
+
+    /**
+     * Insert-only-if-missing import: every $patterns entry not already
+     * present in "scan_patterns" (by exact string match against the UNIQUE
+     * "pattern" column) is inserted with the given $source; anything already
+     * there - including a pattern an admin has since disabled or edited via
+     * the Admin2 "Scan detection" view - is left completely untouched. Used
+     * by both `scan-patterns:import` (source 'webexploits', see
+     * cli/ScanPatternsImportCommand.php) and, indirectly, addScanPattern()
+     * below (source 'manual').
+     *
+     * @param string[] $patterns
+     * @return int Number of patterns actually inserted (i.e. that weren't
+     *   already present).
+     */
+    public function importScanPatterns(array $patterns, string $source): int
+    {
+        $s = $this->db->prepare('INSERT OR IGNORE INTO scan_patterns (pattern, source) VALUES (:pattern, :source)');
+        $inserted = 0;
+
+        foreach ($patterns as $pattern) {
+            $pattern = trim((string) $pattern);
+            if ($pattern === '') {
+                continue;
+            }
+            $s->bindValue(':pattern', $pattern);
+            $s->bindValue(':source', $source);
+            $s->execute();
+            if ($s->rowCount() > 0) {
+                $inserted++;
+            }
+        }
+
+        return $inserted;
+    }
+
+    /**
+     * @return array<int, array{id: int, pattern: string, source: ?string, added_at: string, enabled: int}>
+     */
+    public function listScanPatterns(): array
+    {
+        return $this->db
+            ->query('SELECT id, pattern, source, added_at, enabled FROM scan_patterns ORDER BY pattern')
+            ->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Manually adds a single pattern (Admin2 "Scan detection" view - see
+     * classes/Api/PageInsightsApiController.php). Thin wrapper around
+     * importScanPatterns() so "already exists" is handled identically
+     * whether a pattern arrives via the bulk CLI import or one at a time
+     * here - the caller can't tell the two apart from the return value
+     * alone, which is why the API endpoint re-reads listScanPatterns()
+     * afterwards rather than trying to infer the new row's id from this.
+     */
+    public function addScanPattern(string $pattern, string $source = 'manual'): int
+    {
+        return $this->importScanPatterns([$pattern], $source);
+    }
+
+    public function setScanPatternEnabled(int $id, bool $enabled): bool
+    {
+        $s = $this->db->prepare('UPDATE scan_patterns SET enabled = :enabled WHERE id = :id');
+        $s->bindValue(':enabled', $enabled ? 1 : 0, PDO::PARAM_INT);
+        $s->bindValue(':id', $id, PDO::PARAM_INT);
+        $s->execute();
+
+        return $s->rowCount() > 0;
+    }
+
+    public function deleteScanPattern(int $id): bool
+    {
+        $s = $this->db->prepare('DELETE FROM scan_patterns WHERE id = :id');
+        $s->bindValue(':id', $id, PDO::PARAM_INT);
+        $s->execute();
+
+        return $s->rowCount() > 0;
+    }
+
+    /**
+     * The core detection pass, run every five minutes by the optional
+     * scheduler job (PageInsightsPlugin::registerScanDetectionJob()) - never
+     * from a request hook, see docs/ARCHITECTURE.md "Scan detection" for why
+     * that's deliberate. Looks at every "data" row collected as a 404 in the
+     * last $windowMinutes, matches its "route" against every *enabled*
+     * scan_patterns entry (plain substring match, not a regex engine - same
+     * convention as bot_regexp's substrings, see isBot() - so an
+     * admin-added pattern never needs regex escaping), and groups matches by
+     * IP. An IP with at least $threshold distinct matched routes in that
+     * window gets an scan_alerts row - a fresh one, or an extension of an
+     * already-open one for the same IP if this is a continuing incident
+     * (its last_seen still falls inside the current window), rather than a
+     * new row every run for the same ongoing scan.
+     *
+     * Deliberately NOT scoped by "environment" (unlike query()'s normal
+     * multisite scoping - see its docblock): the same probing IP commonly
+     * hits every site sharing one Grav multisite install one after another,
+     * so scan detection looks across all of them, same as pruneData()/
+     * rollupDay() already do for their own, unrelated reasons.
+     *
+     * @return array{checked: int, alerts: array<int, array{id: int, ip: string, hit_count: int, matched_routes: string[], notified_at: ?string}>}
+     *   "checked" is the number of 404 rows examined (for the scheduler
+     *   job's log/email output); "alerts" is every scan_alerts row touched
+     *   by this run (new or extended), including ones already emailed
+     *   before (notified_at set) - the caller decides what to do with that.
+     */
+    public function detectScans(int $windowMinutes = 10, int $threshold = 5): array
+    {
+        $patternsStmt = $this->db->query('SELECT pattern FROM scan_patterns WHERE enabled = 1');
+        $patterns = $patternsStmt->fetchAll(PDO::FETCH_COLUMN);
+        if (!$patterns) {
+            return ['checked' => 0, 'alerts' => []];
+        }
+
+        $cutoff = (new DateTimeImmutable("-{$windowMinutes} minutes"))->format('c');
+
+        // See "Date storage and comparison" in docs/DATABASES.md for why
+        // datetime(date) rather than a plain "date >=" text comparison.
+        $rows = $this->db->prepare(
+            'SELECT ip, route, date FROM data WHERE http_code = 404 AND datetime(date) >= datetime(:cutoff)'
+        );
+        $rows->bindValue(':cutoff', $cutoff);
+        $rows->execute();
+        $hits = $rows->fetchAll(PDO::FETCH_ASSOC);
+
+        $matchedByIp = [];
+        foreach ($hits as $hit) {
+            $route = (string) $hit['route'];
+            foreach ($patterns as $pattern) {
+                if ($pattern !== '' && str_contains($route, $pattern)) {
+                    $matchedByIp[$hit['ip']]['routes'][$route] = true;
+                    $matchedByIp[$hit['ip']]['first_seen'] = $matchedByIp[$hit['ip']]['first_seen'] ?? $hit['date'];
+                    $matchedByIp[$hit['ip']]['last_seen'] = $hit['date'];
+                    break; // one matching pattern is enough to count this route once for this IP
+                }
+            }
+        }
+
+        $alerts = [];
+        foreach ($matchedByIp as $ip => $info) {
+            $distinctRoutes = array_keys($info['routes']);
+            if (count($distinctRoutes) < $threshold) {
+                continue;
+            }
+
+            $matchedRoutesText = implode("\n", array_slice($distinctRoutes, 0, self::SCAN_ALERT_MAX_ROUTES));
+
+            // Extend an already-open alert for this IP (still inside the
+            // current lookback window) instead of inserting a new row every
+            // five minutes for the same ongoing incident.
+            $existingStmt = $this->db->prepare(
+                'SELECT id, notified_at FROM scan_alerts
+                 WHERE ip = :ip AND datetime(last_seen) >= datetime(:cutoff)
+                 ORDER BY id DESC LIMIT 1'
+            );
+            $existingStmt->bindValue(':ip', $ip);
+            $existingStmt->bindValue(':cutoff', $cutoff);
+            $existingStmt->execute();
+            $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($existing) {
+                $update = $this->db->prepare(
+                    'UPDATE scan_alerts SET last_seen = :last_seen, hit_count = :hit_count, matched_routes = :matched_routes WHERE id = :id'
+                );
+                $update->bindValue(':last_seen', $info['last_seen']);
+                $update->bindValue(':hit_count', count($distinctRoutes), PDO::PARAM_INT);
+                $update->bindValue(':matched_routes', $matchedRoutesText);
+                $update->bindValue(':id', $existing['id'], PDO::PARAM_INT);
+                $update->execute();
+                $alertId = (int) $existing['id'];
+                $notifiedAt = $existing['notified_at'];
+            } else {
+                $insert = $this->db->prepare(
+                    'INSERT INTO scan_alerts (ip, first_seen, last_seen, hit_count, matched_routes, environment)
+                     VALUES (:ip, :first_seen, :last_seen, :hit_count, :matched_routes, :environment)'
+                );
+                $insert->bindValue(':ip', $ip);
+                $insert->bindValue(':first_seen', $info['first_seen']);
+                $insert->bindValue(':last_seen', $info['last_seen']);
+                $insert->bindValue(':hit_count', count($distinctRoutes), PDO::PARAM_INT);
+                $insert->bindValue(':matched_routes', $matchedRoutesText);
+                $insert->bindValue(':environment', $this->environment);
+                $insert->execute();
+                $alertId = (int) $this->db->lastInsertId();
+                $notifiedAt = null;
+            }
+
+            $alerts[] = [
+                'id' => $alertId,
+                'ip' => (string) $ip,
+                'hit_count' => count($distinctRoutes),
+                'matched_routes' => $distinctRoutes,
+                'notified_at' => $notifiedAt,
+            ];
+        }
+
+        return ['checked' => count($hits), 'alerts' => $alerts];
+    }
+
+    /**
+     * Currently "open" alerts (last_seen still inside $windowMinutes) for
+     * the Admin2 dashboard notification (onApiDashboardNotifications) and
+     * the "Scan detection" view's alert list - always reflects live
+     * scan_alerts state regardless of notified_at, which only ever gates
+     * the scheduled job's own email (see registerScanDetectionJob()).
+     *
+     * @return array<int, array{id: int, ip: string, first_seen: string, last_seen: string, hit_count: int, matched_routes: ?string, notified_at: ?string}>
+     */
+    public function listOpenScanAlerts(int $windowMinutes = 10, int $limit = 20): array
+    {
+        $s = $this->db->prepare(
+            'SELECT id, ip, first_seen, last_seen, hit_count, matched_routes, notified_at
+             FROM scan_alerts
+             WHERE datetime(last_seen) >= datetime(:cutoff)
+             ORDER BY last_seen DESC
+             LIMIT :limit'
+        );
+        $s->bindValue(':cutoff', (new DateTimeImmutable("-{$windowMinutes} minutes"))->format('c'));
+        $s->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $s->execute();
+
+        return $s->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Marks the given scan_alerts rows as emailed (called by
+     * registerScanDetectionJob() right after Job::email() actually ran) so
+     * the same still-ongoing incident isn't re-emailed on the next run five
+     * minutes later. Never touches the Admin2 dashboard banner, which reads
+     * listOpenScanAlerts() fresh every time regardless of this column.
+     *
+     * @param int[] $ids
+     */
+    public function markScanAlertsNotified(array $ids): void
+    {
+        if (!$ids) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $s = $this->db->prepare("UPDATE scan_alerts SET notified_at = ? WHERE id IN ($placeholders)");
+        $s->execute(array_merge([(new DateTimeImmutable())->format('c')], $ids));
+    }
+
+    /**
      * Rebuilds the SQLite file to actually reclaim the disk space of
      * deleted rows - SQLite otherwise only frees the pages internally and
      * keeps the file itself at its largest-ever size. Never run implicitly
