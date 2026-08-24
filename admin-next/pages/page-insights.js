@@ -1728,6 +1728,13 @@ class PageInsightsPage extends HTMLElement {
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                /* Right-aligned to sit flush above .toolbar-end (the
+                   "Maintain database" button and its neighbors) - matches
+                   where the database-size text used to sit before it moved
+                   out of the toolbar. Purely a static-position change:
+                   overflow/marquee measurement (scrollWidth/clientWidth)
+                   and the seamless -50% loop are unaffected either way. */
+                text-align: right;
             }
             .status-line-track { display: inline-flex; gap: 48px; }
             .status-line-copy { display: inline-flex; align-items: center; gap: 6px; }

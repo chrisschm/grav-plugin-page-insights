@@ -17,7 +17,9 @@
       otherwise defaults to `min-width: auto`, letting its `nowrap` content escape both the
       `overflow: hidden` clipping and the JS overflow measurement). Fixed together with switching
       the second, `aria-hidden` marquee copy from always-present to added dynamically only once
-      overflow is actually confirmed.
+      overflow is actually confirmed. Also right-aligned the status line (`text-align: right`) so
+      it sits flush above the "Maintain database" button and its neighbors, matching where the
+      database-size text sat before it moved out of the toolbar.
 
 # v3.4.0
 # 08/24/2026 ([94e55a8](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/94e55a851e43af724afe1a089b14734d5e456a62))

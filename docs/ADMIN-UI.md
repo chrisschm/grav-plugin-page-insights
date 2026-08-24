@@ -230,7 +230,10 @@ in `page-insights-chat-2026-08-24-scan-detection.md`).
 controls, restoring reliable spacing (`.toolbar` also gained an explicit `gap` and `flex-wrap`, as
 a safety net if a future button set still doesn't fit). `_renderBody()` continues to populate the
 same `.db-size`/`.next-run` elements it always did (now living in the status line, targeted via
-`querySelectorAll` instead of `querySelector` - see below for why).
+`querySelectorAll` instead of `querySelector` - see below for why). `.status-line` is right-aligned
+(`text-align: right`), so it sits flush above `.toolbar-end` (the "Maintain database" button and
+its neighbors) - matching where the database-size text used to sit before it moved out of the
+toolbar.
 
 **Scrolling (marquee) behavior for long content:** `_statusLineHtml()` renders the status text
 *once*, as a single `.status-line-copy` inside `.status-line-track`. An earlier version rendered
@@ -266,9 +269,13 @@ Two things deliberately guard against this being an accessibility regression:
   untruncated text still reachable via the container's own `title` attribute. Known limitation:
   `text-overflow: ellipsis` reliably truncates plain inline text, but `.status-line-track` is an
   `inline-flex` box, not a text run - browsers may hard-clip without inserting the "…" character in
-  this specific (reduced-motion *and* overflowing) fallback path. Still open, pending live
-  verification on the test environments; a plain single-text-node fallback for this one case would
-  sidestep it if the clip turns out to look wrong in practice.
+  this specific (reduced-motion *and* overflowing) fallback path. This is compounded by
+  `text-align: right`: single-value `text-overflow: ellipsis` only ever marks the inline *end* edge
+  (right, in `direction: ltr`), but a right-aligned overflowing box clips at the *start* (left)
+  edge instead - so in this fallback path the line's beginning may simply disappear with no "…"
+  cue at all, not just a possibly-missing one. Still open, pending live verification on the test
+  environments; a plain single-text-node fallback for this one case would sidestep both issues if
+  the clip turns out to look wrong in practice.
 - **Hovering or focusing anything inside a scrolling line pauses it**
   (`.status-line.marquee:hover`/`:focus-within`), so it can actually be read rather than only
   glimpsed mid-pass.
@@ -339,6 +346,9 @@ Umstellung auf eine dynamisch nachgebaute zweite Kopie: `_statusLineHtml()` rend
 einzelne Kopie, `_updateStatusLineOverflow()` dupliziert sie erst nach bestätigtem Überlauf für die
 nahtlose Endlos-Laufschrift (`translateX(-50%)`) - und entfernt die Dublette wieder, sobald sie
 nicht mehr gebraucht wird. Nie aktiv bei `prefers-reduced-motion: reduce` (dann greift stattdessen
-eine einfache Ellipsis-Kürzung, voller Text weiterhin über `title` erreichbar). Details, inklusive
-einer noch unklaren Ellipsis-Einschränkung im Reduced-Motion-Fallback, siehe englischer Abschnitt
-oben.
+eine einfache Ellipsis-Kürzung, voller Text weiterhin über `title` erreichbar). Die Statuszeile ist
+außerdem rechtsbündig (`text-align: right`) und sitzt damit bündig über der "Datenbank
+pflegen"-Schaltfläche und ihren Nachbarn - so wie der Datenbankgrößen-Text schon vor dem Umzug aus
+der Werkzeugleiste dort stand. Details, inklusive einer noch unklaren Ellipsis-Einschränkung im
+Reduced-Motion-Fallback (die durch die Rechtsbündigkeit noch verschärft wird, da die Kürzung dann
+am Zeilenanfang statt -ende passiert), siehe englischer Abschnitt oben.
