@@ -233,19 +233,30 @@ same `.db-size`/`.next-run` elements it always did (now living in the status lin
 `querySelectorAll` instead of `querySelector` - see below for why).
 
 **Scrolling (marquee) behavior for long content:** `_statusLineHtml()` renders the status text
-*twice*, back-to-back, as two `.status-line-copy` elements inside `.status-line-track` - the
-second copy is `aria-hidden` and exists purely so an endless, seamless CSS loop is possible:
-`transform: translateX(-50%)` moves by exactly one copy's own rendered width, so what scrolls into
-view next is the other, identical copy, with no visible seam or reset jump. `_renderBody()` keeps
-both copies in sync (`querySelectorAll('.db-size')`/`.next-run`, not the single-element
-`querySelector` this used before the move). `_updateStatusLineOverflow()`, called at the end of
-`_renderBody()`, then measures the *first* copy's `scrollWidth` against the container's
-`clientWidth` (deferred to the next animation frame, so it reads post-reflow) and only adds the
-`.marquee` class - which is what actually starts the CSS animation - once a single copy doesn't
-fit. A status line that fits stays perfectly static; this runs on every dashboard reload but is a
-no-op in the common case. Animation duration scales with text length (~60px/s, floor 8s) rather
-than a fixed duration, so a barely-overflowing line doesn't zip past unreadably and a very long one
-doesn't crawl.
+*once*, as a single `.status-line-copy` inside `.status-line-track`. An earlier version rendered
+two copies unconditionally up front (one visible, one `aria-hidden`, relying on `.status-line`'s
+`overflow: hidden` to clip the second copy whenever scrolling wasn't needed) - live-testing
+2026-08-24 showed both copies visible side by side any time the line was short enough to fit twice
+over, with no marquee ever triggering even at very narrow window widths. Root cause: `.status-line`
+is a flex item of `.wrap`, and flex items default to `min-width: auto`, so its `white-space: nowrap`
+content was quietly forcing the box wider than the flex-stretched width - `overflow: hidden` had
+nothing left to clip, and `.status-line`'s `clientWidth` (read in `_updateStatusLineOverflow()`)
+was inflated to match the content instead of the actually-available space, so the overflow check
+never came back true. Fixed with an explicit `min-width: 0` on `.status-line` (restoring the normal
+clipping/measurement behavior) together with making the second copy dynamic: `_renderBody()` keeps
+the single copy in sync (`querySelectorAll('.db-size')`/`.next-run`, not the single-element
+`querySelector` this used before the move - still correct once a duplicate exists).
+`_updateStatusLineOverflow()`, called at the end of `_renderBody()`, first removes any duplicate
+left over from a previous call, then measures the (single) copy's `scrollWidth` against the
+container's now-reliable `clientWidth` (deferred to the next animation frame, so it reads
+post-reflow) and only clones in an `aria-hidden` duplicate - and adds the `.marquee` class, which is
+what actually starts the CSS animation (`transform: translateX(-50%)`, moving by exactly one copy's
+own rendered width so what scrolls into view next is the other, identical copy with no visible seam
+or reset jump) - once the single copy is confirmed not to fit. A status line that fits stays
+perfectly static, with no duplicate ever added; this runs on every dashboard reload but is a no-op
+in the common case. Animation duration scales with text length (~60px/s, floor 8s) rather than a
+fixed duration, so a barely-overflowing line doesn't zip past unreadably and a very long one doesn't
+crawl.
 
 Two things deliberately guard against this being an accessibility regression:
 
@@ -255,9 +266,9 @@ Two things deliberately guard against this being an accessibility regression:
   untruncated text still reachable via the container's own `title` attribute. Known limitation:
   `text-overflow: ellipsis` reliably truncates plain inline text, but `.status-line-track` is an
   `inline-flex` box, not a text run - browsers may hard-clip without inserting the "…" character in
-  this specific (reduced-motion *and* overflowing) fallback path. Not yet verified live against a
-  real browser; a plain single-text-node fallback for this one case would sidestep it if the clip
-  turns out to look wrong in practice.
+  this specific (reduced-motion *and* overflowing) fallback path. Still open, pending live
+  verification on the test environments; a plain single-text-node fallback for this one case would
+  sidestep it if the clip turns out to look wrong in practice.
 - **Hovering or focusing anything inside a scrolling line pauses it**
   (`.status-line.marquee:hover`/`:focus-within`), so it can actually be read rather than only
   glimpsed mid-pass.
@@ -270,9 +281,11 @@ auto-prune scheduled jobs disabled, database size briefly unavailable) look non-
 hidden.
 
 Checked with `node --check admin-next/pages/page-insights.js` (see `CONTRIBUTING.md`'s PR
-checklist) and a markup/DOM-logic dry run outside a browser, but **not yet live-verified against a
-real Grav instance** - that manual-testing step (`CONTRIBUTING.md` #5) is still open before this
-ships, same as every other Admin2 UI change in this project's history.
+checklist). The gap fix and the status-line move were already live-tested against a real Grav
+instance (2026-08-24) and surfaced the duplicate-text/no-marquee bug described above; the fix for
+that bug (`min-width: 0` plus the dynamic-duplicate rewrite) still needs the same live verification
+on the test environments once it lands there - `CONTRIBUTING.md`'s manual-testing step (#5) follows
+after this reaches them, same as every other Admin2 UI change in this project's history.
 
 ---
 
@@ -315,10 +328,17 @@ Platz dort nicht mehr zuverlässig, `justify-content: space-between` ohne festen
 Zeitraum-Buttons und den Rest ganz ohne Zwischenraum aneinanderstoßen lassen (gemeldet
 24.08.2026). Die Statustexte sitzen jetzt in einer eigenen Zeile oberhalb der Werkzeugleiste
 (`.status-line`), die Werkzeugleiste selbst bekam zusätzlich einen festen `gap` sowie `flex-wrap`
-als Sicherheitsnetz. Bei zu langem Inhalt scrollt die Statuszeile als nahtlose Endlos-Laufschrift
-(zwei identische, per `translateX(-50%)` verschobene Kopien) - aber nur, wenn eine einzelne Kopie
-tatsächlich nicht in die verfügbare Breite passt, und nie bei `prefers-reduced-motion: reduce`
-(dann greift stattdessen eine einfache Ellipsis-Kürzung, voller Text weiterhin über `title`
-erreichbar). Details, inklusive einer noch unklaren Ellipsis-Einschränkung im
-Reduced-Motion-Fallback und dem Hinweis, dass dies noch nicht an einer echten Grav-Instanz
-live-getestet wurde, siehe englischer Abschnitt oben.
+als Sicherheitsnetz. Der Live-Test am 24.08.2026 zeigte dabei einen Folgefehler: Der Statustext
+erschien doppelt, und es lief nie eine Laufschrift an - selbst bei stark verkleinertem
+Browserfenster nicht. Ursache war ein klassisches Flexbox-Problem: `.status-line` (ein Flex-Item
+von `.wrap`) hatte ohne explizites `min-width: 0` das Standardverhalten `min-width: auto`, wodurch
+der `white-space: nowrap`-Inhalt die Box breiter zog als vorgesehen - `overflow: hidden` hatte
+dadurch nichts mehr zu beschneiden, und die JS-Messung (`clientWidth`) war entsprechend verfälscht,
+sodass der Überlauf-Check nie zutraf. Behoben durch `min-width: 0` auf `.status-line` sowie eine
+Umstellung auf eine dynamisch nachgebaute zweite Kopie: `_statusLineHtml()` rendert jetzt nur eine
+einzelne Kopie, `_updateStatusLineOverflow()` dupliziert sie erst nach bestätigtem Überlauf für die
+nahtlose Endlos-Laufschrift (`translateX(-50%)`) - und entfernt die Dublette wieder, sobald sie
+nicht mehr gebraucht wird. Nie aktiv bei `prefers-reduced-motion: reduce` (dann greift stattdessen
+eine einfache Ellipsis-Kürzung, voller Text weiterhin über `title` erreichbar). Details, inklusive
+einer noch unklaren Ellipsis-Einschränkung im Reduced-Motion-Fallback, siehe englischer Abschnitt
+oben.

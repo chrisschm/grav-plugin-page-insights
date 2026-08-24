@@ -782,33 +782,35 @@ class PageInsightsPage extends HTMLElement {
     /**
      * Markup for the status line above the dashboard toolbar (database
      * size, next scheduled geo-DB update/auto-prune) - split out from
-     * _renderDashboardShell() because it's built twice, back-to-back
-     * (`.status-line-copy` x2): the second, `aria-hidden` copy exists
-     * purely so `.status-line-track` can loop endlessly and seamlessly via
-     * `transform: translateX(-50%)` once the line needs to scroll (see
-     * _updateStatusLineOverflow() and docs/ADMIN-UI.md "Dashboard toolbar
-     * status line"). Used to live inline in the toolbar itself, mixed in
-     * with the action buttons - once the combined text ran out of room
-     * there was no reliable gap left between the range buttons and
-     * everything to their right (`justify-content: space-between` only
-     * distributes leftover space, it doesn't guarantee a minimum one).
-     * Both copies' `.db-size`/`.next-run` spans are kept in sync by
-     * _renderBody() (querySelectorAll, not querySelector) every time the
-     * dashboard reloads.
+     * _renderDashboardShell() for readability. Used to live inline in the
+     * toolbar itself, mixed in with the action buttons - once the combined
+     * text ran out of room there was no reliable gap left between the
+     * range buttons and everything to their right (`justify-content:
+     * space-between` only distributes leftover space, it doesn't
+     * guarantee a minimum one).
+     *
+     * Renders a *single* `.status-line-copy` - deliberately not a second,
+     * `aria-hidden` duplicate for the marquee loop up front (an earlier
+     * version did this unconditionally and it showed both copies
+     * side by side any time the line was short enough to fit twice over,
+     * since `.status-line`'s width wasn't actually being clamped to its
+     * container the way `overflow: hidden` needs to clip anything - see
+     * _updateStatusLineOverflow(), which adds/removes the duplicate
+     * dynamically, only once scrolling is actually confirmed necessary.
+     * .db-size/.next-run are kept in sync by _renderBody() every time the
+     * dashboard reloads (querySelectorAll, so this still works correctly
+     * once/if a duplicate copy has been added).
      */
     _statusLineHtml() {
         const dbSizeTitle = this._esc(this._t('ADMIN2.DB_SIZE_TITLE', 'SQLite database file size'));
-        const copy = (hidden) => `
-            <span class="status-line-copy"${hidden ? ' aria-hidden="true"' : ''}>
-                <span class="db-size"${hidden ? '' : ` title="${dbSizeTitle}"`}></span>
-                <span class="status-sep" aria-hidden="true">&middot;</span>
-                <span class="next-run"></span>
-            </span>`;
         return `
             <div class="status-line">
                 <div class="status-line-track">
-                    ${copy(false)}
-                    ${copy(true)}
+                    <span class="status-line-copy">
+                        <span class="db-size" title="${dbSizeTitle}"></span>
+                        <span class="status-sep" aria-hidden="true">&middot;</span>
+                        <span class="next-run"></span>
+                    </span>
                 </div>
             </div>`;
     }
@@ -1125,16 +1127,20 @@ class PageInsightsPage extends HTMLElement {
      * Shows/hides the status line above the toolbar and decides whether it
      * needs to scroll (see _statusLineHtml() and docs/ADMIN-UI.md
      * "Dashboard toolbar status line"). Called at the end of _renderBody()
-     * once both `.status-line-copy` elements have their current text.
+     * once `.status-line-copy` has its current text.
      *
-     * The aria-hidden second copy exists purely so a seamless, endless CSS
-     * loop is possible - `transform: translateX(-50%)` on `.status-line-
-     * track` moves by exactly one copy's rendered width, so what scrolls
-     * into view is the *other*, identical copy, with no visible seam or
-     * reset jump. That animation (`.marquee` on `.status-line`) is only
-     * actually applied once a single copy doesn't fit its container; a
-     * status line that fits stays perfectly static either way, so this
-     * runs on every dashboard reload but is a no-op in the common case.
+     * Always starts from exactly one copy (removing any previously added
+     * duplicate first) and only clones it back in once a post-layout
+     * measurement confirms scrolling is actually needed - see
+     * _statusLineHtml()'s doc comment for why this is deliberately dynamic
+     * rather than two copies present unconditionally. Once added, the
+     * `aria-hidden` duplicate lets `.status-line-track` loop endlessly and
+     * seamlessly via `transform: translateX(-50%)` (`.marquee` on
+     * `.status-line`) - moves by exactly one copy's rendered width, so
+     * what scrolls into view is the *other*, identical copy, with no
+     * visible seam or reset jump. A status line that fits stays perfectly
+     * static (no duplicate, no animation); this runs on every dashboard
+     * reload but is a no-op in the common case.
      *
      * Respects `prefers-reduced-motion: reduce` by skipping the animation
      * outright - the line then falls back to a plain `text-overflow:
@@ -1143,8 +1149,17 @@ class PageInsightsPage extends HTMLElement {
      */
     _updateStatusLineOverflow() {
         const statusLine = this.shadowRoot.querySelector('.status-line');
+        const track = this.shadowRoot.querySelector('.status-line-track');
         const firstCopy = this.shadowRoot.querySelector('.status-line-copy');
-        if (!statusLine || !firstCopy) return;
+        if (!statusLine || !track || !firstCopy) return;
+
+        // Drop any duplicate from a previous call before doing anything
+        // else - if the line no longer overflows (shorter text after a
+        // reload, or a wider window), this is what actually gets rid of
+        // it again instead of accumulating copies.
+        track.querySelectorAll('.status-line-copy[aria-hidden]').forEach((el) => el.remove());
+        statusLine.classList.remove('marquee');
+        statusLine.style.removeProperty('--marquee-duration');
 
         // Read .db-size/.next-run directly rather than firstCopy's own
         // textContent - the latter would always include the "·"
@@ -1155,8 +1170,6 @@ class PageInsightsPage extends HTMLElement {
         const runText = firstCopy.querySelector('.next-run')?.textContent ?? '';
         const hasContent = Boolean(dbText || runText);
         statusLine.style.display = hasContent ? '' : 'none';
-        statusLine.classList.remove('marquee');
-        statusLine.style.removeProperty('--marquee-duration');
         if (!hasContent) return;
 
         statusLine.title = [dbText, runText].filter(Boolean).join(' · ');
@@ -1170,14 +1183,23 @@ class PageInsightsPage extends HTMLElement {
         // catch a stale, pre-reflow value.
         requestAnimationFrame(() => {
             const overflowing = firstCopy.scrollWidth > statusLine.clientWidth;
-            statusLine.classList.toggle('marquee', overflowing);
-            if (overflowing) {
-                // ~60px/s reading speed, scaled to the actual text length -
-                // a barely-overflowing line doesn't zip past unreadably,
-                // and a very long one doesn't crawl. Floor of 8s either way.
-                const duration = Math.max(8, Math.round(firstCopy.scrollWidth / 60));
-                statusLine.style.setProperty('--marquee-duration', `${duration}s`);
-            }
+            if (!overflowing) return;
+
+            // Now, and only now, clone in the aria-hidden duplicate the
+            // seamless loop needs (see doc comment above). Strips the
+            // title from the clone - one tooltip on the visible copy is
+            // enough, a duplicate would just repeat it.
+            const duplicate = firstCopy.cloneNode(true);
+            duplicate.setAttribute('aria-hidden', 'true');
+            duplicate.querySelector('.db-size')?.removeAttribute('title');
+            track.appendChild(duplicate);
+
+            statusLine.classList.add('marquee');
+            // ~60px/s reading speed, scaled to the actual text length - a
+            // barely-overflowing line doesn't zip past unreadably, and a
+            // very long one doesn't crawl. Floor of 8s either way.
+            const duration = Math.max(8, Math.round(firstCopy.scrollWidth / 60));
+            statusLine.style.setProperty('--marquee-duration', `${duration}s`);
         });
     }
 
@@ -1693,6 +1715,14 @@ class PageInsightsPage extends HTMLElement {
                requests reduced motion (handled in JS, .marquee is simply
                never added in that case). */
             .status-line {
+                /* min-width: 0 overrides the flex item default of
+                   min-width: auto - without it, .status-line (a flex item
+                   of .wrap) is never actually constrained below its
+                   nowrap content's natural width, so overflow: hidden has
+                   nothing to clip and the JS overflow check in
+                   _updateStatusLineOverflow() (scrollWidth > clientWidth)
+                   never sees a smaller clientWidth to compare against. */
+                min-width: 0;
                 font-size: 12px;
                 color: var(--muted-foreground);
                 white-space: nowrap;

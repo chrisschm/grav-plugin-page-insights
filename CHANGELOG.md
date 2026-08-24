@@ -11,7 +11,13 @@
       net for future buttons. The new status line scrolls as a seamless, endless marquee if its
       content doesn't fit (paused on hover/focus, skipped entirely under `prefers-reduced-motion:
       reduce` in favor of a plain ellipsis truncation) - see `docs/ADMIN-UI.md` "Dashboard toolbar
-      status line" for the full design. Not yet live-tested against a real Grav instance.
+      status line" for the full design. Live-testing (2026-08-24) then surfaced a follow-up bug in
+      that first version - the status text showed doubled and the marquee never triggered, even at
+      very narrow window widths - caused by `.status-line` missing `min-width: 0` (a flex item
+      otherwise defaults to `min-width: auto`, letting its `nowrap` content escape both the
+      `overflow: hidden` clipping and the JS overflow measurement). Fixed together with switching
+      the second, `aria-hidden` marquee copy from always-present to added dynamically only once
+      overflow is actually confirmed.
 
 # v3.4.0
 # 08/24/2026 ([94e55a8](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/94e55a851e43af724afe1a089b14734d5e456a62))
