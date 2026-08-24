@@ -1,5 +1,5 @@
 # v3.4.0
-# 08/24/2026
+# 08/24/2026 ([94e55a8](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/94e55a851e43af724afe1a089b14734d5e456a62))
 
 1. [](#new)
     * feat: new opt-in "Scan detection" feature - periodically matches recently collected 404 hits
