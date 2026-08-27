@@ -1,4 +1,5 @@
-## unreleased
+# v3.4.1
+# 08/27/2026
 
 1. [](#improved)
     * improved: moved the Admin2 dashboard toolbar's status text (database size, next scheduled
