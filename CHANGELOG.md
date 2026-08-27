@@ -1,5 +1,5 @@
 # v3.4.1
-# 08/27/2026
+# 08/27/2026 ([3f2b7be](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/3f2b7be6c4e48f6653109e7d15a5a32c6f6ab36e))
 
 1. [](#improved)
     * improved: moved the Admin2 dashboard toolbar's status text (database size, next scheduled
