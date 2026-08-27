@@ -416,6 +416,35 @@ interleaved, so cross-references between existing entries (e.g. "see bug #12 abo
     overcount (a fix correct in isolation, wrong once the surrounding sequence is taken into
     account), caught here by a synthetic-database regression test exercising the full 9-migration
     replay rather than each migration in isolation.
+32. **A blank `ignored_urls` list entry (`- {  }`, no `url` key at all) silently disabled
+    tracking for 100% of visitors, on every page, with no error anywhere** - reported as "no
+    visits at all since a few days ago, including my own", on a production instance where the
+    site itself kept serving normally the whole time (confirmed independently via the hosting
+    panel's Apache/AWStats numbers, which never dipped). `isEnabledForUrl()` maps each
+    `ignored_urls` row to its `url` value, defaulting to `''` when the key is missing, then
+    `implode('|', $urls)`s the result into one regex. A single blank entry among otherwise valid
+    ones (e.g. `.*wp-includes.*|/wp-.*|`) leaves a trailing empty alternative - and an empty
+    alternative in a PCRE regex matches every string at position 0, so `preg_match()` returns `1`
+    for literally any URL, and `0 === 1` is `false` for all of them. `isEnabledForIp()` builds its
+    `ignored_ips` regex the exact same way and has the identical exposure, just not what triggered
+    this report. Root cause of the blank entry itself: Admin2's `list`-type field widget always
+    renders one extra empty row to add a new entry - saving the section without filling that row
+    in (or after removing what had been in it) persists the empty row along with everything else,
+    and nothing on the PHP side ever validated or filtered it back out. Made harder to spot here
+    because the effect was scoped to exactly one Grav "environment" in this installation's
+    multisite setup (Issue #3) - the config override carrying the blank entry only applied to the
+    site's own primary hostname, while unrelated traffic hitting the same physical database under
+    other hostnames (misdirected requests from an unrelated internal service, a long-retired
+    subdomain, direct-IP vulnerability scans) used the plugin's clean shipped defaults instead and
+    kept being logged normally - which read, until the DB was queried directly and broken down by
+    `environment`, like "the site is fine, only my own visits are missing" rather than "one
+    specific config file is fully broken". Fixed by filtering out blank/whitespace-only entries in
+    both `isEnabledForIp()` and `isEnabledForUrl()` before building the regex, and returning `true`
+    (nothing excluded) outright if nothing usable is left - closing the same hole in both
+    functions even though only one was hit in practice. A reminder that any user-editable list fed
+    into `implode('|', ...)` to build a regex needs its blank entries stripped *before* assembly,
+    not just its known/expected entries validated - an empty alternative is a valid, silent
+    "match everything" regex, not a no-op.
 
 ## Known cleanup items
 

@@ -20,6 +20,20 @@
       overflow is actually confirmed. Also right-aligned the status line (`text-align: right`) so
       it sits flush above the "Maintain database" button and its neighbors, matching where the
       database-size text sat before it moved out of the toolbar.
+2. [](#bugfix)
+    * bugfix: a blank `ignored_urls` entry (`- {  }`, no `url` key - the extra empty row Admin2's
+      list-field widget always leaves for adding a new one, persisted here after saving without
+      filling it in) turned the assembled `ignored_urls` regex into one with a trailing empty
+      alternative, which `preg_match()` treats as matching *every* URL - silently disabling
+      tracking for 100% of visitors, on every page, with no error anywhere, on a production
+      instance (reported: "no visits at all in days, including my own", while the site itself
+      kept serving normally throughout - only spotted after breaking the DB down by the
+      multisite `environment` column, since traffic under other hostnames sharing the same
+      database kept logging fine on the plugin's clean shipped defaults). `isEnabledForIp()`
+      builds its `ignored_ips` regex the same way and shares the exact same exposure, even though
+      it wasn't what triggered this report. Fixed both by filtering out blank/whitespace-only
+      entries before assembling the regex, returning "nothing excluded" outright if nothing
+      usable remains. See `docs/HISTORY.md` (bug #32).
 
 # v3.4.0
 # 08/24/2026 ([94e55a8](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/94e55a851e43af724afe1a089b14734d5e456a62))

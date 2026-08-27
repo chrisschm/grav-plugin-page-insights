@@ -303,9 +303,25 @@ class PageInsightsPlugin extends Plugin
 
         $config  = $this->config();
         if (isset($config['ignored_ips']) && is_array($config['ignored_ips'])) {
-            $ips = array_map(function ($a) {
-                return isset($a['ip']) ? $a['ip'] : '';
-            }, $config['ignored_ips']);
+            $ips = array_filter(array_map(function ($a) {
+                return isset($a['ip']) ? trim((string) $a['ip']) : '';
+            }, $config['ignored_ips']), function ($v) {
+                return $v !== '';
+            });
+
+            if (empty($ips)) {
+                // No usable entries left after dropping blanks (e.g. a
+                // stray empty row left behind by Admin2's list-field
+                // widget, which always renders one extra empty row to
+                // add a new entry - saving the section without filling
+                // it in persists that empty row too). Without this
+                // guard, implode('|', $ips) would still contain an empty
+                // alternative, and preg_match() treats an empty
+                // alternative as matching every possible string at
+                // position 0 - silently excluding every visitor instead
+                // of none. See docs/HISTORY.md, bug #32.
+                return true;
+            }
 
             $regexp = implode('|', $ips);
 
@@ -329,13 +345,20 @@ class PageInsightsPlugin extends Plugin
 
         if (isset($config['ignored_urls']) && is_array($config['ignored_urls'])) {
 
-            if (count($config['ignored_urls']) === 0 ) {
+            $urls = array_filter(array_map(function ($a) {
+                return isset($a['url']) ? trim((string) $a['url']) : '';
+            }, $config['ignored_urls']), function ($v) {
+                return $v !== '';
+            });
+
+            if (empty($urls)) {
+                // Same guard as isEnabledForIp() above, and for the same
+                // reason - a stray blank entry (e.g. an empty row left
+                // behind by Admin2's list-field widget) must not turn
+                // into a regex alternative that matches every URL. See
+                // docs/HISTORY.md, bug #32.
                 return true;
             }
-
-            $urls = array_map(function ($a) {
-                return isset($a['url']) ?  $a['url'] : '';
-            }, $config['ignored_urls']);
 
             $regexp = implode('|', $urls);
 
