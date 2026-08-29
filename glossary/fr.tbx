@@ -17,73 +17,123 @@
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>Grav</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Name: Grav must not be translated as the name of the CMS.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>1.7</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Version: Version numbers must be adopted.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>1.x</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Version: Version numbers must be adopted.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>2.0</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Version: Version numbers must be adopted.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>Admin2</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Name: The name of the admin plugin must not be translated.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>HTTP</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Technical term: Hypertext Transfer Protocol. Keep as "HTTP" in all languages — do not translate.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>URL</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Technical term: Uniform Resource Locator. Keep as "URL" in all languages — do not translate.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>%s</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Variable: Placeholders (%s) must not be translated.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>user/pages</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Path: File paths must not be translated.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>sitemap.xml</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Path: File paths must not be translated.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>robots.txt</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Path: File paths must not be translated.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>bin/grav scheduler</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Technical term: commands must not be translated.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>bin/plugin page-insights rollup:build --from=</term></tig></langSet>
-                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
                 <descrip>Technical term: commands must not be translated.</descrip>
             </termEntry>
             <termEntry>
                 <langSet xml:lang="en"><tig><term>rollup:build</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term/></tig></langSet>
+                <descrip>Technical term: commands must not be translated.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>Classic Admin</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <descrip>Name: The name of the admin plugin must not be translated.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>bin/gpm install email</term></tig></langSet>
                 <langSet xml:lang="fr"><tig><term></term></tig></langSet>
                 <descrip>Technical term: commands must not be translated.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>cli/GeoDbUpdateCommand.php</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <descrip>Path: File paths must not be translated.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>events:prune-orphans</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <descrip>Technical term: commands must not be translated.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>scan-patterns:import</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <descrip>Technical term: commands must not be translated.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>prune</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <descrip>Technical term: commands must not be translated.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>vacuum</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <descrip>Technical term: commands must not be translated.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>GPM</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <descrip>Name: GPM (Grav Package Manager) must not be translated.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>IP</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <descrip>Technical term: Internet Protocol. Keep as "IP" in all languages — do not translate.</descrip>
+            </termEntry>
+            <termEntry>
+                <langSet xml:lang="en"><tig><term>SQLite</term></tig></langSet>
+                <langSet xml:lang="fr"><tig><term></term></tig></langSet>
+                <descrip>Name: SQLite must not be translated as the name of the database engine.</descrip>
             </termEntry>
         </body>
     </text>
