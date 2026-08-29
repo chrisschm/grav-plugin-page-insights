@@ -1,10 +1,10 @@
 PLUGIN_PAGE_INSIGHTS:
-  PAGE_STATS: Statistiques
-  STATS_DB_LABEL: Chemin de la base de données des statistiques
+  PAGE_STATS: Page Insights
+  STATS_DB_LABEL: Chemin de la base de données Page Insights
   STATS_DB_HELP: Chemin vers la base de données, relatif à la racine de Grav
 
   TAB_GENERAL: Général
-  TAB_CLASSIC_ADMIN: "Grav 1.7 / Admin classique"
+  TAB_CLASSIC_ADMIN: "Grav 1.7 / Classic Admin"
   TAB_ADMIN2: "Grav 2.0 / Admin2"
   TAB_CLASSIC_ADMIN_INFO: "Ces réglages n'affectent que les widgets et pages de détail
     du tableau de bord de l'admin classique (Grav 1.x). Ils n'ont aucun effet sur
@@ -154,7 +154,7 @@ PLUGIN_PAGE_INSIGHTS:
       régulières ou une chaîne de caractères"
 
   SECTION_WIDGETS: Configuration des widgets
-  SECTION_WIDGETS_LABEL: Configurer les widgets des statistiques de page
+  SECTION_WIDGETS_LABEL: Configurer les widgets Page Insights
 
   SECTION_BEHAVIOUR: Comportement
   SECTION_BEHAVIOUR_LABEL: Contrôler quand le plugin collecte les statistiques
