@@ -1,3 +1,9 @@
+# v3.4.2
+## unreleased
+
+1. [](#bugfix)
+    * Fixed a typo that had broken the help texts in Admin Classic. 
+
 # v3.4.1
 # 08/27/2026 ([3f2b7be](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/3f2b7be6c4e48f6653109e7d15a5a32c6f6ab36e))
 
