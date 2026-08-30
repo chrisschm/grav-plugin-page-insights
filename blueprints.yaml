@@ -36,7 +36,7 @@ compatibility:
 x-widget-enabled: &widget-enabled
     type: toggle
     label: PLUGIN_PAGE_INSIGHTS.WIDGET.ENABLED.TEXT
-    help: PLUPLUGIN_PAGE_INSIGHTS.WIDGET.ENABLED.HELP
+    help: PLUGIN_PAGE_INSIGHTS.WIDGET.ENABLED.HELP
     highlight: 1
     default: 1
     options:
