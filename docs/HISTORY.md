@@ -451,10 +451,10 @@ interleaved, so cross-references between existing entries (e.g. "see bug #12 abo
     cron-failure notification (`Object of class Closure could not be converted to string in
     .../Scheduler/Job.php:675`), never in `logs/grav.log` itself, since the error is an uncaught
     core PHP `Error` thrown by Grav-Core's own Scheduler code, outside any try/catch, so Grav's
-    Monolog logger never sees it. Root cause is an upstream Grav-Core bug, unfixed as of Grav
-    v2.0.22: `Scheduler\Job::postRun()` unconditionally calls `emailOutput()` whenever both
-    `->output()` and `->email()` are set on a job, and `emailOutput()` interpolates
-    `{$this->getCommand()}` straight into the email body. That's harmless for a job registered via
+    Monolog logger never sees it. Root cause: `Scheduler\Job::postRun()` unconditionally calls
+    `emailOutput()` whenever both `->output()` and `->email()` are set on a job, and
+    `emailOutput()` interpolates `{$this->getCommand()}` straight into the email body. That's
+    harmless for a job registered via
     `addCommand()` (a shell command string), but `registerScanDetectionJob()` - like every
     scheduler job this plugin registers - uses `addFunction()`, so `getCommand()` returns the PHP
     `Closure` object itself; casting a `Closure` to string is a PHP fatal error. The scan-detection
@@ -473,6 +473,19 @@ interleaved, so cross-references between existing entries (e.g. "see bug #12 abo
     alert to notify about. A reminder that `Scheduler\Job::email()` (and the equivalent Admin
     "custom scheduled jobs" E-Mail field) is only safe on jobs registered via `addCommand()` -
     never chain `->email()` onto a job registered via `addFunction()`/`addClosure()`.
+    **Upstream status (checked 2026-08-30):** no upstream issue was filed - Grav-Core had already
+    fixed exactly this on its `develop` branch the previous week (2026-08-27, commit `443121c0`,
+    "Add a catch-up run mode and fix five scheduler defects"): `postRun()` now wraps
+    `emailOutput()`/the output-file write/the `after()` callback each in their own try/catch, and
+    `emailOutput()` itself now substitutes the literal string `'Closure'` for a non-string
+    `getCommand()` result instead of interpolating it raw. That fix is already written up in
+    Grav's own `CHANGELOG.md` under an upcoming `v2.0.22` section, but `v2.0.22` was **not yet
+    tagged/released** as of this check - `v2.0.21` (22.08.2026) was still the latest actual
+    release, and every release up to and including it has this bug. Our own fix above is worth
+    keeping regardless of when `v2.0.22` ships: even with the Grav-Core fix installed,
+    `Job::email()` on an `addFunction()`-based job would only ever manage to email a generic
+    "Command: Closure" placeholder with no scan-detection detail at all, never the actual matched
+    IPs/routes our own `sendEmail()` call reports.
 
 ## Known cleanup items
 

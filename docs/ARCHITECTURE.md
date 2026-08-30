@@ -237,7 +237,8 @@ truth for the other:
   Admin's "custom scheduled jobs" UI exposes as its own "E-Mail" field), because that only works
   for jobs registered via `addCommand()`. For an `addFunction()`-based job like this one,
   `Job::email()` triggers an uncaught fatal PHP error trying to cast the job's Closure to a string
-  - an upstream Grav-Core bug, unfixed as of Grav v2.0.22, see `HISTORY.md` #33. Only sent once per
+  - an upstream Grav-Core bug, already fixed on `develop` (2026-08-27) but not yet released as of
+  this writing (see `HISTORY.md` #33 for the commit and version status). Only sent once per
   alert (`scan_alerts.notified_at`) - a still-ongoing incident doesn't re-email every five minutes
   for as long as it continues.
 
