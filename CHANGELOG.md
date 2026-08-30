@@ -1,5 +1,5 @@
 # v3.4.2
-# 08/30/2026
+# 08/30/2026 ([a48ccf5](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/a48ccf5a9582366cc1eeaf47bad2583f4c4e45fc))
 
 1. [](#bugfix)
     * Fixed a typo that had broken the help texts in Admin Classic.
