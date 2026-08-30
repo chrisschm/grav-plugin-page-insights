@@ -446,6 +446,34 @@ interleaved, so cross-references between existing entries (e.g. "see bug #12 abo
     not just its known/expected entries validated - an empty alternative is a valid, silent
     "match everything" regex, not a no-op.
 
+33. **The scan-detection job (v3.4.0) crashed `bin/grav scheduler` every five minutes with an
+    uncaught fatal PHP error, once an alert email address was configured** - reported via Plesk's
+    cron-failure notification (`Object of class Closure could not be converted to string in
+    .../Scheduler/Job.php:675`), never in `logs/grav.log` itself, since the error is an uncaught
+    core PHP `Error` thrown by Grav-Core's own Scheduler code, outside any try/catch, so Grav's
+    Monolog logger never sees it. Root cause is an upstream Grav-Core bug, unfixed as of Grav
+    v2.0.22: `Scheduler\Job::postRun()` unconditionally calls `emailOutput()` whenever both
+    `->output()` and `->email()` are set on a job, and `emailOutput()` interpolates
+    `{$this->getCommand()}` straight into the email body. That's harmless for a job registered via
+    `addCommand()` (a shell command string), but `registerScanDetectionJob()` - like every
+    scheduler job this plugin registers - uses `addFunction()`, so `getCommand()` returns the PHP
+    `Closure` object itself; casting a `Closure` to string is a PHP fatal error. The scan-detection
+    job was the only one of this plugin's four scheduler jobs with both `->output()` (all four set
+    this) and `->email()` (only this one, when an alert address is configured) set at the same
+    time, which is exactly the combination `postRun()` needs to reach the broken code path - and,
+    at a fixed `*/5 * * * *` cron, exactly explains both the five-minute error-mail cadence and why
+    it started only once an admin actually filled in the alert email address. Because the crash
+    aborts the whole `bin/grav scheduler` invocation before later-registered jobs in that same tick
+    run, it's also the suspected (not fully confirmed at the time of the fix) cause of
+    `cache-purge`/`cache-clear` silently falling multiple days behind their daily schedule on the
+    affected installation - to be confirmed after deploy by watching `bin/grav scheduler -d`. Fixed
+    by no longer calling `Job::email()` on this (or any `addFunction()`-based) job at all - the
+    scan-detection job now sends its alert email itself, directly via
+    `Grav\Plugin\Email\Utils::sendEmail()`, from inside its own closure, only when there's an
+    alert to notify about. A reminder that `Scheduler\Job::email()` (and the equivalent Admin
+    "custom scheduled jobs" E-Mail field) is only safe on jobs registered via `addCommand()` -
+    never chain `->email()` onto a job registered via `addFunction()`/`addClosure()`.
+
 ## Known cleanup items
 
 None outstanding - the two leftover files from the Page Stats rename

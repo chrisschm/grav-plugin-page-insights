@@ -1192,6 +1192,26 @@ class PageInsightsPlugin extends Plugin
      * and can send email - an admin should consciously opt in, plus decide
      * whether to populate scan_patterns at all first (`scan-patterns:import`
      * or the Admin2 "Scan detection" view).
+     *
+     * Alert email is sent directly from inside the job's own closure via
+     * `Grav\Plugin\Email\Utils::sendEmail()` (see docs/HISTORY.md Bug #33)
+     * - deliberately NOT via Grav-Core's `Scheduler\Job::email()`, unlike
+     * what an admin-configured "custom scheduled jobs" entry would use.
+     * `Job::email()` only takes effect inside `Job::postRun()`, which
+     * unconditionally calls `Job::emailOutput()` whenever both `->output()`
+     * and `->email()` are set on the job - and `emailOutput()` interpolates
+     * `{$this->getCommand()}` into the email body uncaught. That's fine for
+     * a job registered via `addCommand()` (a shell command string), but
+     * every job in this class is registered via `addFunction()` instead, so
+     * `getCommand()` returns the PHP `Closure` itself - and PHP cannot cast
+     * a Closure to string, which throws an uncaught fatal `Error` (not a
+     * catchable `RuntimeException`) outside any try/catch in Grav-Core's own
+     * Scheduler code. That aborts the whole `bin/grav scheduler` run before
+     * any later-registered job in the same tick executes, and never reaches
+     * Grav's own log (Monolog never sees it) - visible only as a Plesk/cron
+     * stderr error mail. Sending the alert email ourselves, only when
+     * there's actually something to notify about, sidesteps that Grav-Core
+     * bug entirely instead of depending on an upstream fix.
      */
     private function registerScanDetectionJob(Scheduler $scheduler, array $config): void
     {
@@ -1205,7 +1225,7 @@ class PageInsightsPlugin extends Plugin
         $alertEmail = trim((string) ($config['scan_detection_alert_email'] ?? ''));
 
         $job = $scheduler->addFunction(
-            function () use ($dbPath, $config, $windowMinutes, $threshold) {
+            function () use ($dbPath, $config, $windowMinutes, $threshold, $alertEmail) {
                 // No environment passed: detectScans() deliberately looks
                 // across every site sharing this installation - see its
                 // own docblock.
@@ -1232,6 +1252,28 @@ class PageInsightsPlugin extends Plugin
 
                 if ($toNotify) {
                     $stats->markScanAlertsNotified(array_column($toNotify, 'id'));
+
+                    // Sent directly, not via Scheduler\Job::email() - see
+                    // this method's docblock for why. Same "is the email
+                    // plugin installed" check emailOutput() itself uses
+                    // internally, so no separate availability check is
+                    // needed here either - silently does nothing without
+                    // the (separate, official) email plugin installed.
+                    if ($alertEmail !== '' && is_callable('Grav\Plugin\Email\Utils::sendEmail')) {
+                        $subject = sprintf('Page Insights: %d neue(r) Scan-Alarm(e)', count($toNotify));
+                        $emailLines = array_map(
+                            fn ($a) => sprintf(
+                                '<li>IP %s: %d verschiedene verdaechtige Pfade (Schwelle: %d)<br>%s</li>',
+                                htmlspecialchars($a['ip']),
+                                $a['hit_count'],
+                                $threshold,
+                                htmlspecialchars(implode(', ', $a['matched_routes']))
+                            ),
+                            $toNotify
+                        );
+                        $emailContent = "<h1>Page Insights: Scan-Erkennung</h1>\n<ul>\n" . implode("\n", $emailLines) . "\n</ul>\n";
+                        \Grav\Plugin\Email\Utils::sendEmail($subject, $emailContent, $alertEmail);
+                    }
                 }
 
                 return implode('', $lines);
@@ -1243,20 +1285,5 @@ class PageInsightsPlugin extends Plugin
         // docblock for why.
         $job->at('*/5 * * * *');
         $job->output('logs/page-insights-scan-detection.out');
-
-        // Job::email() (Grav-Core's Scheduler\Job, same mechanism the
-        // Admin's own "custom scheduled jobs" UI exposes as its "E-Mail"
-        // field) only actually sends anything if the "email" plugin is
-        // installed (it checks Grav\Plugin\Email\Utils::sendEmail() being
-        // callable internally and silently no-ops otherwise) - no extra
-        // "is it installed" check needed here. Only wired up at all if the
-        // admin configured an address; ->email() also forces the job to
-        // run in the foreground (Job::inForeground()), which is fine here -
-        // this job's own work (one bounded SELECT plus a handful of small
-        // writes) never runs long enough for background execution to
-        // matter the way it might for a heavier job.
-        if ($alertEmail !== '') {
-            $job->email($alertEmail);
-        }
     }
 }

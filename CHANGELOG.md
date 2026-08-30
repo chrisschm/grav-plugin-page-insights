@@ -2,7 +2,15 @@
 ## unreleased
 
 1. [](#bugfix)
-    * Fixed a typo that had broken the help texts in Admin Classic. 
+    * Fixed a typo that had broken the help texts in Admin Classic.
+    * Fixed a scheduler crash: the scan-detection job (introduced in v3.4.0) wired its
+      optional alert email up via Grav-Core's Scheduler\Job::email(), which - for a job
+      registered via addFunction() rather than addCommand(), as every job in this plugin
+      is - throws an uncaught fatal PHP error while assembling the email body (it tries to
+      cast the job's Closure to a string). This aborted the entire `bin/grav scheduler`
+      run every five minutes, never reaching Grav's own log, visible only as a Plesk/cron
+      stderr error mail. The alert email is now sent directly from inside the job's own
+      closure instead. See docs/HISTORY.md Bug #33.
 
 # v3.4.1
 # 08/27/2026 ([3f2b7be](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/3f2b7be6c4e48f6653109e7d15a5a32c6f6ab36e))

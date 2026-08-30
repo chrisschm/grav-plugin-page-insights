@@ -230,13 +230,16 @@ truth for the other:
   notification per currently-open alert every time the dashboard loads, via the api plugin's own
   notification mechanism (`DashboardController::notifications()` - see that class for the
   location/dismiss/`reappear_after` schema). Always reflects live state.
-- **Email**, optional (`scan_detection_alert_email`): reuses Grav-Core's `Scheduler\Job::email()`
-  directly - the same mechanism the Admin's "custom scheduled jobs" UI exposes as its own "E-Mail"
-  field - rather than this plugin implementing its own "is the `email` plugin installed" check.
-  `Job::email()` internally checks `Grav\Plugin\Email\Utils::sendEmail()` is callable and silently
-  no-ops otherwise, so nothing breaks on a site without the (separate, official, `bin/gpm install
-  email`) `email` plugin. Only sent once per alert (`scan_alerts.notified_at`) - a still-ongoing
-  incident doesn't re-email every five minutes for as long as it continues.
+- **Email**, optional (`scan_detection_alert_email`): sent directly via
+  `Grav\Plugin\Email\Utils::sendEmail()` (checked with `is_callable()` first, so nothing breaks
+  on a site without the separate, official, `bin/gpm install email` plugin), called from inside the
+  job's own closure - deliberately NOT via Grav-Core's `Scheduler\Job::email()` (the mechanism the
+  Admin's "custom scheduled jobs" UI exposes as its own "E-Mail" field), because that only works
+  for jobs registered via `addCommand()`. For an `addFunction()`-based job like this one,
+  `Job::email()` triggers an uncaught fatal PHP error trying to cast the job's Closure to a string
+  - an upstream Grav-Core bug, unfixed as of Grav v2.0.22, see `HISTORY.md` #33. Only sent once per
+  alert (`scan_alerts.notified_at`) - a still-ongoing incident doesn't re-email every five minutes
+  for as long as it continues.
 
 `scan_patterns` starts empty on every install - population is a separate, deliberate step
 (`bin/plugin page-insights scan-patterns:import`, seeded from the bundled
