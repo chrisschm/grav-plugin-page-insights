@@ -1,5 +1,5 @@
 # v3.4.2
-## unreleased
+# 08/30/2026
 
 1. [](#bugfix)
     * Fixed a typo that had broken the help texts in Admin Classic.
