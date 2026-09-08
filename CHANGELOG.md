@@ -1,5 +1,5 @@
 # v3.5.0
-# 09/08/2026
+## 09/08/2026 ([bcb0f0d](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/bcb0f0da511e9b2f6ea43791777fffcb6d09ef35))
 
 1. [](#new)
     * feat: added deferred IP anonymization - new `anonymize_ips_after` setting
@@ -41,7 +41,7 @@
       users. See `docs/ARCHITECTURE.md` ("Scan detection", "Retention") for the full reasoning.
 
 # v3.4.2
-# 08/30/2026 ([a48ccf5](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/a48ccf5a9582366cc1eeaf47bad2583f4c4e45fc))
+## 08/30/2026 ([a48ccf5](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/a48ccf5a9582366cc1eeaf47bad2583f4c4e45fc))
 
 1. [](#bugfix)
     * Fixed a typo that had broken the help texts in Admin Classic.
@@ -55,7 +55,7 @@
       closure instead. See docs/HISTORY.md Bug #33.
 
 # v3.4.1
-# 08/27/2026 ([3f2b7be](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/3f2b7be6c4e48f6653109e7d15a5a32c6f6ab36e))
+## 08/27/2026 ([3f2b7be](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/3f2b7be6c4e48f6653109e7d15a5a32c6f6ab36e))
 
 1. [](#improved)
     * improved: moved the Admin2 dashboard toolbar's status text (database size, next scheduled
@@ -93,7 +93,7 @@
       usable remains. See `docs/HISTORY.md` (bug #32).
 
 # v3.4.0
-# 08/24/2026 ([94e55a8](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/94e55a851e43af724afe1a089b14734d5e456a62))
+## 08/24/2026 ([94e55a8](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/94e55a851e43af724afe1a089b14734d5e456a62))
 
 1. [](#new)
     * feat: new opt-in "Scan detection" feature - periodically matches recently collected 404 hits
