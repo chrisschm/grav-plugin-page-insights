@@ -71,13 +71,9 @@ once, see [`HISTORY.md`](HISTORY.md) #9/#12).
   `http_code = 404`, regardless of age, plus any now-orphaned `events` rows
   (`Stats::pruneNotFoundHits()`, same `pruneOrphanedEvents()` pattern as above). CLI equivalent of
   the Admin2 maintenance dialog's `prune_notfound` preset. Same reasoning as `prune:bots` for
-  keeping it a separate command rather than an `--older-than` variant. **Interaction with scan
-  detection (see below):** this deletes the exact `data` rows scan detection's own history is
-  read from (`http_code = 404`) - `scan_alerts` rows already raised are untouched (they're a
-  separate table, already-derived state), but running this manually removes the underlying
-  evidence for any *new* detection going forward until fresh 404s accumulate again. Not a reason
-  to avoid `prune:notfound` - just worth knowing before running it on a site with scan detection
-  enabled.
+  keeping it a separate command rather than an `--older-than` variant. No interaction with scan
+  detection: since migration 12, scan detection reads its own `scan_staging` table (see "Scan
+  detection" below), not `data` - running this has no effect on it either way.
 - **`bin/plugin page-insights scan-patterns:import [--file=<pfad>] [--source=<name>]`** - see
   "Scan detection" below.
 
@@ -250,8 +246,14 @@ entry already runs every minute regardless, so this needs no separate crontab li
 beyond the `scan_detection` toggle itself.
 
 Each run calls `Stats::detectScans($windowMinutes, $threshold)` (config: `scan_detection_window_minutes`
-default 10, `scan_detection_threshold` default 5) and logs a summary line per matched IP to
-`logs/page-insights-scan-detection.out` (same `Job::output()` convention as the other three jobs).
+default 10, `scan_detection_threshold` default 5), reading from the `scan_staging` table (see
+`DATABASES.md`) rather than `data` - populated synchronously, with the raw IP, by
+`Stats::recordScanCandidate()` on every 404 (see `ARCHITECTURE.md` "IP anonymization" for why: this
+is what keeps scan detection unaffected by `anonymize_ips`/`anonymize_ips_after`). The same run then
+calls `Stats::pruneScanStaging()` with that run's own lookback cutoff, deleting the rows
+`detectScans()` just read - `scan_staging` never holds more than one detection window's worth of
+raw IPs. The job logs a summary line per matched IP to `logs/page-insights-scan-detection.out`
+(same `Job::output()` convention as the other jobs).
 If `scan_detection_alert_email` is set, the job also calls `Job::email()` - Grav-Core's own
 `Scheduler\Job` email support (the same mechanism the Admin's "custom scheduled jobs" UI exposes
 as its own "E-Mail" field), which internally no-ops unless the separate, official `email` plugin

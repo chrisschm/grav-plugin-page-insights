@@ -175,18 +175,40 @@ separate step rather than a shipped default dataset.
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | |
-| `ip` | `VARCHAR(255) NOT NULL` | Same raw-IP convention as `data.ip` - no separate anonymization here even if `anonymize_ips` is on, since an alert is only actionable with the actual offending IP. |
+| `ip` | `VARCHAR(255) NOT NULL` | Always the raw, unmasked IP, regardless of `anonymize_ips`/`anonymize_ips_after` - an alert is only actionable with the actual offending IP. Guaranteed since migration 12 by reading from `scan_staging` (below) rather than `data`; see `ARCHITECTURE.md` "IP anonymization", "Scan detection is exempt from IP anonymization by construction". |
 | `first_seen` / `last_seen` | `DATETIME NOT NULL` | Copied verbatim from the matching `data.date` values (same ISO-8601-with-local-offset format and `datetime(...)`-wrapped comparison rules - see "Date storage and comparison" below - apply here too). `Stats::detectScans()` extends an existing row's `last_seen` rather than inserting a new row every 5 minutes for the same ongoing incident, as long as that row's `last_seen` is still inside the current detection window. |
 | `hit_count` | `INTEGER NOT NULL DEFAULT (0)` | Count of *distinct* matched routes, not total matched hits - two requests for the same suspicious path count once. |
 | `matched_routes` | `TEXT` | Newline-joined, capped at `Stats::SCAN_ALERT_MAX_ROUTES` (20) distinct routes - a diagnostic summary for the alert display, not a full audit log (the underlying `data` rows are still there for that). |
 | `notified_at` | `DATETIME` | Set once `Job::email()` has actually sent mail for this alert (see `ARCHITECTURE.md` "Scan detection", "Alerting") - `NULL` until then. Only gates the scheduled job's own email; the Admin2 dashboard banner (`onApiDashboardNotifications`) always reflects live `scan_alerts` state regardless of this column. |
-| `environment` | `VARCHAR(255)` | Informational only, same convention as `data.environment` (see "Multisite (environment) scoping" below) - `detectScans()` itself deliberately does **not** scope its read of `data` by environment, since the same probing IP commonly hits every site sharing one multisite install. |
+| `environment` | `VARCHAR(255)` | Informational only, same convention as `data.environment` (see "Multisite (environment) scoping" below) - `detectScans()` itself deliberately does **not** scope its read of `scan_staging` by environment, since the same probing IP commonly hits every site sharing one multisite install. |
 
 Indexes: `idx_scan_alerts_ip` (`ip`) and `idx_scan_alerts_last_seen` (`last_seen`) - both plain
 single-column indexes, same reasoning as `idx_data_route`/`idx_data_date` for `data` (see
 "Indexes" below): `Stats::detectScans()`'s "is there already an open alert for this IP" lookup
 filters on `ip` *and* `last_seen` together, but the table stays small (one row per currently-open
 incident, not one per hit) so a composite index was not worth the added complexity here.
+
+### Table `scan_staging` (added in migration 12)
+
+Short-lived staging table feeding `Stats::detectScans()` - see `ARCHITECTURE.md` "Scan detection"
+and "IP anonymization" for the full rationale; this section is schema only. One row per collected
+404, written synchronously and unconditionally (no pattern-matching) by
+`Stats::recordScanCandidate()`, called from `PageInsightsPlugin::collectPageData()` with the raw
+`$ip` *before* the `anonymize_ips` masking block runs - independently of whether that hit is even
+written to `data` at all (i.e. independently of `log_bot`/`log_admin`).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | |
+| `ip` | `VARCHAR(255) NOT NULL` | Always raw/unmasked - the entire point of this table; see `ARCHITECTURE.md`. |
+| `route` | `VARCHAR(255) NOT NULL` | The requested (404) route. |
+| `date` | `DATETIME NOT NULL` | Same ISO-8601-with-local-offset format and `datetime(...)`-wrapped comparison rules as `data.date` (see "Date storage and comparison" below). |
+| `environment` | `VARCHAR(255)` | Informational only, same convention as `data.environment`. |
+
+No index: kept small by construction via aggressive pruning (`Stats::pruneScanStaging()`, called
+right after every `detectScans()` run, from the same scheduled job, with that run's own lookback
+cutoff) - rows only ever live a few minutes, so a full table scan is never a concern here, unlike
+`data` or `scan_alerts`.
 
 ### Table `migrations`
 

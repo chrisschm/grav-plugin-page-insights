@@ -14,6 +14,17 @@
       `30d` for brand-new installs, set automatically on first run. See
       `docs/ARCHITECTURE.md` ("IP anonymization") for the full design, including the reasoning
       behind the fresh-install-vs-upgrade default split.
+    * fix: Scan detection (added in v3.4.0) now always sees the full, unmasked IP for a 404, even
+      with "Anonymize IP-addresses" (`anonymize_ips`) or the new deferred anonymization above
+      enabled - previously it read `ip` straight from the `data` table, so an alert
+      (`scan_alerts.ip`) actually inherited whatever masking had already happened, making it of
+      little use for blocking the offending IP. Fixed by recording 404s into a new, short-lived
+      `scan_staging` table with the raw IP (`Stats::recordScanCandidate()`, new migration 12),
+      independently of the `data`/`anonymize_ips` path, then having scan detection read from
+      there instead - aggressively pruned after every detection run
+      (`Stats::pruneScanStaging()`) so it never holds more than one detection window's worth of
+      raw IPs. No pattern-matching was added at collection time to achieve this, so this adds no
+      per-request cost. See `docs/ARCHITECTURE.md` ("Scan detection", "IP anonymization").
 # v3.4.2
 # 08/30/2026 ([a48ccf5](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/a48ccf5a9582366cc1eeaf47bad2583f4c4e45fc))
 

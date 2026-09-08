@@ -779,6 +779,57 @@ class Stats
     }
 
     /**
+     * Records a 404 hit as a scan-detection candidate, with its RAW ip -
+     * independent of "anonymize_ips"/"anonymize_ips_after" (which only
+     * ever mask "data.ip") and of "log_bot"/"log_admin" (dashboard-
+     * cleanliness knobs inside collect(), not security ones - a scanner
+     * spoofing a real browser's User-Agent, the documented common case,
+     * would otherwise slip past "log_bot" undetected). Called directly
+     * from PageInsightsPlugin::collectPageData(), independently of - and
+     * regardless of the outcome of - the collect() call for the same hit,
+     * gated only on "scan_detection" being enabled and the hit being a
+     * 404.
+     *
+     * Deliberately no pattern-matching here - every 404 gets one row
+     * unconditionally, kept cheap and constant-cost regardless of how
+     * large "scan_patterns" grows (see docs/ARCHITECTURE.md "Scan
+     * detection"). detectScans() below does the actual matching, reading
+     * from this table instead of "data".
+     */
+    public function recordScanCandidate(string $ip, string $route, DateTimeImmutable $date): void
+    {
+        $s = $this->db->prepare(
+            'INSERT INTO scan_staging (ip, route, date, environment) VALUES (:ip, :route, :date, :environment)'
+        );
+        $s->bindValue(':ip', $ip);
+        $s->bindValue(':route', $route);
+        $s->bindValue(':date', $date->format('c'));
+        $s->bindValue(':environment', $this->environment);
+        $s->execute();
+    }
+
+    /**
+     * Deletes "scan_staging" rows older than $before - called right after
+     * every detectScans() run, from the same scheduled job
+     * (PageInsightsPlugin::registerScanDetectionJob()), with $before set
+     * to that same run's own lookback cutoff so nothing still needed by
+     * *this* run is deleted (and a row that old will have aged out of the
+     * next run's window regardless). Keeps this table's raw-IP footprint
+     * bounded to a few minutes, independent of "anonymize_ips"/
+     * "anonymize_ips_after" - see docs/ARCHITECTURE.md "Scan detection".
+     *
+     * @return int Number of deleted rows.
+     */
+    public function pruneScanStaging(DateTimeImmutable $before): int
+    {
+        $s = $this->db->prepare('DELETE FROM scan_staging WHERE datetime(date) < datetime(:cutoff)');
+        $s->bindValue(':cutoff', $before->format('c'));
+        $s->execute();
+
+        return $s->rowCount();
+    }
+
+    /**
      * The core detection pass, run every five minutes by the optional
      * scheduler job (PageInsightsPlugin::registerScanDetectionJob()) - never
      * from a request hook, see docs/ARCHITECTURE.md "Scan detection" for why
@@ -799,6 +850,11 @@ class Stats
      * so scan detection looks across all of them, same as pruneData()/
      * rollupDay() already do for their own, unrelated reasons.
      *
+     * Reads from "scan_staging" (populated by recordScanCandidate() above),
+     * not "data" - every row in that table is already a 404 candidate by
+     * construction (see its own docblock), so there is no "http_code = 404"
+     * filter here the way there used to be against "data".
+     *
      * @return array{checked: int, alerts: array<int, array{id: int, ip: string, hit_count: int, matched_routes: string[], notified_at: ?string}>}
      *   "checked" is the number of 404 rows examined (for the scheduler
      *   job's log/email output); "alerts" is every scan_alerts row touched
@@ -818,7 +874,7 @@ class Stats
         // See "Date storage and comparison" in docs/DATABASES.md for why
         // datetime(date) rather than a plain "date >=" text comparison.
         $rows = $this->db->prepare(
-            'SELECT ip, route, date FROM data WHERE http_code = 404 AND datetime(date) >= datetime(:cutoff)'
+            'SELECT ip, route, date FROM scan_staging WHERE datetime(date) >= datetime(:cutoff)'
         );
         $rows->bindValue(':cutoff', $cutoff);
         $rows->execute();

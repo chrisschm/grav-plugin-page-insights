@@ -464,6 +464,23 @@ class PageInsightsPlugin extends Plugin
             $stats = new Stats($dbPath, $this->config(), $this->currentEnvironment());
             $this->maybeSetFreshInstallDefaults($stats);
 
+            // Scan-detection candidate capture (see
+            // Stats::recordScanCandidate()'s docblock): deliberately
+            // independent of "anonymize_ips"/"anonymize_ips_after" below
+            // (which only ever mask $ip / "data.ip") and of "log_bot"/
+            // "log_admin" (dashboard-cleanliness knobs used inside
+            // collect(), not security ones - a scanner spoofing a real
+            // browser's User-Agent, the documented common case, would
+            // otherwise slip past "log_bot" undetected). Uses the
+            // still-raw $ip, before the masking block below, and runs
+            // regardless of what collect() further down decides to do
+            // with this same hit. Gated only on "scan_detection" itself
+            // (default off) and "is this a 404" - no pattern matching
+            // here on purpose, see that method's docblock.
+            if ($config['scan_detection'] && 'notfound' == $page->template()) {
+                $stats->recordScanCandidate($ip, (string) $uri, $now);
+            }
+
             if ($config['anonymize_ips']) {
                 if (str_contains($ip, ':')) {
                     // IPv6 (truncate after second ':', i.e. after 4 bytes)
@@ -1344,6 +1361,14 @@ class PageInsightsPlugin extends Plugin
                 // own docblock.
                 $stats = new Stats($dbPath, $config);
                 $result = $stats->detectScans($windowMinutes, $threshold);
+
+                // Keeps "scan_staging" bounded to a few minutes of raw IPs
+                // regardless of "anonymize_ips"/"anonymize_ips_after" (see
+                // Stats::recordScanCandidate()'s docblock) - same cutoff
+                // detectScans() itself just used, so nothing still needed
+                // by *this* run is deleted, and a row this old will have
+                // aged out of the next run's own window anyway.
+                $stats->pruneScanStaging((new DateTimeImmutable())->modify("-{$windowMinutes} minutes"));
 
                 // Only the alerts this run actually raised/extended that
                 // haven't been emailed yet - a still-ongoing incident from

@@ -209,10 +209,16 @@ Two design decisions worth calling out, both driven by the "no per-request perfo
 requirement this feature started from:
 
 - **Detection is entirely a scheduled batch job (`registerScanDetectionJob()`, every 5 minutes),
-  never a request hook.** `onPageInitialized` already logs every 404 (route, IP, timestamp) via
-  the existing `collect()` path - scan detection reads *that*, after the fact, rather than adding
-  its own per-request pattern-matching. A visitor's request is never slowed down or blocked by
-  this feature, regardless of how large `scan_patterns` grows.
+  never a request hook.** `onPageInitialized` writes every 404 (route, raw IP, timestamp) into a
+  dedicated staging table, `scan_staging` (`Stats::recordScanCandidate()`), independently of the
+  `collect()`/`data` path - scan detection reads *that*, after the fact, rather than adding its own
+  per-request pattern-matching. A visitor's request is never slowed down or blocked by this
+  feature, regardless of how large `scan_patterns` grows. `scan_staging` exists specifically so
+  scan detection always sees the *raw* IP for a 404, regardless of what `anonymize_ips`/
+  `anonymize_ips_after` do to `data.ip` (see "IP anonymization" below) - `Stats::pruneScanStaging()`
+  deletes each run's own rows right after `detectScans()` reads them, so this table's raw-IP
+  footprint never lives longer than the 5-minute detection window itself. See
+  `data/migrations/12.sql` for the full reasoning.
 - **The 5-minute cadence isn't built on `AutoSchedule`** (unlike `geo_db_auto_update`/
   `data_auto_prune`/`rollup_auto_build`): that class only ever derives a `disabled`/`daily`/
   `weekly`/`monthly` point in time, since none of its other callers needed anything finer.
@@ -289,6 +295,20 @@ fresh install silently falls back to the same `disabled` behaviour a pre-existin
 gets - accepted as the safe failure direction, since the alternative (defaulting the blueprint to
 `30d` and instead writing `disabled` into existing installs) would mean a failed write silently
 changes an *existing* site's IP handling instead of merely under-protecting a brand-new one.
+
+**Scan detection is exempt from IP anonymization by construction (2026-09-08 fix).** Before this
+date, `Stats::detectScans()` read `ip` straight from `data`, so an alert (`scan_alerts.ip`)
+actually inherited whatever `anonymize_ips`/`anonymize_ips_after` had already done to that value by
+the time the 5-minute detection job ran - for `anonymize_ips` (immediate) specifically, that meant
+only the masked address ever reached `scan_alerts`, of little use for actually blocking the
+offending IP, contradicting a `docs/DATABASES.md` comment that had claimed `scan_alerts` was
+already exempt. Fixed by decoupling scan detection from `data` entirely: 404s are now recorded
+into their own short-lived `scan_staging` table with a raw IP (`Stats::recordScanCandidate()`,
+called from `collectPageData()` before the `anonymize_ips` masking block runs), and
+`detectScans()` reads from `scan_staging` instead of `data` - see the "Scan detection" section
+above and `data/migrations/12.sql`. No per-request pattern-matching was added to achieve this;
+every 404 still gets one unconditional staging row, keeping the original "no per-request
+performance cost" design goal intact.
 
 ## Further documentation
 
