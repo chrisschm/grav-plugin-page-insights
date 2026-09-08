@@ -2,6 +2,14 @@ enabled: true
 db: user/data/page-insights.sqlite
 ignore_errors: true
 anonymize_ips: false
+anonymize_ips_after: disabled
+# Nachtraegliche Anonymisierung, unabhaengig vom Toggle oben: laesst die IP
+# zunaechst roh (u. a. relevant fuer Scan-Detection, siehe docs/ARCHITECTURE.md),
+# maskiert eine Zeile aber automatisch, sobald sie aelter als diese Frist ist.
+# 'disabled' erhaelt exakt das bisherige Verhalten (keine nachtraegliche
+# Anonymisierung) - Default fuer Bestandsinstallationen. Neuinstallationen
+# bekommen stattdessen automatisch '30d' gesetzt, siehe
+# PageInsightsPlugin::maybeSetFreshInstallDefaults().
 # Off by default: CF-Connecting-IP / Client-IP / X-Forwarded-For are all
 # client-settable headers. Only enable this if you know your setup puts a
 # trusted reverse proxy (e.g. Cloudflare) in front of every request, so

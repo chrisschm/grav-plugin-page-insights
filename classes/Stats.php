@@ -19,6 +19,15 @@ class Stats
     private $config;
     private $botRegExp = '';
     private $environment;
+    // True only when the stats database file did not exist/wasn't
+    // writable yet BEFORE this connection was opened - i.e. a genuinely
+    // first-ever install, never true again on a later GPM/ZIP update
+    // (unlike $freshOrForced below, which also fires on every update via
+    // FORCE_MIGRATION_FLAG). Read by
+    // PageInsightsPlugin::maybeSetFreshInstallDefaults() to decide
+    // whether to materialize a friendlier default for
+    // "anonymize_ips_after" - see wasFreshInstall()'s docblock.
+    private $isFreshInstall = false;
 
     const FORCE_MIGRATION_FLAG = '/../data/migrations/MUST_MIGRATE';
 
@@ -43,7 +52,8 @@ class Stats
         $this->dt_offset = $this->config['datetime_offset'];
 
         $this->dbPath = new \SplFileInfo($dbPath);
-        $freshOrForced = !$this->dbPath->isWritable() || file_exists(__DIR__ . self::FORCE_MIGRATION_FLAG);
+        $this->isFreshInstall = !$this->dbPath->isWritable();
+        $freshOrForced = $this->isFreshInstall || file_exists(__DIR__ . self::FORCE_MIGRATION_FLAG);
         $this->db  = new PDO(
             'sqlite:' . $dbPath,
             null,
@@ -122,6 +132,24 @@ class Stats
         // timing, so this connection's behaviour never depends on
         // whether migrate() just ran.
         $this->db->exec('PRAGMA foreign_keys = OFF');
+    }
+
+    /**
+     * Whether this instance's connection was the one that found the stats
+     * database file missing/not-yet-writable and (as a result) ran the
+     * full migration chain from scratch - i.e. a genuinely first-ever
+     * install, captured once at construction time before the PDO
+     * connection could auto-create the file. Read by
+     * PageInsightsPlugin::maybeSetFreshInstallDefaults() (called from
+     * collectPageData(), the one call site that constructs a Stats for a
+     * real request) to decide whether to explicitly write a friendlier
+     * "anonymize_ips_after" default into this site's own saved config -
+     * see that method's docblock for why an upgrade must never take this
+     * branch.
+     */
+    public function wasFreshInstall(): bool
+    {
+        return $this->isFreshInstall;
     }
 
     private function getUserAgent()
@@ -466,6 +494,98 @@ class Stats
             'next_geo_db_update' => $nextGeoDbUpdate?->getTimestamp(),
             'next_auto_prune' => $nextAutoPrune?->getTimestamp(),
         ];
+    }
+
+    /**
+     * Coarse IP anonymization shared between immediate masking (config
+     * "anonymize_ips", applied in page-insights.php::collectPageData()
+     * before a row is ever written) and the deferred batch job
+     * (anonymizeAgedIps() below, config "anonymize_ips_after") - a single
+     * place for the actual masking rule, so the two call sites can never
+     * drift apart. IPv4: truncates the last two octets ("1.2.3.4" ->
+     * "1.2.0.0"). IPv6: truncates after the second ":" (keeps the first
+     * two hextets, "2001:0db8:1234::5" -> "2001:0db8::0").
+     *
+     * Idempotent by construction - masking an already-masked value returns
+     * it unchanged - which is what lets anonymizeAgedIps() safely re-mask
+     * rows that "anonymize_ips" (immediate) already masked at write time,
+     * without needing to know which case applies to any given row (see
+     * data/migrations/11.sql, "ip_anonymized").
+     */
+    public static function maskIp(string $ip): string
+    {
+        if (str_contains($ip, ':')) {
+            return substr($ip, 0, strpos($ip, ':', strpos($ip, ':') + 1)) . '::0';
+        }
+
+        if (str_contains($ip, '.')) {
+            return substr($ip, 0, strpos($ip, '.', strpos($ip, '.') + 1)) . '.0.0';
+        }
+
+        // Neither ":" nor "." - not a recognizable IPv4/IPv6 string (e.g.
+        // the "(anonymous)" fallback getUserIP() uses when no IP was
+        // available at all). Nothing sensible to truncate; return as-is
+        // rather than producing garbage, matching this class's general
+        // "never break on a malformed/edge-case value" posture.
+        return $ip;
+    }
+
+    /**
+     * Deferred/retroactive counterpart to the "anonymize_ips" (immediate)
+     * config toggle: masks "data.ip" (via maskIp() above) for every row
+     * older than $before that isn't already flagged as anonymized. Config:
+     * "anonymize_ips_after" ("disabled"/"7d"/"14d"/"30d"), resolved to a
+     * cutoff by the caller (PageInsightsPlugin::registerIpAnonymizeJob() /
+     * cli/AnonymizeIpsCommand.php) via RelativeDate::resolve(), same
+     * pattern as pruneData()'s $before parameter.
+     *
+     * Filters via "idx_data_date_normalized" first (same
+     * datetime(date)-wrapped comparison as every other date-range query in
+     * this class - see docs/DATABASES.md "Date storage and comparison"),
+     * then narrows to "ip_anonymized = 0" only within that already
+     * date-narrowed result - no separate index needed on the
+     * low-cardinality ip_anonymized column itself (see docs/DATABASES.md
+     * "Indexes" for the same reasoning already documented for
+     * "environment").
+     *
+     * Deliberately row-by-row in PHP rather than one SQL UPDATE: IPv4 and
+     * IPv6 need different truncation shapes (see maskIp()), so there is no
+     * single SQL expression that masks both correctly in one statement.
+     * Batched into one transaction so a large backlog (e.g. a first run
+     * after enabling this feature on an existing site) doesn't fsync once
+     * per row.
+     *
+     * @return int Number of rows masked.
+     */
+    public function anonymizeAgedIps(DateTimeImmutable $before): int
+    {
+        $select = $this->db->prepare(
+            'SELECT id, ip FROM data WHERE ip_anonymized = 0 AND datetime(date) < datetime(:cutoff)'
+        );
+        $select->bindValue(':cutoff', $before->format('c'));
+        $select->execute();
+        $rows = $select->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!$rows) {
+            return 0;
+        }
+
+        $update = $this->db->prepare('UPDATE data SET ip = :ip, ip_anonymized = 1 WHERE id = :id');
+
+        $this->db->beginTransaction();
+        try {
+            foreach ($rows as $row) {
+                $update->bindValue(':ip', self::maskIp((string) $row['ip']));
+                $update->bindValue(':id', $row['id'], PDO::PARAM_INT);
+                $update->execute();
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        return count($rows);
     }
 
     /**
@@ -916,7 +1036,7 @@ class Stats
      *
      * @returns string "0" on error or the last insert id otherwise
      */
-    public function collect(string $ip, GeolocationData $geo, PageInterface $page, $uri,  UserInterface $user, DateTimeImmutable $date, Browser $browser): string
+    public function collect(string $ip, GeolocationData $geo, PageInterface $page, $uri,  UserInterface $user, DateTimeImmutable $date, Browser $browser, bool $ipAnonymized = false): string
     {
         if ($this->isBot()) {
             if (false === $this->config['log_bot']) {
@@ -932,9 +1052,9 @@ class Stats
 
         $s = $this->db->prepare('
             INSERT INTO data
-                ("ip", "country", "city", "region", "route", "page_title", "user", "date", "user_agent", "is_bot", "browser", "browser_version", "platform", "referer", "http_code", "environment")
+                ("ip", "country", "city", "region", "route", "page_title", "user", "date", "user_agent", "is_bot", "browser", "browser_version", "platform", "referer", "http_code", "environment", "ip_anonymized")
              VALUES
-                (:ip, :country, :city, :region, :route, :title, :user, :date, :user_agent, :is_bot, :browser, :browser_version, :platform, :referer, :http_code, :environment)
+                (:ip, :country, :city, :region, :route, :title, :user, :date, :user_agent, :is_bot, :browser, :browser_version, :platform, :referer, :http_code, :environment, :ip_anonymized)
         ');
 
 
@@ -965,6 +1085,13 @@ class Stats
         // this method guessing at a code it can't actually verify.
         $s->bindValue(':http_code', $isNotFound ? 404 : 200, \PDO::PARAM_INT);
         $s->bindValue(':environment', $this->environment);
+        // Set at write time when "anonymize_ips" (immediate) already
+        // masked $ip before it ever reached this method - lets
+        // anonymizeAgedIps() (the deferred job) skip rows that need no
+        // further work, without having to guess from the ip string's
+        // shape (see data/migrations/11.sql for why that would be
+        // unsafe).
+        $s->bindValue(':ip_anonymized', $ipAnonymized, \PDO::PARAM_BOOL);
 
         $s->execute();
 

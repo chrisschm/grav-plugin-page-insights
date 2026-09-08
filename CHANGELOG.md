@@ -1,3 +1,19 @@
+# unreleased
+
+1. [](#new)
+    * feat: added deferred IP anonymization - new `anonymize_ips_after` setting
+      (`disabled`/`7d`/`14d`/`30d`) masks an entry's IP automatically once it is older than the
+      chosen period, independent of the existing "Anonymize IP-addresses" (`anonymize_ips`)
+      toggle, which still masks immediately at collection time as before. Runs as a new,
+      fixed-daily Scheduler job (`Stats::anonymizeAgedIps()`, new
+      `bin/plugin page-insights anonymize-ips --older-than=` CLI equivalent) and shares its
+      actual masking rule with the existing immediate toggle via the new `Stats::maskIp()`
+      method, so the two can never drift apart. New `ip_anonymized` column (migration 11)
+      tracks which rows are already masked, without guessing from the stored IP's shape.
+      Default is `disabled` for existing installations (unchanged behavior after updating) but
+      `30d` for brand-new installs, set automatically on first run. See
+      `docs/ARCHITECTURE.md` ("IP anonymization") for the full design, including the reasoning
+      behind the fresh-install-vs-upgrade default split.
 # v3.4.2
 # 08/30/2026 ([a48ccf5](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/a48ccf5a9582366cc1eeaf47bad2583f4c4e45fc))
 

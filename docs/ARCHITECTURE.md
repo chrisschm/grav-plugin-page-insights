@@ -249,6 +249,47 @@ view). Both `importScanPatterns()` (the CLI command) and `addScanPattern()` (the
 form) insert-only-if-missing (`INSERT OR IGNORE` against the `UNIQUE pattern` column) - re-running
 the import after an admin has disabled or added their own patterns never touches those rows.
 
+## IP anonymization
+
+Added 2026-09-08 as a two-tier replacement for the previous all-or-nothing `anonymize_ips` toggle,
+after a real-world DSGVO/GDPR compliance question (drafting a privacy policy that had to describe
+IP retention accurately) exposed that "leave it fully to the site operator" left no middle ground
+between "anonymize immediately" and "keep raw IPs forever" - the two extremes `anonymize_ips`
+(default `false`) and the previously-`disabled`-by-default `data_auto_prune` already spanned.
+
+- **`anonymize_ips`** (unchanged): masks the IP *before* it is ever written to `data`, in
+  `page-insights.php::collectPageData()`, via `Stats::maskIp()`. Immediate, irreversible from the
+  moment of collection - no raw IP for that hit exists anywhere afterwards.
+- **`anonymize_ips_after`** (new, `disabled`/`7d`/`14d`/`30d`): a deferred, retroactive counterpart.
+  Rows are written with a full IP as before, but a daily scheduled job
+  (`PageInsightsPlugin::registerIpAnonymizeJob()`, see `MAINTENANCE.md`) masks any row older than
+  the chosen period via `Stats::anonymizeAgedIps()` - same `Stats::maskIp()` masking rule, shared
+  between both call sites so they can never drift apart. Independent of `anonymize_ips`: re-masking
+  a row `anonymize_ips` already masked at write time is a safe, idempotent no-op (see `maskIp()`'s
+  docblock and `data/migrations/11.sql`'s `ip_anonymized` column, which lets the deferred job skip
+  rows that need no further work without having to guess a row's history from the `ip` string's
+  shape).
+- **Retention pipeline**: raw IP (`0` to `anonymize_ips_after` days) -> masked IP (until
+  `data_auto_prune_older_than`, default `365d`, itself still opt-in) -> row deleted. Choosing an
+  `anonymize_ips_after` value longer than the site's own `data_auto_prune_older_than` is harmless
+  (deletion simply happens first) but pointless - documented in the field's own help text rather
+  than validated, to keep the blueprint simple.
+
+**Fresh-install vs. upgrade default (`PageInsightsPlugin::maybeSetFreshInstallDefaults()`).** The
+blueprint default for `anonymize_ips_after` is `disabled` - deliberately the same as the pre-2026-09
+behaviour, so an *existing* installation upgrading to this version is never silently switched to
+different IP-handling behaviour it never opted into. A genuinely fresh install instead gets `30d`
+explicitly written into its own `user/config/plugins/page-insights.yaml` (via
+`Grav\Common\File\CompiledYamlFile`), the moment `Stats::wasFreshInstall()` reports the stats
+database didn't exist yet before this request's connection - not simply changing the blueprint
+default itself, which Grav's config merge cannot tell apart from "an existing install that never
+touched this key" (both look identical from `$this->config()` alone; only checking the *raw*,
+unmerged config file distinguishes them). If that write ever fails (e.g. a permissions issue), the
+fresh install silently falls back to the same `disabled` behaviour a pre-existing install already
+gets - accepted as the safe failure direction, since the alternative (defaulting the blueprint to
+`30d` and instead writing `disabled` into existing installs) would mean a failed write silently
+changes an *existing* site's IP handling instead of merely under-protecting a brand-new one.
+
 ## Further documentation
 
 Larger topics that used to live in this file now have their own document:

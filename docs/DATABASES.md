@@ -107,6 +107,7 @@ idempotent by construction and need no such handling.
 | `platform` | `STRING(255)` | 2 | Feeds `topPlatforms()`. |
 | `referer` | `STRING(500)` | 3 | `$_SERVER['HTTP_REFERER']` or empty string. Written on every hit but currently never read back anywhere (no referrer-analysis feature exists yet - see the project's ToDo history). |
 | `environment` | `VARCHAR(255)` | 9 | Grav's `config('environment')` value at collection time - which site a hit belongs to, in a Grav multisite install sharing this plugin installation across several sites. `NULL` for every row written before migration 9. See "Multisite (environment) scoping" below. |
+| `ip_anonymized` | `BOOLEAN DEFAULT 0` | 11 | Whether `ip` already holds a masked value - either because `anonymize_ips` (immediate) masked it before this row was ever written, or because the deferred job (`Stats::anonymizeAgedIps()`, config `anonymize_ips_after`) has since masked it retroactively. `0`/unset for every pre-existing row (no backfill - see "IP anonymization" in `ARCHITECTURE.md` for why re-masking an already-masked row is a safe no-op instead). Deliberately not derived from the `ip` string's shape (e.g. "ends in `.0.0`") - whether an all-zero-host-bits address is actually reserved depends on the specific subnet mask it was allocated with, not knowable from the address alone, so a real client IP can legitimately collide with the masked shape. No index - see "Indexes" below. |
 
 ### Bot detection reliability (`is_bot`, `bot_regexp`)
 
@@ -234,6 +235,13 @@ different query shape an expression index doesn't help with.
 on the dedicated "view last 1000 pages" page) to look up that row's session by `session_id` - each
 call was its own full table `SCAN` of `events`. Also benefits `collectEvent()`'s own per-hit session
 lookup on the unauthenticated `/event-collection` endpoint.
+
+**No index on `ip_anonymized` (migration 11), same reasoning as `environment` above.** The column
+is boolean - even lower cardinality than `environment` - and `Stats::anonymizeAgedIps()` already
+filters via `idx_data_date_normalized` first (`datetime(date) < datetime(:cutoff)`), checking
+`ip_anonymized = 0` only within that already date-narrowed result. An index on it alone would risk
+the same `MULTI-INDEX OR`-style planner regression measured for `environment`, for no benefit -
+the query is already a `SEARCH`, not a `SCAN`, without it.
 
 ### Date storage and comparison
 

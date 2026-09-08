@@ -4,6 +4,7 @@ namespace Grav\Plugin;
 
 use Composer\Autoload\ClassLoader;
 use DateTimeImmutable;
+use Grav\Common\File\CompiledYamlFile;
 use Grav\Common\Page\Page;
 use Grav\Common\Plugin;
 use Grav\Common\Scheduler\Scheduler;
@@ -387,6 +388,62 @@ class PageInsightsPlugin extends Plugin
     }
 
     /**
+     * One-time bootstrapping for a genuinely fresh install (see
+     * Stats::wasFreshInstall()'s docblock): explicitly writes
+     * "anonymize_ips_after: 30d" into this site's own saved config file,
+     * so a brand-new site starts with deferred IP anonymization already
+     * on - rather than relying on blueprints.yaml's own default, which is
+     * deliberately "disabled" (see page-insights.yaml's comment on
+     * "anonymize_ips_after") so an *existing* installation upgrading to
+     * this version is never silently switched to different IP-handling
+     * behaviour it never opted into.
+     *
+     * Grav's config merge already fills in the blueprint default for any
+     * key absent from the site's own config file, so "never configured,
+     * freshly installed" and "never configured, pre-existing install" are
+     * otherwise indistinguishable from $this->config() alone - this
+     * method is what tells them apart, via Stats::wasFreshInstall().
+     * Reads/writes the *raw* file content (CompiledYamlFile), never
+     * $this->config() - the merged view already contains the blueprint
+     * default, so it can never be used to detect "was this key actually
+     * saved on disk".
+     *
+     * Deliberately fails soft: if the config file can't be read/written
+     * (e.g. a permissions issue), this simply leaves the key unset, which
+     * falls back to the "disabled" blueprint default - the same, safe
+     * behaviour a pre-existing install already gets either way. That's
+     * the correct failure direction: defaulting the *blueprint* itself to
+     * "30d" and writing "disabled" into existing installs' config here
+     * instead would mean a failed write silently turns immediate,
+     * config-file-based protection into no anonymization at all for an
+     * existing site that never asked for a behaviour change - protecting
+     * a new install slightly less well on the rare failure is the
+     * harmless direction, protecting an existing site's current handling
+     * unexpectedly less is not.
+     */
+    private function maybeSetFreshInstallDefaults(Stats $stats): void
+    {
+        if (!$stats->wasFreshInstall()) {
+            return;
+        }
+
+        try {
+            $filename = $this->grav['locator']->findResource('config://plugins/page-insights.yaml', true, true);
+            $file = CompiledYamlFile::instance($filename);
+            $data = (array) $file->content();
+            if (!array_key_exists('anonymize_ips_after', $data)) {
+                $data['anonymize_ips_after'] = '30d';
+                $file->save($data);
+            }
+            $file->free();
+        } catch (\Throwable $e) {
+            $this->grav['log']->error(
+                'PageInsights plugin: anonymize_ips_after-Default fuer Neuinstallation konnte nicht geschrieben werden: ' . $e->getMessage()
+            );
+        }
+    }
+
+    /**
      * collecs stats about page data
      */
     private function collectPageData()
@@ -404,6 +461,9 @@ class PageInsightsPlugin extends Plugin
             $browser = $this->grav['browser'];
             $dbPath = $config['db'];
 
+            $stats = new Stats($dbPath, $this->config(), $this->currentEnvironment());
+            $this->maybeSetFreshInstallDefaults($stats);
+
             if ($config['anonymize_ips']) {
                 if (str_contains($ip, ':')) {
                     // IPv6 (truncate after second ':', i.e. after 4 bytes)
@@ -414,9 +474,7 @@ class PageInsightsPlugin extends Plugin
                 }
             }
 
-            $stats = new Stats($dbPath, $this->config(), $this->currentEnvironment());
-
-            $sessionId = $stats->collect($ip, $geo, $page, $uri, $user, $now, $browser);
+            $sessionId = $stats->collect($ip, $geo, $page, $uri, $user, $now, $browser, (bool) $config['anonymize_ips']);
 
             if ($config['log_time_on_page']) {
                 $vars = json_encode([
@@ -1023,6 +1081,7 @@ class PageInsightsPlugin extends Plugin
         $this->registerAutoPruneJob($scheduler, $config);
         $this->registerRollupBuildJob($scheduler, $config);
         $this->registerScanDetectionJob($scheduler, $config);
+        $this->registerIpAnonymizeJob($scheduler, $config);
     }
 
     /**
@@ -1165,6 +1224,60 @@ class PageInsightsPlugin extends Plugin
         );
         $job->at($cron);
         $job->output('logs/page-insights-data-prune.out');
+    }
+
+    /**
+     * Deferred-anonymization counterpart to registerAutoPruneJob() above -
+     * masks "data.ip" for rows older than "anonymize_ips_after" via
+     * Stats::anonymizeAgedIps(), independent of whether "anonymize_ips"
+     * (immediate) is also on (see that method's docblock: re-masking an
+     * already-masked row is a safe, idempotent no-op).
+     *
+     * Deliberately fixed to a daily cadence, NOT built on AutoSchedule's
+     * admin-facing disabled/daily/weekly/monthly choice like
+     * registerAutoPruneJob()/registerGeoDbAutoUpdateJob() above - offering
+     * "weekly" here would let up to 6 extra days of raw IP data sit past
+     * whatever retention the admin actually chose (e.g. a 7-day setting
+     * effectively becoming up to 13 days), defeating the point of the
+     * config field. Still uses AutoSchedule::cronExpression() itself, for
+     * the same per-installation jittered time-of-day derivation as every
+     * other job here - just always with mode "daily". See
+     * docs/ARCHITECTURE.md "Scan detection" for the precedent of bypassing
+     * AutoSchedule's admin-facing choice for a related reason (there:
+     * needed *finer* than daily; here: needed to never offer *coarser*
+     * than daily).
+     */
+    private function registerIpAnonymizeJob(Scheduler $scheduler, array $config): void
+    {
+        $olderThanRaw = (string) ($config['anonymize_ips_after'] ?? 'disabled');
+        if ($olderThanRaw === 'disabled' || $olderThanRaw === '') {
+            return;
+        }
+
+        $cron = AutoSchedule::cronExpression(GRAV_ROOT, 'ip-anonymize', 'daily');
+        $dbPath = (string) $config['db'];
+
+        $job = $scheduler->addFunction(
+            function () use ($dbPath, $config, $olderThanRaw) {
+                // Resolved fresh on every run (not once at registration) -
+                // same reasoning as registerAutoPruneJob()'s $cutoff.
+                $cutoff = RelativeDate::resolve($olderThanRaw);
+                if ($cutoff === null) {
+                    return "Anonymisierung uebersprungen: ungueltiger Wert fuer anonymize_ips_after ('{$olderThanRaw}').\n";
+                }
+
+                // No environment passed: operates across every site's data
+                // at once, same reasoning as registerAutoPruneJob().
+                $stats = new Stats($dbPath, $config);
+                $masked = $stats->anonymizeAgedIps($cutoff);
+
+                return "IP-Anonymisierung: {$masked} Eintrag/Eintraege maskiert (aelter als {$cutoff->format('c')}).\n";
+            },
+            [],
+            'page-insights-ip-anonymize'
+        );
+        $job->at($cron);
+        $job->output('logs/page-insights-ip-anonymize.out');
     }
 
     /**

@@ -46,6 +46,21 @@ PLUGIN_PAGE_INSIGHTS:
     Speicherung in der Datenbank nach 2 Bytes (bei IPv4) bzw. 4 Bytes (bei IPv6) gekürzt,
     um die Einhaltung der DSGVO zu erleichtern. HINWEIS: Dies gilt NUR für neu erfasste
     Besuche, NICHT für bereits in der Datenbank gespeicherte Einträge.'
+  ANONYMIZE_IPS_AFTER_LABEL: Nachträgliche IP-Anonymisierung
+  ANONYMIZE_IPS_AFTER_HELP: 'Maskiert die IP-Adresse eines Eintrags automatisch, sobald
+    er älter als die gewählte Frist ist - unabhängig von "IP-Adressen anonymisieren"
+    oben, und auch für Zeilen, die wegen ausgeschalteter Sofort-Anonymisierung mit
+    vollständiger IP gespeichert wurden. Läuft einmal täglich (anders als andere
+    automatische Jobs dieses Plugins nicht admin-konfigurierbar: eine langsamere
+    Taktung würde rohe IP-Daten deutlich über die gewählte Frist hinaus vorhalten).
+    "Deaktiviert" entspricht dem bisherigen Verhalten (keine nachträgliche
+    Anonymisierung) und bleibt bei Bestandsinstallationen auch nach einem Update
+    der Wert - in Verbindung mit unbegrenzter Aufbewahrung datenschutzrechtlich
+    ggf. bedenklich, siehe Handbuch.'
+  ANONYMIZE_IPS_AFTER_DISABLED: Deaktiviert (nicht empfohlen - datenschutzrechtlich ggf. bedenklich)
+  ANONYMIZE_IPS_AFTER_7D: Nach 7 Tagen
+  ANONYMIZE_IPS_AFTER_14D: Nach 14 Tagen
+  ANONYMIZE_IPS_AFTER_30D: Nach 30 Tagen
   TRUST_PROXY_HEADERS_LABEL: Proxy-Header für Besucher-IP vertrauen
   TRUST_PROXY_HEADERS_HELP: 'Wenn aktiviert, werden die Header CF-Connecting-IP,
     Client-IP und X-Forwarded-For zur Ermittlung der Besucher-IP herangezogen.

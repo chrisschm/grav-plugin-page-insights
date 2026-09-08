@@ -35,6 +35,13 @@ PLUGIN_PAGE_INSIGHTS:
     ANONYMIZE_IPS_LABEL: Anonymize IP-addresses
     ANONYMIZE_IPS_HELP: "If enabled IP-addresses will be truncated after 2 Bytes (for IPv4) and 4 Bytes (for IPv6) before storing to database for eased GDPR compliance. NOTICE: This ONLY applies for NEWLY recorded visits, NOT for entries already recorded in the database."
 
+    ANONYMIZE_IPS_AFTER_LABEL: Deferred IP anonymization
+    ANONYMIZE_IPS_AFTER_HELP: "Automatically masks an entry's IP address once it is older than the chosen period - independent of \"Anonymize IP-addresses\" above, and applying to rows that were stored with a full IP because that option was off. Runs once a day (not admin-configurable, unlike other automatic jobs in this plugin: offering a slower cadence here would let raw IP data sit well past the chosen period). \"Disabled\" keeps the previous behaviour (no deferred anonymization) and remains the value existing installations keep after an update - combined with unlimited data retention, this may raise data protection concerns, see the manual."
+    ANONYMIZE_IPS_AFTER_DISABLED: Disabled (not recommended - may raise data protection concerns)
+    ANONYMIZE_IPS_AFTER_7D: After 7 days
+    ANONYMIZE_IPS_AFTER_14D: After 14 days
+    ANONYMIZE_IPS_AFTER_30D: After 30 days
+
     TRUST_PROXY_HEADERS_LABEL: Trust proxy headers for visitor IP
     TRUST_PROXY_HEADERS_HELP: "If enabled, the CF-Connecting-IP, Client-IP and X-Forwarded-For headers are used to determine the visitor's IP address. Only enable this if your site is guaranteed to sit behind a trusted reverse proxy (e.g. Cloudflare) for every request - otherwise visitors can forge these headers themselves. Leave disabled to always use the direct connection IP."
 

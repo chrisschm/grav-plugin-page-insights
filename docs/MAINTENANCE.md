@@ -34,6 +34,12 @@ once, see [`HISTORY.md`](HISTORY.md) #9/#12).
   (`2025-01-01`), parsed by `RelativeDate::resolve()` - deliberately not free-form `strtotime()`,
   since this drives an irreversible `DELETE`. `--vacuum` runs `VACUUM` immediately afterwards (see
   `vacuum` below) in the same invocation.
+- **`bin/plugin page-insights anonymize-ips --older-than=<value> [--yes]`** - masks `data.ip` (via
+  `Stats::maskIp()`) for rows older than `<value>`, independent of whether `anonymize_ips`
+  (immediate) is also on - re-masking an already-masked row is a safe, idempotent no-op (see
+  `ARCHITECTURE.md` "IP anonymization"). Same `<value>` syntax as `prune --older-than`
+  (`RelativeDate::resolve()`). Unlike `prune`, no `--vacuum` option - this is an `UPDATE`, not a
+  `DELETE`, and never changes the database file's size.
 - **`bin/plugin page-insights events:prune-orphans`** - just the orphaned-`events` cleanup,
   without any age cutoff. `events.session_id` is declared `REFERENCES data (id)` in the schema but
   without `ON DELETE CASCADE`, and `Stats`'s own connection explicitly runs
@@ -144,7 +150,7 @@ knowing before adding a fourth scheduled job of this kind: only `\RuntimeExcepti
 caught this way, not `\Exception`/`\Error` in general, so a method meant to fail safely inside a
 scheduler job needs to actually throw that class (or a subclass of it).
 
-All three jobs are opt-in/opt-out via config, independently:
+All four jobs are opt-in/opt-out via config, independently:
 
 - `geo_db_auto_update` (`disabled`|`weekly`|`monthly`, **default `weekly`**) - safe to default to
   enabled, it only refreshes a lookup file.
@@ -163,8 +169,16 @@ All three jobs are opt-in/opt-out via config, independently:
   like the other two jobs - a rollup that falls a week behind defeats its own purpose, since
   `pagesSummary()`'s rollup fast path just falls back to the original live query for whatever isn't
   covered yet.
+- `anonymize_ips_after` (`disabled`|`7d`|`14d`|`30d`, **default `disabled`** for existing
+  installations, `30d` for fresh installs - see `ARCHITECTURE.md` "IP anonymization") - runs
+  `Stats::anonymizeAgedIps()` for rows older than the chosen period, via
+  `PageInsightsPlugin::registerIpAnonymizeJob()`. Unlike the three jobs above, this one is *not*
+  admin-selectable between daily/weekly/monthly - it always registers at a fixed daily cadence
+  (still via `AutoSchedule::cronExpression()`, just with `mode` hardcoded to `daily`), since
+  offering anything slower would let raw IP data sit well past whatever retention the admin
+  actually chose.
 
-**Bot-/404-pruning is deliberately *not* a fourth scheduled job.** `prune:bots`/`prune:notfound`
+**Bot-/404-pruning is deliberately *not* a further scheduled job.** `prune:bots`/`prune:notfound`
 (CLI and dialog preset, above) stay manual-only - there is no `bot_auto_prune`/
 `notfound_auto_prune` config field or scheduler registration for either, unlike the age-based
 `data_auto_prune`. Reasoning, confirmed explicitly with the plugin author when the two commands
@@ -172,8 +186,8 @@ were added: for age-based deletion, "this is allowed to disappear automatically 
 intuitive default once an admin has set a retention period at all; for bot/404 traffic, the same
 isn't as obvious without an admin consciously choosing to look at what's being classified before
 letting it be deleted unattended. If unattended bot-/404-pruning is wanted later, an optional
-fourth scheduler job (mirroring `data_auto_prune`'s own opt-in config field) would be a cleanly
-separable feature to add, not a retrofit of the existing three.
+further scheduler job (mirroring `data_auto_prune`'s own opt-in config field) would be a cleanly
+separable feature to add, not a retrofit of the existing ones.
 
 The admin never picks a concrete weekday or time - only `disabled`/`daily`/`weekly`/`monthly`
 (`daily` only actually offered for `rollup_auto_build`, see above - `AutoSchedule` itself supports
@@ -187,7 +201,7 @@ used as the seed because it's the one value that's stable and available in every
 run from, including `bin/grav scheduler`'s own CLI context, which has no HTTP host to read at all -
 the trade-off is that moving a whole site to a different path/server shifts its computed schedule,
 accepted as a rare, harmless side effect. `$jobKey` (`"geo-db-update"` vs. `"data-auto-prune"` vs.
-`"rollup-build"`) keeps the jobs on one site from landing on the exact same second.
+`"rollup-build"` vs. `"ip-anonymize"`) keeps the jobs on one site from landing on the exact same second.
 
 **Not yet done, deliberately out of scope for this pass:** unlike `next_geo_db_update`/
 `next_auto_prune` below, there's no `next_rollup_build`/"next run" display wired into
@@ -228,7 +242,7 @@ section covers the operational surfaces.
   Admin2-only database maintenance dialog above (see "Design goals" in `ARCHITECTURE.md`).
 
 **The detection job itself** - opt-in (`scan_detection`, default `false`), registered from
-`onSchedulerInitialized()` alongside the three jobs above but, unlike them, **not** built on
+`onSchedulerInitialized()` alongside the jobs above but, unlike them, **not** built on
 `AutoSchedule`: that class only ever derives a `disabled`/`daily`/`weekly`/`monthly` point in
 time, since none of its other callers needed a sub-daily interval. `registerScanDetectionJob()`
 uses a fixed `*/5 * * * *` cron expression instead - the site's one `bin/grav scheduler` cron
@@ -255,7 +269,8 @@ automatischen Scheduler-Jobs. Die zugrundeliegenden `Stats`-Methoden/das Schema 
 `DATABASES.md`, der Geo-Index-Rebuild in `GEOLOCATION.md`.
 
 **CLI-Befehle** (`cli/`, automatisch von Grav über `PluginCommandLoader` erkannt):
-`geo-db:update`, `prune --older-than=<Wert> [--vacuum]`, `events:prune-orphans`, `vacuum`,
+`geo-db:update`, `prune --older-than=<Wert> [--vacuum]`, `anonymize-ips --older-than=<Wert>`,
+`events:prune-orphans`, `vacuum`,
 `rollup:build [--from=...]`, `prune:bots`, `prune:notfound` - letztere beide löschen unabhängig
 vom Alter (Bot- bzw. 404-Kriterium statt Alterskriterium).
 
@@ -263,15 +278,18 @@ vom Alter (Bot- bzw. 404-Kriterium statt Alterskriterium).
 (`vacuum`/`prune_orphans`/`prune_old`/`prune_bots`/`prune_notfound`), jeweils auf dieselben
 `Stats`-Methoden wie die CLI-Befehle abgebildet, `VACUUM` läuft danach immer.
 
-**Automatische Scheduler-Jobs** (`onSchedulerInitialized()`, `AutoSchedule`): drei unabhängig
+**Automatische Scheduler-Jobs** (`onSchedulerInitialized()`, `AutoSchedule`): vier unabhängig
 zu-/abschaltbare Jobs (`geo_db_auto_update` Standard an, `data_auto_prune`/`rollup_auto_build`
-Standard aus) laufen als PHP-Closures im selben `bin/grav scheduler`-Aufruf mit, ohne eigenen
+Standard aus, `anonymize_ips_after` Standard aus für Bestandsinstallationen/`30d` für
+Neuinstallationen) laufen als PHP-Closures im selben `bin/grav scheduler`-Aufruf mit, ohne eigenen
 Cron-Eintrag. `Job::exec()` fängt dabei bereits `\RuntimeException` um den Closure-Aufruf ab -
 `GeoDbUpdater::update()`s bewusst uncaught gelassene Exception wird dadurch automatisch
 abgefangen, ohne zusätzliches try/catch im Scheduler-Hook. Bot-/404-Pruning ist bewusst **kein**
-vierter Scheduler-Job - anders als bei Alters-basiertem Löschen ist bei Bot-/404-Traffic weniger
+weiterer Scheduler-Job - anders als bei Alters-basiertem Löschen ist bei Bot-/404-Traffic weniger
 offensichtlich, dass unbeaufsichtigtes Löschen ohne bewusstes Hinschauen gewollt ist; bei Bedarf
-wäre ein optionaler vierter Job (analog `data_auto_prune`) ein sauber abgrenzbares eigenes Feature.
+wäre ein optionaler weiterer Job (analog `data_auto_prune`) ein sauber abgrenzbares eigenes Feature.
 Konkreter Wochentag/Uhrzeit wird nie vom Admin gewählt, sondern deterministisch aus
 `crc32(GRAV_ROOT . jobKey)` abgeleitet, um eine Häufung vieler Installationen auf denselben
-Standard-Cron-Zeitpunkt zu vermeiden.
+Standard-Cron-Zeitpunkt zu vermeiden; `anonymize_ips_after` wählt zusätzlich nur die
+Aufbewahrungsfrist, nicht den Rhythmus selbst - der läuft fest täglich (siehe "Automatic
+scheduling" oben für die Begründung).

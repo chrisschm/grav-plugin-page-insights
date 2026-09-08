@@ -114,6 +114,17 @@ form:
                             validate:
                                 type: bool
 
+                        anonymize_ips_after:
+                            type: select
+                            label: PLUGIN_PAGE_INSIGHTS.ANONYMIZE_IPS_AFTER_LABEL
+                            help: PLUGIN_PAGE_INSIGHTS.ANONYMIZE_IPS_AFTER_HELP
+                            default: disabled
+                            options:
+                                disabled: PLUGIN_PAGE_INSIGHTS.ANONYMIZE_IPS_AFTER_DISABLED
+                                '7d': PLUGIN_PAGE_INSIGHTS.ANONYMIZE_IPS_AFTER_7D
+                                '14d': PLUGIN_PAGE_INSIGHTS.ANONYMIZE_IPS_AFTER_14D
+                                '30d': PLUGIN_PAGE_INSIGHTS.ANONYMIZE_IPS_AFTER_30D
+
                         trust_proxy_headers:
                             type: toggle
                             label: PLUGIN_PAGE_INSIGHTS.TRUST_PROXY_HEADERS_LABEL
