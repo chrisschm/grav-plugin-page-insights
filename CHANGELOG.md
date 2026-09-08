@@ -1,3 +1,20 @@
+# unreleased
+
+1. [](#bugfix)
+    * fix: the `Nächste automatische Bereinigung`/"Next automatic pruning" status hint (Classic
+      Admin titlebar and Admin2 dashboard toolbar, backed by `Stats::dbStats()`) could show a date
+      already in the past when `data_auto_prune`/`geo_db_auto_update` is set to `monthly` and the
+      configured day-of-month falls before today's date. Root cause was in
+      `AutoSchedule::nextRun()`'s monthly-rollover branch: it read `$candidate->format('Y')` and
+      `$candidate->format('n')` as arguments in the same chained call that had just called
+      `modify('first day of next month')` on $candidate - those arguments still evaluate
+      against the pre-`modify()` value (the reassignment to $candidate hasn't happened yet while
+      its own argument list is being evaluated), which
+      silently reset the month straight back to the current one and cancelled the rollover entirely.
+      Purely a display bug - the actual scheduled job itself runs on a separately-derived, correct
+      cron expression (`AutoSchedule::cronExpression()`) unaffected by this. Fixed by reading
+      Y/month from a separate, already-advanced variable instead of $candidate itself.
+
 # v3.5.1
 ## 09/08/2026 ([fedd35a](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/fedd35ac18ac7ba6da2748a1eb0fc78632a0d9e6))
 

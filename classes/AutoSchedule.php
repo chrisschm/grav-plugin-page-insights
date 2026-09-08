@@ -93,9 +93,20 @@ final class AutoSchedule
 
         $candidate = $from->setDate((int) $from->format('Y'), (int) $from->format('n'), $dayOfMonth)->setTime($hour, $minute);
         if ($candidate <= $from) {
-            $candidate = $candidate->modify('first day of next month')->setDate(
-                (int) $candidate->format('Y'),
-                (int) $candidate->format('n'),
+            // $candidate's own Y/month can't be read as part of the same
+            // chain that just modify()'d it: $candidate->format(...) as an
+            // argument still evaluates against the PRE-modify() value (the
+            // reassignment to $candidate hasn't happened yet while its own
+            // argument list is being evaluated), which silently reset the
+            // month straight back to the current one and cancelled the
+            // advance entirely - observed in production as a 'next
+            // scheduled run' hint dated in the *current* month on a day
+            // already passed, i.e. visibly in the past. Fixed by reading
+            // Y/month from a separate, already-advanced variable instead.
+            $firstOfNextMonth = $from->modify('first day of next month');
+            $candidate = $firstOfNextMonth->setDate(
+                (int) $firstOfNextMonth->format('Y'),
+                (int) $firstOfNextMonth->format('n'),
                 $dayOfMonth
             )->setTime($hour, $minute);
         }
