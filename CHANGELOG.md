@@ -1,5 +1,5 @@
 # v3.5.1
-## 09/08/2026
+## 09/08/2026 ([fedd35a](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/fedd35ac18ac7ba6da2748a1eb0fc78632a0d9e6))
 
 1. [](#bugfix)
     * fix: `anonymize_ips_after`'s scheduled job (`Stats::anonymizeAgedIps()`) could crash with an
