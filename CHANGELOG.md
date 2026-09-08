@@ -25,6 +25,20 @@
       (`Stats::pruneScanStaging()`) so it never holds more than one detection window's worth of
       raw IPs. No pattern-matching was added at collection time to achieve this, so this adds no
       per-request cost. See `docs/ARCHITECTURE.md` ("Scan detection", "IP anonymization").
+    * feat: added a retention limit for `scan_alerts` - new `scan_alerts_auto_prune_older_than`
+      setting (`disabled`/`30d`/`90d`/`180d`/`365d`, default `90d`) automatically deletes a scan
+      alert once its last activity is older than the chosen period. Previously `scan_alerts` had
+      no retention limit at all, so a confirmed-attacker IP address stayed there indefinitely,
+      unmasked, however old the incident. Runs as a new, fixed-weekly Scheduler job
+      (`Stats::pruneScanAlerts()`, new `bin/plugin page-insights prune:scan-alerts --older-than=`
+      CLI equivalent), independent of `data`'s own retention setting - DSGVO/GDPR
+      (Erwägungsgrund 49) explicitly allows longer retention for network/information-security
+      data than for ordinary traffic, which is why this defaults to `90d` regardless of what
+      `data_auto_prune_older_than` is set to. Unlike `anonymize_ips_after`, this applies to every
+      installation immediately, not just fresh ones: `scan_detection` is itself still a recent,
+      opt-in feature (v3.4.0), so there was no long-established behavior to preserve for existing
+      users. See `docs/ARCHITECTURE.md` ("Scan detection", "Retention") for the full reasoning.
+
 # v3.4.2
 # 08/30/2026 ([a48ccf5](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/a48ccf5a9582366cc1eeaf47bad2583f4c4e45fc))
 

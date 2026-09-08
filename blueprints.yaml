@@ -348,6 +348,17 @@ form:
                                     validate:
                                         type: email
                                         required: false
+                                scan_alerts_auto_prune_older_than:
+                                    type: select
+                                    label: PLUGIN_PAGE_INSIGHTS.SCAN_ALERTS_AUTO_PRUNE_OLDER_THAN_LABEL
+                                    help: PLUGIN_PAGE_INSIGHTS.SCAN_ALERTS_AUTO_PRUNE_OLDER_THAN_HELP
+                                    default: '90d'
+                                    options:
+                                        disabled: PLUGIN_PAGE_INSIGHTS.SCAN_ALERTS_AUTO_PRUNE_DISABLED
+                                        '30d': PLUGIN_PAGE_INSIGHTS.SCAN_ALERTS_AUTO_PRUNE_30D
+                                        '90d': PLUGIN_PAGE_INSIGHTS.SCAN_ALERTS_AUTO_PRUNE_90D
+                                        '180d': PLUGIN_PAGE_INSIGHTS.SCAN_ALERTS_AUTO_PRUNE_180D
+                                        '365d': PLUGIN_PAGE_INSIGHTS.SCAN_ALERTS_AUTO_PRUNE_365D
                 tab_classic_admin:
                     type: tab
                     title: PLUGIN_PAGE_INSIGHTS.TAB_CLASSIC_ADMIN

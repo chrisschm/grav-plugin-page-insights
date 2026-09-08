@@ -1070,23 +1070,24 @@ class PageInsightsPlugin extends Plugin
     }
 
     /**
-     * Registers the automatic, schedule-driven equivalents of the manual
-     * "Update now" trigger (geo-db, see handleGeoDbRebuildPost()/
-     * PageInsightsApiController::rebuildGeoDb()) and the manual `prune` CLI
-     * command (see cli/PruneCommand.php). Fired by Grav-Core's Scheduler
-     * whenever it actually runs - `bin/grav scheduler` (the site's single,
-     * already-existing cron entry for Grav's built-in Scheduler, not
-     * something this plugin needs its own crontab line for), the Admin's
-     * Scheduler status page, or a Scheduler webhook.
+     * Registers every automatic, schedule-driven job this plugin offers -
+     * the always-on geo-db refresh, and five further opt-in/opt-out ones
+     * covering data pruning, rollups, IP anonymization, scan detection, and
+     * scan-alert retention (each its own registerXyzJob() method below,
+     * each independently gated on its own config field - see each method's
+     * own docblock for its specific config field(s) and default). Fired by
+     * Grav-Core's Scheduler whenever it actually runs - `bin/grav
+     * scheduler` (the site's single, already-existing cron entry for
+     * Grav's built-in Scheduler, not something this plugin needs its own
+     * crontab line for), the Admin's Scheduler status page, or a Scheduler
+     * webhook.
      *
-     * Both jobs are opt-in via config (geo_db_auto_update / data_auto_prune,
-     * each "disabled"|"weekly"|"monthly" - see blueprints.yaml,
-     * section_geolocation / section_data_retention). "disabled" is the
-     * default for data_auto_prune specifically: deleting stats is
-     * irreversible, so unlike the geo-db refresh it's opt-in, not
-     * opt-out. When enabled, the actual weekday/day-of-month and
-     * time-of-day are NOT admin-chosen - they're derived deterministically
-     * per installation, see AutoSchedule for why and how.
+     * Every job driven by an admin-facing "disabled"/cadence-style config
+     * field (all but the fixed-cadence scan detection/IP-anonymize/
+     * scan-alerts-prune jobs) never lets the admin pick a concrete weekday
+     * or time - the actual weekday/day-of-month and time-of-day are
+     * derived deterministically per installation instead, see
+     * AutoSchedule for why and how.
      */
     public function onSchedulerInitialized(Event $event): void
     {
@@ -1099,6 +1100,7 @@ class PageInsightsPlugin extends Plugin
         $this->registerRollupBuildJob($scheduler, $config);
         $this->registerScanDetectionJob($scheduler, $config);
         $this->registerIpAnonymizeJob($scheduler, $config);
+        $this->registerScanAlertsPruneJob($scheduler, $config);
     }
 
     /**
@@ -1423,5 +1425,60 @@ class PageInsightsPlugin extends Plugin
         // docblock for why.
         $job->at('*/5 * * * *');
         $job->output('logs/page-insights-scan-detection.out');
+    }
+
+    /**
+     * Storage-limitation counterpart to registerAutoPruneJob() above, but
+     * for "scan_alerts" (config "scan_alerts_auto_prune_older_than",
+     * default "90d") rather than "data" - see Stats::pruneScanAlerts()'s
+     * docblock for the DSGVO/GDPR reasoning (Erwägungsgrund 49 allows
+     * longer retention for network/information-security data than for
+     * ordinary traffic, but not unlimited).
+     *
+     * Deliberately a single select field (like anonymize_ips_after) rather
+     * than the separate schedule-cadence-plus-cutoff pair
+     * (data_auto_prune / data_auto_prune_older_than) used for "data": a
+     * "scan_alerts" row is small and short-lived by comparison (see
+     * docs/DATABASES.md), so an admin-chosen cadence would add a second
+     * knob for no real benefit here - this job always registers weekly
+     * regardless of the chosen retention period, plenty granular against a
+     * 30d-365d window. Mirrors registerIpAnonymizeJob()'s reasoning in the
+     * opposite direction (daily there because *coarser* than daily would
+     * matter for raw IPs sitting in "data").
+     */
+    private function registerScanAlertsPruneJob(Scheduler $scheduler, array $config): void
+    {
+        $olderThanRaw = (string) ($config['scan_alerts_auto_prune_older_than'] ?? 'disabled');
+        if ($olderThanRaw === 'disabled' || $olderThanRaw === '') {
+            return;
+        }
+
+        $cron = AutoSchedule::cronExpression(GRAV_ROOT, 'scan-alerts-prune', 'weekly');
+        $dbPath = (string) $config['db'];
+
+        $job = $scheduler->addFunction(
+            function () use ($dbPath, $config, $olderThanRaw) {
+                // Resolved fresh on every onSchedulerInitialized() call, not
+                // once at registration - same reasoning as
+                // registerAutoPruneJob()'s/registerIpAnonymizeJob()'s
+                // $cutoff.
+                $cutoff = RelativeDate::resolve($olderThanRaw);
+                if ($cutoff === null) {
+                    return "Scan-Alert-Pruning uebersprungen: ungueltiger Wert fuer scan_alerts_auto_prune_older_than ('{$olderThanRaw}').\n";
+                }
+
+                // No environment passed: operates across every site's
+                // scan_alerts at once, same reasoning as
+                // registerAutoPruneJob()/registerIpAnonymizeJob().
+                $stats = new Stats($dbPath, $config);
+                $deleted = $stats->pruneScanAlerts($cutoff);
+
+                return "Scan-Alert-Pruning: {$deleted} Eintrag/Eintraege geloescht (letzte Aktivitaet vor {$cutoff->format('c')}).\n";
+            },
+            [],
+            'page-insights-scan-alerts-prune'
+        );
+        $job->at($cron);
+        $job->output('logs/page-insights-scan-alerts-prune.out');
     }
 }

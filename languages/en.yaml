@@ -202,6 +202,13 @@ PLUGIN_PAGE_INSIGHTS:
     SCAN_DETECTION_WINDOW_HELP: "How far back each run looks, and how long an alert stays \"open\" afterwards."
     SCAN_DETECTION_EMAIL_LABEL: Alert email address
     SCAN_DETECTION_EMAIL_HELP: "Optional. Requires the separate, official \"email\" plugin (bin/gpm install email) to be installed and configured - sends nothing otherwise. Leave empty for dashboard notifications only."
+    SCAN_ALERTS_AUTO_PRUNE_OLDER_THAN_LABEL: Delete old scan alerts after
+    SCAN_ALERTS_AUTO_PRUNE_OLDER_THAN_HELP: "Automatically deletes scan-detection alerts (see above) once their last activity is older than the chosen period - runs weekly regardless of which period is chosen. \"Disabled\" keeps every alert indefinitely; since an alert only exists once \"Scan detection\" has been enabled, and always stores a raw, unmasked IP address, this is not recommended - see the manual."
+    SCAN_ALERTS_AUTO_PRUNE_DISABLED: Disabled (not recommended - unlimited retention of raw IP addresses)
+    SCAN_ALERTS_AUTO_PRUNE_30D: After 30 days
+    SCAN_ALERTS_AUTO_PRUNE_90D: After 90 days (recommended)
+    SCAN_ALERTS_AUTO_PRUNE_180D: After 180 days
+    SCAN_ALERTS_AUTO_PRUNE_365D: After 1 year (recommended maximum)
     SCAN_ALERT_TITLE: Possible vulnerability scan detected
     SCAN_ALERT_MESSAGE: "IP %s requested %s different known-vulnerable paths in a short window - this typically indicates automated probing, not regular visitor traffic. See the \"Scan detection\" view for details."
 

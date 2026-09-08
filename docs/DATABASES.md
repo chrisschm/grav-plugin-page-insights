@@ -187,6 +187,9 @@ single-column indexes, same reasoning as `idx_data_route`/`idx_data_date` for `d
 "Indexes" below): `Stats::detectScans()`'s "is there already an open alert for this IP" lookup
 filters on `ip` *and* `last_seen` together, but the table stays small (one row per currently-open
 incident, not one per hit) so a composite index was not worth the added complexity here.
+`idx_scan_alerts_last_seen` also backs `Stats::pruneScanAlerts()`'s retention deletes (config
+`scan_alerts_auto_prune_older_than`, see `ARCHITECTURE.md` "Scan detection", "Retention") - no
+additional index needed for that either.
 
 ### Table `scan_staging` (added in migration 12)
 

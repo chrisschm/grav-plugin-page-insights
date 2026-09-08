@@ -1000,6 +1000,47 @@ class Stats
     }
 
     /**
+     * Deletes "scan_alerts" rows whose last_seen is older than $before -
+     * the DSGVO/GDPR "Speicherbegrenzung" (storage limitation, Art. 5(1)(e))
+     * counterpart for "scan_alerts": unlike "data" (data_auto_prune) and
+     * "data.ip" (anonymize_ips_after), this table previously had no
+     * retention limit at all, so a confirmed-attacker IP stayed in
+     * scan_alerts forever, in the clear, regardless of how old the
+     * incident was.
+     *
+     * Filtered on "last_seen" rather than "first_seen" - the same column
+     * detectScans()/listOpenScanAlerts() already use to decide whether an
+     * incident is still "open", and always >= first_seen, so filtering on
+     * it is the more conservative of the two (never deletes an alert
+     * before its own most recent activity has actually aged out).
+     *
+     * Erwägungsgrund 49 DSGVO explicitly allows longer retention of data
+     * processed for network/information-security purposes than for
+     * ordinary traffic - the justification for "scan_alerts" having its
+     * own, longer-than-"data" retention knob
+     * (config "scan_alerts_auto_prune_older_than", default "90d") rather
+     * than simply reusing "data_auto_prune_older_than" - but "longer" is
+     * not "unlimited": see that field's blueprint (capped at "365d") for
+     * where that reasoning is actually enforced - a select offering
+     * nothing past one year, rather than a validated upper bound on free
+     * text.
+     *
+     * Uses the same datetime()-wrapped comparison as every other date-range
+     * query in this class - see "Date storage and comparison" in
+     * docs/DATABASES.md.
+     *
+     * @return int Number of deleted "scan_alerts" rows.
+     */
+    public function pruneScanAlerts(DateTimeImmutable $before): int
+    {
+        $s = $this->db->prepare('DELETE FROM scan_alerts WHERE datetime(last_seen) < datetime(:cutoff)');
+        $s->bindValue(':cutoff', $before->format('c'));
+        $s->execute();
+
+        return $s->rowCount();
+    }
+
+    /**
      * Rebuilds the SQLite file to actually reclaim the disk space of
      * deleted rows - SQLite otherwise only frees the pages internally and
      * keeps the file itself at its largest-ever size. Never run implicitly

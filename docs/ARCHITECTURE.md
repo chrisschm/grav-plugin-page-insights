@@ -255,6 +255,25 @@ view). Both `importScanPatterns()` (the CLI command) and `addScanPattern()` (the
 form) insert-only-if-missing (`INSERT OR IGNORE` against the `UNIQUE pattern` column) - re-running
 the import after an admin has disabled or added their own patterns never touches those rows.
 
+**Retention (`scan_alerts_auto_prune_older_than`, added 2026-09-08).** `scan_alerts` previously had
+no retention limit at all - a confirmed-attacker IP, in the clear, stayed there forever regardless
+of how old the incident was. Fixed with its own, single-field retention setting
+(`disabled`/`30d`/`90d`/`180d`/`365d`, default `90d`), the same shape as `anonymize_ips_after`
+below: a fixed weekly job (`PageInsightsPlugin::registerScanAlertsPruneJob()`,
+`Stats::pruneScanAlerts()`, CLI equivalent `bin/plugin page-insights prune:scan-alerts`) deletes
+rows whose `last_seen` is older than the chosen period. Deliberately its own knob rather than
+reusing `data_auto_prune_older_than`: Erwägungsgrund 49 DSGVO explicitly allows longer retention of
+data processed for network/information-security purposes than for ordinary traffic - the
+justification for `scan_alerts` warranting its own, independently-chosen retention default rather
+than simply inheriting whatever an admin happens to have set for `data`. "Longer" is not
+"unlimited" though: the select deliberately offers nothing past `365d`, rather than leaving this
+field an unbounded free-text value the way `data_auto_prune_older_than` technically still is.
+Unlike `anonymize_ips_after`, defaults to `90d` for *every* installation, not just fresh ones - no
+fresh-install-vs-upgrade split was needed here, since `scan_alerts` only exists for the small,
+recently-opted-in population of sites that already enabled `scan_detection` (itself added
+2026-08-24), not the entire multi-year installed base `anonymize_ips_after` had to stay
+compatible with.
+
 ## IP anonymization
 
 Added 2026-09-08 as a two-tier replacement for the previous all-or-nothing `anonymize_ips` toggle,

@@ -40,6 +40,13 @@ once, see [`HISTORY.md`](HISTORY.md) #9/#12).
   `ARCHITECTURE.md` "IP anonymization"). Same `<value>` syntax as `prune --older-than`
   (`RelativeDate::resolve()`). Unlike `prune`, no `--vacuum` option - this is an `UPDATE`, not a
   `DELETE`, and never changes the database file's size.
+- **`bin/plugin page-insights prune:scan-alerts --older-than=<value> [--yes] [--vacuum]`** -
+  deletes `scan_alerts` rows whose `last_seen` is older than `<value>` (`Stats::pruneScanAlerts()`)
+  - independent of `prune` above, which only ever touches `data`/`events`. Manual equivalent of the
+  optional automatic job (`PageInsightsPlugin::registerScanAlertsPruneJob()`, config
+  `scan_alerts_auto_prune_older_than`) - see `ARCHITECTURE.md` "Scan detection", "Retention" for
+  why `scan_alerts` has its own, independently-configured retention period rather than sharing
+  `data`'s.
 - **`bin/plugin page-insights events:prune-orphans`** - just the orphaned-`events` cleanup,
   without any age cutoff. `events.session_id` is declared `REFERENCES data (id)` in the schema but
   without `ON DELETE CASCADE`, and `Stats`'s own connection explicitly runs
@@ -146,7 +153,7 @@ knowing before adding a fourth scheduled job of this kind: only `\RuntimeExcepti
 caught this way, not `\Exception`/`\Error` in general, so a method meant to fail safely inside a
 scheduler job needs to actually throw that class (or a subclass of it).
 
-All four jobs are opt-in/opt-out via config, independently:
+All five jobs are opt-in/opt-out via config, independently:
 
 - `geo_db_auto_update` (`disabled`|`weekly`|`monthly`, **default `weekly`**) - safe to default to
   enabled, it only refreshes a lookup file.
@@ -173,6 +180,15 @@ All four jobs are opt-in/opt-out via config, independently:
   (still via `AutoSchedule::cronExpression()`, just with `mode` hardcoded to `daily`), since
   offering anything slower would let raw IP data sit well past whatever retention the admin
   actually chose.
+- `scan_alerts_auto_prune_older_than` (`disabled`|`30d`|`90d`|`180d`|`365d`, **default `90d`** for
+  every installation - see `ARCHITECTURE.md` "Scan detection", "Retention") - runs
+  `Stats::pruneScanAlerts()` for `scan_alerts` rows whose `last_seen` is older than the chosen
+  period, via `PageInsightsPlugin::registerScanAlertsPruneJob()`. Like `anonymize_ips_after`, a
+  single admin-facing field rather than a separate cadence choice - always registers at a fixed
+  *weekly* cadence (`mode` hardcoded to `weekly`) regardless of the period chosen, unlike
+  `anonymize_ips_after`'s *daily*: `scan_alerts` is a small, already security-relevant table, so a
+  week's slack against the chosen retention period doesn't meaningfully change the compliance
+  picture the way it would for raw IPs sitting in `data`.
 
 **Bot-/404-pruning is deliberately *not* a further scheduled job.** `prune:bots`/`prune:notfound`
 (CLI and dialog preset, above) stay manual-only - there is no `bot_auto_prune`/
@@ -197,7 +213,8 @@ used as the seed because it's the one value that's stable and available in every
 run from, including `bin/grav scheduler`'s own CLI context, which has no HTTP host to read at all -
 the trade-off is that moving a whole site to a different path/server shifts its computed schedule,
 accepted as a rare, harmless side effect. `$jobKey` (`"geo-db-update"` vs. `"data-auto-prune"` vs.
-`"rollup-build"` vs. `"ip-anonymize"`) keeps the jobs on one site from landing on the exact same second.
+`"rollup-build"` vs. `"ip-anonymize"` vs. `"scan-alerts-prune"`) keeps the jobs on one site from
+landing on the exact same second.
 
 **Not yet done, deliberately out of scope for this pass:** unlike `next_geo_db_update`/
 `next_auto_prune` below, there's no `next_rollup_build`/"next run" display wired into
@@ -262,6 +279,16 @@ as its own "E-Mail" field), which internally no-ops unless the separate, officia
 `ARCHITECTURE.md` for the full alerting design, including the independent, always-live Admin2
 dashboard banner (`onApiDashboardNotifications`).
 
+**Alert retention** (`scan_alerts_auto_prune_older_than`, see "Automatic scheduling" above for the
+full config/job description, and `ARCHITECTURE.md` "Scan detection", "Retention" for the DSGVO
+reasoning): `scan_alerts` rows are deleted once their `last_seen` is older than the chosen period
+(default `90d`), via a separate, fixed-weekly job
+(`PageInsightsPlugin::registerScanAlertsPruneJob()`) and its manual CLI equivalent
+(`bin/plugin page-insights prune:scan-alerts`, see "CLI commands" above) - independent of
+`scan_patterns`/`scan_detection` themselves, which have no age-based expiry at all (a pattern list
+is curated content, not collected traffic; a still-open incident's own `last_seen` keeps getting
+refreshed by `detectScans()`, so pruning here only ever removes genuinely stale, closed alerts).
+
 ---
 
 ## Auf Deutsch (Kurzfassung)
@@ -272,7 +299,7 @@ automatischen Scheduler-Jobs. Die zugrundeliegenden `Stats`-Methoden/das Schema 
 
 **CLI-Befehle** (`cli/`, automatisch von Grav über `PluginCommandLoader` erkannt):
 `geo-db:update`, `prune --older-than=<Wert> [--vacuum]`, `anonymize-ips --older-than=<Wert>`,
-`events:prune-orphans`, `vacuum`,
+`prune:scan-alerts --older-than=<Wert> [--vacuum]`, `events:prune-orphans`, `vacuum`,
 `rollup:build [--from=...]`, `prune:bots`, `prune:notfound` - letztere beide löschen unabhängig
 vom Alter (Bot- bzw. 404-Kriterium statt Alterskriterium).
 
@@ -280,18 +307,24 @@ vom Alter (Bot- bzw. 404-Kriterium statt Alterskriterium).
 (`vacuum`/`prune_orphans`/`prune_old`/`prune_bots`/`prune_notfound`), jeweils auf dieselben
 `Stats`-Methoden wie die CLI-Befehle abgebildet, `VACUUM` läuft danach immer.
 
-**Automatische Scheduler-Jobs** (`onSchedulerInitialized()`, `AutoSchedule`): vier unabhängig
+**Automatische Scheduler-Jobs** (`onSchedulerInitialized()`, `AutoSchedule`): fünf unabhängig
 zu-/abschaltbare Jobs (`geo_db_auto_update` Standard an, `data_auto_prune`/`rollup_auto_build`
 Standard aus, `anonymize_ips_after` Standard aus für Bestandsinstallationen/`30d` für
-Neuinstallationen) laufen als PHP-Closures im selben `bin/grav scheduler`-Aufruf mit, ohne eigenen
-Cron-Eintrag. `Job::exec()` fängt dabei bereits `\RuntimeException` um den Closure-Aufruf ab -
-`GeoDbUpdater::update()`s bewusst uncaught gelassene Exception wird dadurch automatisch
-abgefangen, ohne zusätzliches try/catch im Scheduler-Hook. Bot-/404-Pruning ist bewusst **kein**
-weiterer Scheduler-Job - anders als bei Alters-basiertem Löschen ist bei Bot-/404-Traffic weniger
-offensichtlich, dass unbeaufsichtigtes Löschen ohne bewusstes Hinschauen gewollt ist; bei Bedarf
-wäre ein optionaler weiterer Job (analog `data_auto_prune`) ein sauber abgrenzbares eigenes Feature.
-Konkreter Wochentag/Uhrzeit wird nie vom Admin gewählt, sondern deterministisch aus
-`crc32(GRAV_ROOT . jobKey)` abgeleitet, um eine Häufung vieler Installationen auf denselben
-Standard-Cron-Zeitpunkt zu vermeiden; `anonymize_ips_after` wählt zusätzlich nur die
-Aufbewahrungsfrist, nicht den Rhythmus selbst - der läuft fest täglich (siehe "Automatic
-scheduling" oben für die Begründung).
+Neuinstallationen, `scan_alerts_auto_prune_older_than` Standard `90d`) laufen als PHP-Closures im
+selben `bin/grav scheduler`-Aufruf mit, ohne eigenen Cron-Eintrag. `Job::exec()` fängt dabei
+bereits `\RuntimeException` um den Closure-Aufruf ab - `GeoDbUpdater::update()`s bewusst uncaught
+gelassene Exception wird dadurch automatisch abgefangen, ohne zusätzliches try/catch im
+Scheduler-Hook. Bot-/404-Pruning ist bewusst **kein** weiterer Scheduler-Job - anders als bei
+Alters-basiertem Löschen ist bei Bot-/404-Traffic weniger offensichtlich, dass unbeaufsichtigtes
+Löschen ohne bewusstes Hinschauen gewollt ist; bei Bedarf wäre ein optionaler weiterer Job (analog
+`data_auto_prune`) ein sauber abgrenzbares eigenes Feature. Bei den ersten drei ist der konkrete
+Wochentag/die Uhrzeit nie admin-wählbar, sondern deterministisch aus `crc32(GRAV_ROOT . jobKey)`
+abgeleitet, um eine Häufung vieler Installationen auf denselben Standard-Cron-Zeitpunkt zu
+vermeiden; `anonymize_ips_after` und `scan_alerts_auto_prune_older_than` wählen zusätzlich nur die
+Aufbewahrungsfrist, nicht den Rhythmus selbst - der läuft fest täglich bzw. wöchentlich (siehe
+"Automatic scheduling" oben für die Begründung).
+
+Zusätzlich läuft, unabhängig von `AutoSchedule`, der optionale Scan-Detection-Job
+(`scan_detection`, alle 5 Minuten, fester Cron statt `AutoSchedule` wegen des benötigten
+Sub-Tages-Intervalls) - siehe "Scan detection" oben für Details, Alarmierung und die eigene
+Aufbewahrungsfrist für `scan_alerts`.

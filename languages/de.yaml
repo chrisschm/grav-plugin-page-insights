@@ -276,6 +276,19 @@ PLUGIN_PAGE_INSIGHTS:
     "email"-Plugin (bin/gpm install email), installiert und konfiguriert -
     sonst passiert nichts. Leer lassen für ausschließlich
     Dashboard-Benachrichtigungen.
+  SCAN_ALERTS_AUTO_PRUNE_OLDER_THAN_LABEL: Alte Scan-Alarme löschen nach
+  SCAN_ALERTS_AUTO_PRUNE_OLDER_THAN_HELP: Löscht Scan-Detection-Alarme (siehe
+    oben) automatisch, sobald ihre letzte Aktivität länger als die gewählte
+    Frist zurückliegt - läuft unabhängig von der gewählten Frist wöchentlich.
+    "Deaktiviert" behält jeden Alarm unbegrenzt; da ein Alarm nur entsteht,
+    wenn "Scan-Erkennung" aktiviert wurde, und stets eine rohe, unmaskierte
+    IP-Adresse speichert, ist das nicht empfohlen - siehe Handbuch.
+  SCAN_ALERTS_AUTO_PRUNE_DISABLED: Deaktiviert (nicht empfohlen - unbegrenzte
+    Aufbewahrung roher IP-Adressen)
+  SCAN_ALERTS_AUTO_PRUNE_30D: Nach 30 Tagen
+  SCAN_ALERTS_AUTO_PRUNE_90D: Nach 90 Tagen (empfohlen)
+  SCAN_ALERTS_AUTO_PRUNE_180D: Nach 180 Tagen
+  SCAN_ALERTS_AUTO_PRUNE_365D: Nach 1 Jahr (empfohlenes Maximum)
   SCAN_ALERT_TITLE: Möglicher Schwachstellen-Scan erkannt
   SCAN_ALERT_MESSAGE: "IP %s hat %s verschiedene bekannt verwundbare Pfade in
     kurzer Zeit angefragt - das deutet typischerweise auf automatisiertes

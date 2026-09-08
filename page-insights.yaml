@@ -82,6 +82,25 @@ scan_detection_window_minutes: 10
 # only.
 scan_detection_alert_email: ''
 
+# Storage limitation for "scan_alerts" (see docs/ARCHITECTURE.md "Scan
+# detection" and docs/DATABASES.md): 'disabled'/'30d'/'90d'/'180d'/'365d' -
+# automatically deletes an alert once its last activity (last_seen) is
+# older than the chosen period. Unlike data_auto_prune/-_older_than above,
+# a single field (like anonymize_ips_after): runs at a fixed weekly
+# cadence whenever not 'disabled' (see
+# PageInsightsPlugin::registerScanAlertsPruneJob()) - no separate cadence
+# choice needed for a table this small. Default '90d' for every
+# installation, not just fresh ones - unlike anonymize_ips_after, this is
+# a brand-new field for a feature (scan_detection) no site has had enabled
+# for long, so there's no established behaviour a sensible default could
+# unexpectedly change. DSGVO Erwaegungsgrund 49 explicitly allows longer
+# retention for network/information-security data than for ordinary
+# traffic - the reason this default, and the longest option offered
+# ('365d'), are both longer than data_auto_prune_older_than's own default
+# would suggest - but 'longer' is not 'unlimited': the select deliberately
+# offers nothing past '365d'.
+scan_alerts_auto_prune_older_than: '90d'
+
 show_top_users_widget: true
 cols_top_users_widget: 'col-12 col-md-3'
 limit_top_users_widget: 10
