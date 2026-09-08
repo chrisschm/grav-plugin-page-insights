@@ -1,7 +1,7 @@
 # v3.5.1
 ## 09/08/2026
 
-1. [](#new)
+1. [](#bugfix)
     * fix: `anonymize_ips_after`'s scheduled job (`Stats::anonymizeAgedIps()`) could crash with an
       out-of-memory error on a large backlog - it loaded every row older than the cutoff into one PHP
       array via `fetchAll()` before masking any of them, which exhausted a 128M `memory_limit` in
