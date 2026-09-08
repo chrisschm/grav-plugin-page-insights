@@ -1,3 +1,16 @@
+# v3.5.1
+## 09/08/2026
+
+1. [](#new)
+    * fix: `anonymize_ips_after`'s scheduled job (`Stats::anonymizeAgedIps()`) could crash with an
+      out-of-memory error on a large backlog - it loaded every row older than the cutoff into one PHP
+      array via `fetchAll()` before masking any of them, which exhausted a 128M `memory_limit` in
+      production on a first run against an existing, multi-year `data` table. Fixed by processing in
+      fixed-size batches (`Stats::ANONYMIZE_BATCH_SIZE`, 500 rows per SELECT/UPDATE cycle, one
+      transaction each) instead of one `fetchAll()` covering the whole backlog - memory use is now
+      bounded regardless of backlog size. `prune:scan-alerts` and the other scheduled jobs were
+      unaffected (they never held matched rows in a PHP array at all).
+
 # v3.5.0
 ## 09/08/2026 ([bcb0f0d](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/bcb0f0da511e9b2f6ea43791777fffcb6d09ef35))
 

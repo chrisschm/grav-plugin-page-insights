@@ -530,6 +530,14 @@ class Stats
         return $ip;
     }
 
+    // Rows per SELECT/UPDATE cycle in anonymizeAgedIps() below - a first
+    // run against an existing, multi-year "data" table can have a huge
+    // backlog older than the cutoff, and loading all of it into one PHP
+    // array at once (the previous fetchAll()-the-whole-result approach)
+    // exhausted a 128M memory_limit in production. Batching bounds memory
+    // to one batch's worth of rows regardless of backlog size.
+    private const ANONYMIZE_BATCH_SIZE = 500;
+
     /**
      * Deferred/retroactive counterpart to the "anonymize_ips" (immediate)
      * config toggle: masks "data.ip" (via maskIp() above) for every row
@@ -551,41 +559,51 @@ class Stats
      * Deliberately row-by-row in PHP rather than one SQL UPDATE: IPv4 and
      * IPv6 need different truncation shapes (see maskIp()), so there is no
      * single SQL expression that masks both correctly in one statement.
-     * Batched into one transaction so a large backlog (e.g. a first run
-     * after enabling this feature on an existing site) doesn't fsync once
-     * per row.
+     *
+     * Processed in fixed-size batches (self::ANONYMIZE_BATCH_SIZE rows per
+     * SELECT/UPDATE cycle, one transaction each) rather than one
+     * SELECT ... fetchAll() covering the entire backlog in one go - see
+     * the constant's docblock above for why (2026-09 production incident:
+     * a 128M memory_limit exhausted, crashing the scheduled job with a
+     * 500). This costs one fsync per batch instead of per whole run -
+     * still far fewer than the one-fsync-per-row this already avoided by
+     * wrapping each batch in its own transaction.
      *
      * @return int Number of rows masked.
      */
     public function anonymizeAgedIps(DateTimeImmutable $before): int
     {
         $select = $this->db->prepare(
-            'SELECT id, ip FROM data WHERE ip_anonymized = 0 AND datetime(date) < datetime(:cutoff)'
+            'SELECT id, ip FROM data WHERE ip_anonymized = 0 AND datetime(date) < datetime(:cutoff) LIMIT :limit'
         );
-        $select->bindValue(':cutoff', $before->format('c'));
-        $select->execute();
-        $rows = $select->fetchAll(PDO::FETCH_ASSOC);
-
-        if (!$rows) {
-            return 0;
-        }
-
         $update = $this->db->prepare('UPDATE data SET ip = :ip, ip_anonymized = 1 WHERE id = :id');
 
-        $this->db->beginTransaction();
-        try {
-            foreach ($rows as $row) {
-                $update->bindValue(':ip', self::maskIp((string) $row['ip']));
-                $update->bindValue(':id', $row['id'], PDO::PARAM_INT);
-                $update->execute();
-            }
-            $this->db->commit();
-        } catch (\Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
+        $total = 0;
+        do {
+            $select->bindValue(':cutoff', $before->format('c'));
+            $select->bindValue(':limit', self::ANONYMIZE_BATCH_SIZE, PDO::PARAM_INT);
+            $select->execute();
+            $rows = $select->fetchAll(PDO::FETCH_ASSOC);
+            $batchCount = count($rows);
 
-        return count($rows);
+            if ($batchCount > 0) {
+                $this->db->beginTransaction();
+                try {
+                    foreach ($rows as $row) {
+                        $update->bindValue(':ip', self::maskIp((string) $row['ip']));
+                        $update->bindValue(':id', $row['id'], PDO::PARAM_INT);
+                        $update->execute();
+                    }
+                    $this->db->commit();
+                } catch (\Throwable $e) {
+                    $this->db->rollBack();
+                    throw $e;
+                }
+                $total += $batchCount;
+            }
+        } while ($batchCount === self::ANONYMIZE_BATCH_SIZE);
+
+        return $total;
     }
 
     /**
