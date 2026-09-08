@@ -1,4 +1,5 @@
-# unreleased
+# v3.5.0
+# 09/08/2026
 
 1. [](#new)
     * feat: added deferred IP anonymization - new `anonymize_ips_after` setting
