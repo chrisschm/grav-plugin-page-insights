@@ -1,5 +1,5 @@
 # v3.5.2
-## 09/09/2026
+## 09/09/2026 ([5c8be90](https://codeberg.org/chschmidt/grav-plugin-page-insights/commit/5c8be9053f0b729902de4b1f18b7ed54765da9a9))
 
 1. [](#bugfix)
     * fix: the `Nächste automatische Bereinigung`/"Next automatic pruning" status hint (Classic
