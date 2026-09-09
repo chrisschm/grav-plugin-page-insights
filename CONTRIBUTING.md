@@ -119,12 +119,13 @@ non-obvious design decisions.
 
 ## Release process (for context, maintainer-only)
 
-Releases are created by hand on Codeberg (tag `v*`), which is push-mirrored to GitHub. A
+Releases are created by hand on Codeberg, which is push-mirrored to GitHub. A
 `.github/workflows/release-from-tag.yml` workflow then turns that mirrored tag into a proper
 GitHub Release automatically — this only exists to make the GitHub mirror useful for people
-browsing there, not as the primary release process. It's deliberately scoped to `v*` tags only,
-so internal/development tags never spawn a spurious GitHub release. You don't need to do anything
-here as a contributor — just mention in your PR if you think a change warrants a version bump.
+browsing there, not as the primary release process. It's deliberately scoped to bare numeric
+tags (3.0.0) only, so internal/development tags never spawn a spurious GitHub release. You 
+don't need to do anything here as a contributor — just mention in your PR if you think a 
+change warrants a version bump.
 
 ## License
 

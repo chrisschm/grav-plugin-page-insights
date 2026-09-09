@@ -1,4 +1,5 @@
-# unreleased
+# v3.5.2
+## 09/09/2026
 
 1. [](#bugfix)
     * fix: the `Nächste automatische Bereinigung`/"Next automatic pruning" status hint (Classic
